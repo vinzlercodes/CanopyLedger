@@ -20,6 +20,15 @@ uv run ruff check .
 uv run mypy
 ```
 
+System-Python environment created for local tooling:
+
+```bash
+source .venv-system/bin/activate
+python -m pytest -q
+ruff check .
+mypy
+```
+
 ## Boundaries
 
 Reference implementation only. Not a production banking system, legal-compliance service, trading platform, or autonomous credit engine. Synthetic data only.

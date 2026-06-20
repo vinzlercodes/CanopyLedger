@@ -11,6 +11,10 @@ htmlcov/
 __pycache__/
 *.py[cod]
 .venv/
+.venv-system/
+.codex/
+AGENTS.md
+PROGRESS.md
 dist/
 build/
 *.egg-info/
@@ -22,4 +26,3 @@ data/private/
 *.pem
 *.key
 *.p12
-
