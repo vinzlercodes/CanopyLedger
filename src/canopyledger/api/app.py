@@ -4,10 +4,12 @@ import json
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_EVEN, Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Header, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from canopyledger.domain.ids import new_resource_id
@@ -83,6 +85,47 @@ class FreezeFacility(BaseModel):
     inputs: tuple[SnapshotInputReference, ...] = ()
 
 
+class HealthResponse(BaseModel):
+    status: str
+
+
+class FacilityResponse(BaseModel):
+    id: str
+    legal_name: str
+    currency: str
+    facility_commitment: str
+    version: int
+
+
+class SnapshotManifestResponse(BaseModel):
+    snapshot_id: str
+    facility_id: str
+    facility_working_version: int
+    as_of: str
+    market_bundle: BundleReference
+    policy_bundle: BundleReference
+    computation_bundle: BundleReference
+    inputs: tuple[SnapshotInputReference, ...]
+    digest: str
+
+
+class ProblemError(BaseModel):
+    field: tuple[str | int, ...]
+    message: str
+    kind: str
+
+
+class ProblemDetails(BaseModel):
+    type: str
+    title: str
+    status: int
+    detail: str
+    instance: str
+    code: str
+    trace_id: str
+    errors: tuple[ProblemError, ...] | None = None
+
+
 def create_app() -> FastAPI:
     """Create an isolated application instance with functional in-memory adapters."""
     app = FastAPI(title="CanopyLedger API", version="1.0.0")
@@ -90,9 +133,16 @@ def create_app() -> FastAPI:
     snapshots: dict[str, SnapshotManifest] = {}
     pipeline_start_outbox: list[str] = []
     idempotency = IdempotencyLedger()
+    bearer = HTTPBearer(auto_error=False)
 
-    def current_actor(authorization: Annotated[str | None, Header()] = None) -> str:
-        if authorization != "Bearer analyst-demo-token":
+    def current_actor(
+        credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
+    ) -> str:
+        if (
+            credentials is None
+            or credentials.scheme.lower() != "bearer"
+            or credentials.credentials != "analyst-demo-token"
+        ):
             raise _Problem(401, "UNAUTHENTICATED", "Valid demo bearer token required")
         return "act_analyst_demo"
 
@@ -106,11 +156,37 @@ def create_app() -> FastAPI:
     ) -> JSONResponse:
         return _problem_response(request, 409, "IDEMPOTENCY_KEY_REUSED", str(exc))
 
-    @app.get("/health")
-    def health() -> dict[str, str]:
-        return {"status": "ok"}
+    @app.exception_handler(RequestValidationError)
+    async def handle_request_validation(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        errors = tuple(
+            ProblemError(
+                field=tuple(item["loc"]),
+                message=item["msg"],
+                kind=item["type"],
+            )
+            for item in exc.errors()
+        )
+        return _problem_response(
+            request,
+            422,
+            "VALIDATION_FAILED",
+            "Request validation failed",
+            errors=errors,
+        )
 
-    @app.post("/api/v1/facilities", status_code=201)
+    @app.get("/health", operation_id="healthCheck", response_model=HealthResponse)
+    def health() -> HealthResponse:
+        return HealthResponse(status="ok")
+
+    @app.post(
+        "/api/v1/facilities",
+        status_code=201,
+        operation_id="createFacility",
+        response_model=FacilityResponse,
+        responses=_problem_responses(401, 409, 422),
+    )
     def create_facility(
         command: CreateFacility,
         actor: Annotated[str, Depends(current_actor)],
@@ -145,7 +221,12 @@ def create_app() -> FastAPI:
         idempotency.register(scope, fingerprint, stored, now=datetime.now(UTC))
         return _stored_http_response(stored, replayed=False)
 
-    @app.get("/api/v1/facilities/{facility_id}")
+    @app.get(
+        "/api/v1/facilities/{facility_id}",
+        operation_id="getFacility",
+        response_model=FacilityResponse,
+        responses=_problem_responses(401, 404, 422),
+    )
     def get_facility(
         facility_id: str,
         actor: Annotated[str, Depends(current_actor)],
@@ -156,7 +237,12 @@ def create_app() -> FastAPI:
             raise _Problem(404, "RESOURCE_NOT_FOUND", "Facility not found")
         return JSONResponse(record.representation, headers={"ETag": record.etag})
 
-    @app.patch("/api/v1/facilities/{facility_id}")
+    @app.patch(
+        "/api/v1/facilities/{facility_id}",
+        operation_id="updateFacility",
+        response_model=FacilityResponse,
+        responses=_problem_responses(401, 404, 409, 412, 422, 428),
+    )
     def update_facility(
         facility_id: str,
         command: UpdateFacility,
@@ -194,7 +280,13 @@ def create_app() -> FastAPI:
         idempotency.register(scope, fingerprint, stored, now=datetime.now(UTC))
         return _stored_http_response(stored, replayed=False)
 
-    @app.post("/api/v1/facilities/{facility_id}/snapshots", status_code=201)
+    @app.post(
+        "/api/v1/facilities/{facility_id}/snapshots",
+        status_code=201,
+        operation_id="freezeFacility",
+        response_model=SnapshotManifestResponse,
+        responses=_problem_responses(401, 404, 409, 412, 422, 428),
+    )
     def freeze_facility(
         facility_id: str,
         command: FreezeFacility,
@@ -246,7 +338,12 @@ def create_app() -> FastAPI:
         idempotency.register(scope, fingerprint, stored, now=datetime.now(UTC))
         return _stored_http_response(stored, replayed=False)
 
-    @app.get("/api/v1/snapshots/{snapshot_id}/manifest")
+    @app.get(
+        "/api/v1/snapshots/{snapshot_id}/manifest",
+        operation_id="getSnapshotManifest",
+        response_model=SnapshotManifestResponse,
+        responses=_problem_responses(401, 404, 422),
+    )
     def get_snapshot_manifest(
         snapshot_id: str,
         actor: Annotated[str, Depends(current_actor)],
@@ -267,19 +364,42 @@ class _Problem(Exception):
         self.detail = detail
 
 
-def _problem_response(request: Request, status: int, code: str, detail: str) -> JSONResponse:
+def _problem_responses(*statuses: int) -> dict[int | str, dict[str, Any]]:
+    return {
+        status: {
+            "description": "Problem Details",
+            "content": {
+                "application/problem+json": {
+                    "schema": {"$ref": "#/components/schemas/ProblemDetails"}
+                }
+            },
+        }
+        for status in statuses
+    }
+
+
+def _problem_response(
+    request: Request,
+    status: int,
+    code: str,
+    detail: str,
+    *,
+    errors: tuple[ProblemError, ...] | None = None,
+) -> JSONResponse:
+    problem = ProblemDetails(
+        type=f"https://canopyledger.example/problems/{code.lower()}",
+        title=code.replace("_", " ").title(),
+        status=status,
+        detail=detail,
+        instance=str(request.url.path),
+        code=code,
+        trace_id=new_resource_id("trc"),
+        errors=errors,
+    )
     return JSONResponse(
         status_code=status,
         media_type="application/problem+json",
-        content={
-            "type": f"https://canopyledger.example/problems/{code.lower()}",
-            "title": code.replace("_", " ").title(),
-            "status": status,
-            "detail": detail,
-            "instance": str(request.url.path),
-            "code": code,
-            "trace_id": new_resource_id("trc"),
-        },
+        content=problem.model_dump(mode="json", exclude_none=True),
     )
 
 

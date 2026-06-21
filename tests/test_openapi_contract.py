@@ -1,0 +1,98 @@
+"""Contract tests for the checked-in OpenAPI v1 artifact."""
+
+import json
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+from canopyledger.api.app import create_app
+from canopyledger.api.openapi import render_openapi_json
+
+ROOT = Path(__file__).resolve().parents[1]
+OPENAPI_ARTIFACT = ROOT / "docs" / "api" / "openapi-v1.json"
+
+
+def test_protected_operations_use_bearer_security() -> None:
+    schema = create_app().openapi()
+
+    assert schema["components"]["securitySchemes"]["HTTPBearer"] == {
+        "type": "http",
+        "scheme": "bearer",
+    }
+    assert "security" not in schema["paths"]["/health"]["get"]
+    for path, item in schema["paths"].items():
+        if path == "/health":
+            continue
+        for operation in item.values():
+            assert operation["security"] == [{"HTTPBearer": []}]
+            assert all(
+                parameter["name"].lower() != "authorization"
+                for parameter in operation.get("parameters", [])
+            )
+
+
+def test_operation_ids_are_explicit_stable_and_unique() -> None:
+    schema = create_app().openapi()
+    operation_ids = {
+        operation["operationId"]
+        for item in schema["paths"].values()
+        for method, operation in item.items()
+        if method in {"get", "post", "patch"}
+    }
+
+    assert operation_ids == {
+        "healthCheck",
+        "createFacility",
+        "getFacility",
+        "updateFacility",
+        "freezeFacility",
+        "getSnapshotManifest",
+    }
+
+
+def test_success_and_problem_responses_have_typed_schemas() -> None:
+    schema = create_app().openapi()
+    create = schema["paths"]["/api/v1/facilities"]["post"]
+
+    assert create["responses"]["201"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/FacilityResponse"
+    }
+    assert create["responses"]["401"]["content"]["application/problem+json"]["schema"] == {
+        "$ref": "#/components/schemas/ProblemDetails"
+    }
+    assert create["responses"]["422"]["content"]["application/problem+json"]["schema"] == {
+        "$ref": "#/components/schemas/ProblemDetails"
+    }
+
+
+def test_request_validation_uses_problem_details() -> None:
+    response = TestClient(create_app()).post(
+        "/api/v1/facilities",
+        headers={
+            "Authorization": "Bearer analyst-demo-token",
+            "Idempotency-Key": "invalid-facility",
+        },
+        json={"legal_name": "", "currency": "euro", "facility_commitment": "0"},
+    )
+
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/problem+json")
+    body = response.json()
+    assert body["code"] == "VALIDATION_FAILED"
+    assert body["trace_id"].startswith("trc_")
+    assert body["errors"]
+    assert {error["field"][-1] for error in body["errors"]} == {
+        "currency",
+        "facility_commitment",
+        "legal_name",
+    }
+
+
+def test_checked_in_openapi_matches_deterministic_generation() -> None:
+    assert OPENAPI_ARTIFACT.read_bytes() == render_openapi_json(create_app())
+
+
+def test_openapi_artifact_is_valid_json_with_a_trailing_newline() -> None:
+    artifact = OPENAPI_ARTIFACT.read_bytes()
+    assert artifact.endswith(b"\n")
+    assert json.loads(artifact)["info"]["version"] == "1.0.0"
