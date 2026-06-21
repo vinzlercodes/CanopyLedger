@@ -37,10 +37,23 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
       - run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+      - run: uv sync --locked --extra dev
       - run: bash tests/integration/test_database_roles.sh
         env:
           DATABASE_URL: postgresql://postgres:canopyledger-test@localhost:5432/canopyledger
+      - run: uv run alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:canopyledger-test@localhost:5432/canopyledger
+      - run: uv run alembic check
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:canopyledger-test@localhost:5432/canopyledger
+      - run: uv run pytest -m postgres -q
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:canopyledger-test@localhost:5432/canopyledger
 
   secrets-scan:
     runs-on: ubuntu-latest
