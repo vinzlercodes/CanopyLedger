@@ -17,7 +17,30 @@ jobs:
       - run: uv sync --locked --extra dev
       - run: uv run ruff check .
       - run: uv run mypy
+      - run: uv run python scripts/export_openapi.py --check
       - run: uv run pytest --cov=canopyledger --cov-report=xml
+
+  database-roles:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: canopyledger-test
+          POSTGRES_DB: canopyledger
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d canopyledger"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+      - run: bash tests/integration/test_database_roles.sh
+        env:
+          DATABASE_URL: postgresql://postgres:canopyledger-test@localhost:5432/canopyledger
 
   secrets-scan:
     runs-on: ubuntu-latest
