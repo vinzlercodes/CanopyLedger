@@ -4,6 +4,13 @@
 
 Invariant/state-machine/profile artifacts approved; shared canonical vectors pass; role matrix reviewed; no unresolved material research contradiction.
 
+Executable evidence:
+
+- exhaustive decision-cycle transition tests;
+- deterministic checked-in OpenAPI drift test;
+- PostgreSQL role, ownership, and privilege-isolation integration test;
+- dated OSS landscape review with an explicit contradiction assessment.
+
 ## M1A
 
 Concurrent freeze race; crash/replay idempotency; stale lease rejection; bundle immutability; canonical cross-runtime vectors; semantic replay.
@@ -47,4 +54,3 @@ Capability escalation; self-approval; unapproved policy; retry idempotency; prin
 ## M10
 
 Canonical report replay; normalized PDF; missing-font failure; renderer manifest; current/historical designation; non-final rejection.
-
