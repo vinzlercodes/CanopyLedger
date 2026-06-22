@@ -1,0 +1,92 @@
+{
+  "profile": "canopyledger-canonical-v1",
+  "json": [
+    {
+      "id": "object-order-and-nfc",
+      "value": {"z": "last", "origin": "Café", "a": 1},
+      "set_rules": [],
+      "expected_utf8": "{\"a\":1,\"origin\":\"Café\",\"z\":\"last\"}"
+    },
+    {
+      "id": "ordered-array",
+      "value": {"stages": [{"id": "second"}, {"id": "first"}]},
+      "set_rules": [],
+      "expected_utf8": "{\"stages\":[{\"id\":\"second\"},{\"id\":\"first\"}]}"
+    },
+    {
+      "id": "declared-set",
+      "value": {
+        "evidence": [
+          {"document_digest": "sha256:b", "document_id": "doc_2"},
+          {"document_digest": "sha256:a", "document_id": "doc_1"}
+        ]
+      },
+      "set_rules": [
+        {"path": ["evidence"], "sort_keys": ["document_digest", "document_id"]}
+      ],
+      "expected_utf8": "{\"evidence\":[{\"document_digest\":\"sha256:a\",\"document_id\":\"doc_1\"},{\"document_digest\":\"sha256:b\",\"document_id\":\"doc_2\"}]}"
+    }
+  ],
+  "decimals": [
+    {"id": "zero", "value": "0", "scale": 2, "expected": "0.00"},
+    {"id": "pad-scale", "value": "123.4", "scale": 2, "expected": "123.40"},
+    {"id": "negative", "value": "-0.25", "scale": 2, "expected": "-0.25"}
+  ],
+  "timestamps": [
+    {
+      "id": "utc",
+      "value": "2026-06-21T17:00:00+00:00",
+      "expected": "2026-06-21T17:00:00.000000Z"
+    },
+    {
+      "id": "offset-with-microseconds",
+      "value": "2026-06-21T22:30:00.123456+05:30",
+      "expected": "2026-06-21T17:00:00.123456Z"
+    }
+  ],
+  "digests": [
+    {
+      "id": "snapshot-domain-v1",
+      "artifact": "snapshot",
+      "version": 1,
+      "payload_utf8": "{\"amount\":\"1.00\"}",
+      "expected": "sha256:43896ca4b778d7845400f0b181d118a3edd5aaf185659c90817700eaf6368afc"
+    }
+  ],
+  "rejections": [
+    {
+      "id": "floating-point",
+      "operation": "json",
+      "value": {"amount": 1.25},
+      "set_rules": [],
+      "error": "floating-point"
+    },
+    {
+      "id": "missing-set-sort-key",
+      "operation": "json",
+      "value": {"items": [{"other": "value"}]},
+      "set_rules": [{"path": ["items"], "sort_keys": ["id"]}],
+      "error": "sort key is missing"
+    },
+    {
+      "id": "negative-zero",
+      "operation": "decimal",
+      "value": "-0.00",
+      "scale": 2,
+      "error": "negative zero"
+    },
+    {
+      "id": "decimal-rounding",
+      "operation": "decimal",
+      "value": "1.005",
+      "scale": 2,
+      "error": "declared scale"
+    },
+    {
+      "id": "naive-timestamp",
+      "operation": "timestamp",
+      "value": "2026-06-21T17:00:00",
+      "error": "timezone-aware"
+    }
+  ]
+}

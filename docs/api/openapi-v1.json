@@ -111,6 +111,9 @@
             "title": "Inputs",
             "type": "array"
           },
+          "legal_interpretation_bundle": {
+            "$ref": "#/components/schemas/BundleReference"
+          },
           "market_bundle": {
             "$ref": "#/components/schemas/BundleReference"
           },
@@ -122,6 +125,7 @@
           "as_of",
           "market_bundle",
           "policy_bundle",
+          "legal_interpretation_bundle",
           "computation_bundle"
         ],
         "title": "FreezeFacility",
@@ -196,6 +200,9 @@
             "title": "Inputs",
             "type": "array"
           },
+          "legal_interpretation_bundle": {
+            "$ref": "#/components/schemas/BundleReference"
+          },
           "market_bundle": {
             "$ref": "#/components/schemas/BundleReference"
           },
@@ -214,6 +221,7 @@
           "as_of",
           "market_bundle",
           "policy_bundle",
+          "legal_interpretation_bundle",
           "computation_bundle",
           "inputs",
           "digest"

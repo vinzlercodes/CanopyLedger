@@ -50,6 +50,7 @@ class SnapshotManifest(FrozenContract):
     as_of: datetime
     market_bundle: BundleReference
     policy_bundle: BundleReference
+    legal_interpretation_bundle: BundleReference
     computation_bundle: BundleReference
     inputs: tuple[SnapshotInputReference, ...]
 
@@ -76,6 +77,7 @@ class SnapshotManifest(FrozenContract):
             "as_of": canonical_timestamp(self.as_of),
             "market_bundle": self.market_bundle.model_dump(),
             "policy_bundle": self.policy_bundle.model_dump(),
+            "legal_interpretation_bundle": self.legal_interpretation_bundle.model_dump(),
             "computation_bundle": self.computation_bundle.model_dump(),
             "inputs": [item.model_dump() for item in self.inputs],
         }
