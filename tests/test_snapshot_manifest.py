@@ -26,6 +26,10 @@ def build_manifest(inputs: tuple[SnapshotInputReference, ...]) -> SnapshotManife
             resource_id="pol_0198a000-0000-7000-8000-000000000001",
             digest="sha256:" + "b" * 64,
         ),
+        legal_interpretation_bundle=BundleReference(
+            resource_id="leg_0198a000-0000-7000-8000-000000000001",
+            digest="sha256:" + "d" * 64,
+        ),
         computation_bundle=BundleReference(
             resource_id="cmp_0198a000-0000-7000-8000-000000000001",
             digest="sha256:" + "c" * 64,
@@ -59,6 +63,17 @@ def test_bundle_change_changes_manifest_digest() -> None:
         }
     )
     assert original.digest != changed.digest
+
+
+def test_manifest_pins_legal_interpretation_bundle() -> None:
+    data = build_manifest(()).model_dump()
+    data["legal_interpretation_bundle"] = BundleReference(
+        resource_id="leg_0198a000-0000-7000-8000-000000000001",
+        digest="sha256:" + "d" * 64,
+    )
+    manifest = SnapshotManifest.model_validate(data)
+    assert manifest.legal_interpretation_bundle.digest == "sha256:" + "d" * 64
+    assert b'"legal_interpretation_bundle"' in manifest.canonical_bytes
 
 
 def test_manifest_is_immutable() -> None:

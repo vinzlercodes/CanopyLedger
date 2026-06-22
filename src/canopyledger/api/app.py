@@ -81,6 +81,7 @@ class FreezeFacility(BaseModel):
     as_of: datetime
     market_bundle: BundleReference
     policy_bundle: BundleReference
+    legal_interpretation_bundle: BundleReference
     computation_bundle: BundleReference
     inputs: tuple[SnapshotInputReference, ...] = ()
 
@@ -104,6 +105,7 @@ class SnapshotManifestResponse(BaseModel):
     as_of: str
     market_bundle: BundleReference
     policy_bundle: BundleReference
+    legal_interpretation_bundle: BundleReference
     computation_bundle: BundleReference
     inputs: tuple[SnapshotInputReference, ...]
     digest: str
@@ -321,6 +323,7 @@ def create_app() -> FastAPI:
             as_of=command.as_of,
             market_bundle=command.market_bundle,
             policy_bundle=command.policy_bundle,
+            legal_interpretation_bundle=command.legal_interpretation_bundle,
             computation_bundle=command.computation_bundle,
             inputs=command.inputs,
         )
@@ -423,6 +426,7 @@ def _snapshot_representation(snapshot: SnapshotManifest) -> dict[str, object]:
         "as_of": snapshot.as_of.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
         "market_bundle": snapshot.market_bundle.model_dump(),
         "policy_bundle": snapshot.policy_bundle.model_dump(),
+        "legal_interpretation_bundle": snapshot.legal_interpretation_bundle.model_dump(),
         "computation_bundle": snapshot.computation_bundle.model_dump(),
         "inputs": [item.model_dump() for item in snapshot.inputs],
         "digest": snapshot.digest,
