@@ -93,7 +93,9 @@ def upgrade() -> None:
         BEGIN
             IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'application_writer') THEN
                 GRANT SELECT, INSERT, UPDATE ON {SCHEMA}.facility_working_state,
-                    {SCHEMA}.idempotency_record, {SCHEMA}.outbox_message
+                    {SCHEMA}.outbox_message
+                    TO application_writer;
+                GRANT SELECT, INSERT, UPDATE, DELETE ON {SCHEMA}.idempotency_record
                     TO application_writer;
                 GRANT SELECT, INSERT ON {SCHEMA}.bundle, {SCHEMA}.facility_snapshot,
                     {SCHEMA}.snapshot_input_reference, {SCHEMA}.idempotency_tombstone,
