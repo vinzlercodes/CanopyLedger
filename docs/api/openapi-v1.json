@@ -181,6 +181,14 @@
           "computation_bundle": {
             "$ref": "#/components/schemas/BundleReference"
           },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
           "digest": {
             "title": "Digest",
             "type": "string"
@@ -209,6 +217,10 @@
           "policy_bundle": {
             "$ref": "#/components/schemas/BundleReference"
           },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
           "snapshot_id": {
             "title": "Snapshot Id",
             "type": "string"
@@ -218,12 +230,15 @@
           "snapshot_id",
           "facility_id",
           "facility_working_version",
+          "schema_version",
           "as_of",
           "market_bundle",
           "policy_bundle",
           "legal_interpretation_bundle",
           "computation_bundle",
           "inputs",
+          "created_by",
+          "created_at",
           "digest"
         ],
         "title": "SnapshotManifestResponse",

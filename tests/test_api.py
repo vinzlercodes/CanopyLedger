@@ -151,7 +151,10 @@ def test_freeze_creates_immutable_snapshot_manifest() -> None:
     assert response.status_code == 201, response.text
     assert response.json()["snapshot_id"].startswith("snp_")
     assert response.json()["facility_working_version"] == 1
+    assert response.json()["schema_version"] == "1.0"
     assert response.json()["digest"].startswith("sha256:")
+    assert response.json()["created_by"].startswith("act_")
+    assert response.json()["created_at"].endswith("Z")
     assert response.json()["legal_interpretation_bundle"]["digest"] == "sha256:" + "d" * 64
 
     fetched = api.get(
