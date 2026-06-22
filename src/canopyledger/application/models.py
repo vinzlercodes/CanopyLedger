@@ -101,3 +101,42 @@ class OutboxMessageData:
     payload_digest: str
     created_at: datetime
     available_at: datetime
+
+
+@dataclass(frozen=True)
+class StageLease:
+    stage_id: str
+    attempt_id: str
+    worker_id: str
+    epoch: int
+    input_digest: str
+    lease_expires_at: datetime
+    maximum_lease_expires_at: datetime
+
+
+@dataclass(frozen=True)
+class StagePublicationData:
+    stage_id: str
+    worker_id: str
+    epoch: int
+    input_digest: str
+    output_schema_version: str
+    canonical_output: bytes
+    output_digest: str
+    output_id: str
+    outbox_message_id: str
+    audit_event_id: str
+    published_at: datetime
+
+
+@dataclass(frozen=True)
+class PublishedStage:
+    output_id: str
+    publication_key: str
+    output_digest: str
+
+
+@dataclass(frozen=True)
+class InboxResult:
+    outcome: bytes
+    replayed: bool

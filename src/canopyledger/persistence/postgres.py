@@ -6,24 +6,34 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Connection, Engine, delete, insert, select, update
+from sqlalchemy import Connection, Engine, delete, func, insert, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.exc import IntegrityError
 
-from canopyledger.application.integrity import SnapshotAlreadyFrozen
+from canopyledger.application.integrity import (
+    InboxDigestConflict,
+    SnapshotAlreadyFrozen,
+)
 from canopyledger.application.models import (
     AuditEventData,
     FacilityState,
+    InboxResult,
     OutboxMessageData,
+    PublishedStage,
     SnapshotData,
+    StageLease,
+    StagePublicationData,
 )
 from canopyledger.application.ports import IntegrityTransaction
 from canopyledger.integrity.bundles import BundleType, VersionBundle
+from canopyledger.integrity.canonical import canonical_json_bytes, domain_digest
 from canopyledger.integrity.idempotency import (
     IdempotencyConflict,
     IdempotencyScope,
     StoredResponse,
 )
+from canopyledger.integrity.pipeline import FencedPublication
 
 from .schema import (
     audit_event,
@@ -31,7 +41,12 @@ from .schema import (
     facility_working_state,
     idempotency_record,
     idempotency_tombstone,
+    inbox_receipt,
     outbox_message,
+    pipeline_run,
+    pipeline_stage,
+    pipeline_stage_attempt,
+    pipeline_stage_output,
     snapshot_input_reference,
 )
 from .schema import (
@@ -256,6 +271,284 @@ class PostgresIntegrityStore:
             )
             return _replay_record(record, fingerprint), True
 
+    def claim_stage(
+        self,
+        worker_id: str,
+        now: datetime,
+        lease_duration: timedelta,
+        maximum_lease_lifetime: timedelta,
+        attempt_id: str,
+    ) -> StageLease | None:
+        _require_aware(now)
+        with self._engine.begin() as connection:
+            eligible = (
+                select(pipeline_stage.c.resource_id)
+                .where(
+                    or_(
+                        pipeline_stage.c.status == "PENDING",
+                        (
+                            (pipeline_stage.c.status == "RUNNING")
+                            & (pipeline_stage.c.lease_expires_at <= now)
+                        ),
+                    )
+                )
+                .order_by(pipeline_stage.c.created_at, pipeline_stage.c.resource_id)
+                .limit(1)
+                .with_for_update(skip_locked=True)
+                .cte("eligible_stage")
+            )
+            row = (
+                connection.execute(
+                    update(pipeline_stage)
+                    .where(pipeline_stage.c.resource_id == eligible.c.resource_id)
+                    .values(
+                        status="RUNNING",
+                        lease_epoch=pipeline_stage.c.lease_epoch + 1,
+                        worker_id=worker_id,
+                        lease_started_at=now,
+                        lease_expires_at=now + lease_duration,
+                        maximum_lease_expires_at=now + maximum_lease_lifetime,
+                        updated_at=now,
+                    )
+                    .returning(
+                        pipeline_stage.c.resource_id,
+                        pipeline_stage.c.lease_epoch,
+                        pipeline_stage.c.input_digest,
+                        pipeline_stage.c.lease_expires_at,
+                        pipeline_stage.c.maximum_lease_expires_at,
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+            if row is None:
+                return None
+            connection.execute(
+                insert(pipeline_stage_attempt).values(
+                    resource_id=attempt_id,
+                    pipeline_stage_id=row["resource_id"],
+                    lease_epoch=row["lease_epoch"],
+                    worker_id=worker_id,
+                    started_at=now,
+                    heartbeat_at=now,
+                )
+            )
+            return _lease_from_row(row, attempt_id, worker_id)
+
+    def heartbeat_stage(
+        self,
+        stage_id: str,
+        worker_id: str,
+        epoch: int,
+        now: datetime,
+        lease_duration: timedelta,
+    ) -> StageLease:
+        _require_aware(now)
+        with self._engine.begin() as connection:
+            row = (
+                connection.execute(
+                    update(pipeline_stage)
+                    .where(
+                        pipeline_stage.c.resource_id == stage_id,
+                        pipeline_stage.c.status == "RUNNING",
+                        pipeline_stage.c.worker_id == worker_id,
+                        pipeline_stage.c.lease_epoch == epoch,
+                        pipeline_stage.c.lease_expires_at > now,
+                        pipeline_stage.c.maximum_lease_expires_at > now,
+                    )
+                    .values(
+                        lease_expires_at=func.least(
+                            now + lease_duration,
+                            pipeline_stage.c.maximum_lease_expires_at,
+                        ),
+                        updated_at=now,
+                    )
+                    .returning(
+                        pipeline_stage.c.resource_id,
+                        pipeline_stage.c.lease_epoch,
+                        pipeline_stage.c.input_digest,
+                        pipeline_stage.c.lease_expires_at,
+                        pipeline_stage.c.maximum_lease_expires_at,
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+            if row is None:
+                raise FencedPublication("heartbeat lease authority is stale or expired")
+            attempt_id = connection.execute(
+                update(pipeline_stage_attempt)
+                .where(
+                    pipeline_stage_attempt.c.pipeline_stage_id == stage_id,
+                    pipeline_stage_attempt.c.lease_epoch == epoch,
+                    pipeline_stage_attempt.c.worker_id == worker_id,
+                    pipeline_stage_attempt.c.finished_at.is_(None),
+                )
+                .values(heartbeat_at=now)
+                .returning(pipeline_stage_attempt.c.resource_id)
+            ).scalar_one()
+            return _lease_from_row(row, attempt_id, worker_id)
+
+    def publish_stage(self, publication: StagePublicationData) -> PublishedStage:
+        _require_aware(publication.published_at)
+        with self._engine.begin() as connection:
+            context = (
+                connection.execute(
+                    select(
+                        pipeline_stage.c.status,
+                        pipeline_stage.c.worker_id,
+                        pipeline_stage.c.lease_epoch,
+                        pipeline_stage.c.lease_expires_at,
+                        pipeline_stage.c.input_digest,
+                        pipeline_stage.c.stage_definition_id,
+                        pipeline_run.c.snapshot_id,
+                        facility_snapshot.c.computation_bundle_id,
+                        facility_snapshot.c.computation_bundle_digest,
+                    )
+                    .join(
+                        pipeline_run, pipeline_run.c.resource_id == pipeline_stage.c.pipeline_run_id
+                    )
+                    .join(
+                        facility_snapshot,
+                        facility_snapshot.c.resource_id == pipeline_run.c.snapshot_id,
+                    )
+                    .where(pipeline_stage.c.resource_id == publication.stage_id)
+                    .with_for_update(of=pipeline_stage)
+                )
+                .mappings()
+                .one()
+            )
+            if context["status"] != "RUNNING":
+                raise FencedPublication("stage must be RUNNING to publish")
+            if (
+                context["worker_id"] != publication.worker_id
+                or context["lease_epoch"] != publication.epoch
+            ):
+                raise FencedPublication("worker or lease epoch is stale")
+            if context["lease_expires_at"] <= publication.published_at:
+                raise FencedPublication("lease expired before publication")
+            if context["input_digest"] != publication.input_digest:
+                raise FencedPublication("input digest does not match run contract")
+            attempt_id = connection.execute(
+                select(pipeline_stage_attempt.c.resource_id).where(
+                    pipeline_stage_attempt.c.pipeline_stage_id == publication.stage_id,
+                    pipeline_stage_attempt.c.lease_epoch == publication.epoch,
+                    pipeline_stage_attempt.c.worker_id == publication.worker_id,
+                    pipeline_stage_attempt.c.finished_at.is_(None),
+                )
+            ).scalar_one()
+            publication_key = f"{publication.stage_id}:{context['stage_definition_id']}"
+            connection.execute(
+                insert(pipeline_stage_output).values(
+                    resource_id=publication.output_id,
+                    pipeline_stage_id=publication.stage_id,
+                    snapshot_id=context["snapshot_id"],
+                    computation_bundle_id=context["computation_bundle_id"],
+                    computation_bundle_digest=context["computation_bundle_digest"],
+                    publication_key=publication_key,
+                    input_digest=publication.input_digest,
+                    output_schema_version=publication.output_schema_version,
+                    canonical_output=publication.canonical_output,
+                    output_digest=publication.output_digest,
+                    published_attempt_id=attempt_id,
+                    published_lease_epoch=publication.epoch,
+                    published_at=publication.published_at,
+                )
+            )
+            connection.execute(
+                update(pipeline_stage)
+                .where(pipeline_stage.c.resource_id == publication.stage_id)
+                .values(
+                    status="SUCCEEDED",
+                    worker_id=None,
+                    lease_expires_at=None,
+                    maximum_lease_expires_at=None,
+                    updated_at=publication.published_at,
+                )
+            )
+            connection.execute(
+                update(pipeline_stage_attempt)
+                .where(pipeline_stage_attempt.c.resource_id == attempt_id)
+                .values(finished_at=publication.published_at, outcome="SUCCEEDED")
+            )
+            event_payload = canonical_json_bytes(
+                {
+                    "event_type": "pipeline.stage.published",
+                    "output_digest": publication.output_digest,
+                    "output_id": publication.output_id,
+                }
+            )
+            connection.execute(
+                insert(outbox_message).values(
+                    message_id=publication.outbox_message_id,
+                    topic="pipeline.stage.published",
+                    message_key=publication_key,
+                    payload=event_payload,
+                    payload_digest=domain_digest("outbox_message", 1, event_payload),
+                    created_at=publication.published_at,
+                    available_at=publication.published_at,
+                )
+            )
+            connection.execute(
+                insert(audit_event).values(
+                    event_id=publication.audit_event_id,
+                    actor_id=publication.worker_id,
+                    action="pipeline.stage.publish",
+                    resource_type="pipeline_stage_output",
+                    resource_id=publication.output_id,
+                    correlation_id=publication.stage_id,
+                    causation_id=attempt_id,
+                    before_digest=publication.input_digest,
+                    after_digest=publication.output_digest,
+                    reason=None,
+                    metadata={"lease_epoch": publication.epoch},
+                    occurred_at=publication.published_at,
+                )
+            )
+            if self._before_serializable_commit is not None:
+                self._before_serializable_commit()
+            return PublishedStage(publication.output_id, publication_key, publication.output_digest)
+
+    def record_inbox(
+        self,
+        consumer: str,
+        message_id: str,
+        message_digest: str,
+        outcome: bytes,
+        now: datetime,
+    ) -> InboxResult:
+        _require_aware(now)
+        with self._engine.begin() as connection:
+            inserted = connection.execute(
+                postgres_insert(inbox_receipt)
+                .values(
+                    consumer=consumer,
+                    message_id=message_id,
+                    message_digest=message_digest,
+                    outcome=outcome,
+                    received_at=now,
+                )
+                .on_conflict_do_nothing(
+                    index_elements=[inbox_receipt.c.consumer, inbox_receipt.c.message_id]
+                )
+                .returning(inbox_receipt.c.outcome)
+            ).scalar_one_or_none()
+            if inserted is not None:
+                return InboxResult(inserted, False)
+            existing = (
+                connection.execute(
+                    select(inbox_receipt).where(
+                        inbox_receipt.c.consumer == consumer,
+                        inbox_receipt.c.message_id == message_id,
+                    )
+                )
+                .mappings()
+                .one()
+            )
+            if existing["message_digest"] != message_digest:
+                raise InboxDigestConflict("message ID was reused with a different digest")
+            return InboxResult(existing["outcome"], True)
+
     def expire_idempotency_records(self, now: datetime) -> int:
         _require_aware(now)
         with self._engine.begin() as connection:
@@ -453,6 +746,18 @@ def _facility_from_row(row: RowMapping) -> FacilityState:
         version=row["version"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+    )
+
+
+def _lease_from_row(row: RowMapping, attempt_id: str, worker_id: str) -> StageLease:
+    return StageLease(
+        stage_id=row["resource_id"],
+        attempt_id=attempt_id,
+        worker_id=worker_id,
+        epoch=row["lease_epoch"],
+        input_digest=row["input_digest"],
+        lease_expires_at=row["lease_expires_at"],
+        maximum_lease_expires_at=row["maximum_lease_expires_at"],
     )
 
 
