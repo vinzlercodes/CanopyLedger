@@ -174,6 +174,7 @@ def test_migration_grants_only_required_writer_table_capabilities(
         ("application_writer", "facility_working_state", "DELETE"): False,
         ("application_writer", "bundle", "INSERT"): True,
         ("application_writer", "bundle", "UPDATE"): False,
+        ("application_writer", "idempotency_record", "DELETE"): True,
         ("application_writer", "pipeline_stage", "UPDATE"): False,
         ("pipeline_writer", "pipeline_stage", "SELECT"): True,
         ("pipeline_writer", "pipeline_stage", "INSERT"): True,
