@@ -10,26 +10,37 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from canopyledger.domain.ids import new_resource_id
-from canopyledger.integrity.canonical import canonical_json_bytes, domain_digest
+from canopyledger.integrity.bundles import BundleType, VersionBundle
+from canopyledger.integrity.canonical import (
+    canonical_json_bytes,
+    canonical_timestamp,
+    domain_digest,
+)
 from canopyledger.integrity.idempotency import (
     IdempotencyScope,
     StoredResponse,
     request_fingerprint,
 )
+from canopyledger.integrity.snapshot import BundleReference, SnapshotManifest
 
 from .models import (
     AuditEventData,
     CommandResponse,
     CreateFacilityCommand,
     FacilityState,
+    FreezeFacilityCommand,
+    OutboxMessageData,
+    SnapshotData,
     UpdateFacilityCommand,
 )
 from .ports import IntegrityStore, IntegrityTransaction
 
 __all__ = [
     "CreateFacilityCommand",
+    "FreezeFacilityCommand",
     "IntegrityService",
     "PreconditionFailed",
+    "SnapshotAlreadyFrozen",
     "UpdateFacilityCommand",
 ]
 
@@ -44,6 +55,14 @@ class FacilityNotFound(FacilityCommandError):
 
 class PreconditionFailed(FacilityCommandError):
     """Raised when a strong facility ETag does not match current state."""
+
+
+class BundleReferenceRejected(FacilityCommandError):
+    """Raised when a freeze bundle ID, digest, or type is not approved and immutable."""
+
+
+class SnapshotAlreadyFrozen(FacilityCommandError):
+    """Raised when a working facility version already has an immutable snapshot."""
 
 
 class IntegrityService:
@@ -178,6 +197,134 @@ class IntegrityService:
         stored, replayed = self._store.execute_idempotent(scope, fingerprint, now, execute)
         return CommandResponse(stored.status, stored.headers, stored.body, replayed)
 
+    def freeze_facility(self, command: FreezeFacilityCommand) -> CommandResponse:
+        _validate_freeze(command)
+        now = self._clock()
+        scope = IdempotencyScope(
+            command.actor_id,
+            "freeze_facility",
+            command.facility_id,
+            command.idempotency_key,
+        )
+        fingerprint = request_fingerprint(
+            method="POST",
+            path=f"/api/v1/facilities/{command.facility_id}/snapshots",
+            schema_version="facility-freeze-v1",
+            body={
+                "as_of": canonical_timestamp(command.as_of),
+                "market_bundle": command.market_bundle.model_dump(),
+                "policy_bundle": command.policy_bundle.model_dump(),
+                "legal_interpretation_bundle": command.legal_interpretation_bundle.model_dump(),
+                "computation_bundle": command.computation_bundle.model_dump(),
+                "inputs": [item.model_dump() for item in command.inputs],
+            },
+            relevant_headers={"if-match": command.if_match},
+        )
+
+        def execute(transaction: IntegrityTransaction) -> StoredResponse:
+            facility = transaction.get_facility_for_update(command.facility_id)
+            if facility is None:
+                raise FacilityNotFound("facility not found")
+            facility_representation = _facility_representation(facility)
+            facility_digest = _facility_digest(facility_representation)
+            if command.if_match != _facility_etag(facility, facility_digest):
+                raise PreconditionFailed("strong ETag does not match")
+            existing_snapshot = transaction.find_snapshot_id(command.facility_id, facility.version)
+            if existing_snapshot is not None:
+                raise SnapshotAlreadyFrozen(
+                    f"facility version already frozen as {existing_snapshot}"
+                )
+            _require_bundle(
+                transaction,
+                command.market_bundle,
+                BundleType.MARKET,
+            )
+            _require_bundle(
+                transaction,
+                command.policy_bundle,
+                BundleType.POLICY,
+            )
+            _require_bundle(
+                transaction,
+                command.legal_interpretation_bundle,
+                BundleType.LEGAL_INTERPRETATION,
+            )
+            _require_bundle(
+                transaction,
+                command.computation_bundle,
+                BundleType.COMPUTATION,
+            )
+            manifest = SnapshotManifest(
+                snapshot_id=self._id_factory("snp"),
+                facility_id=facility.resource_id,
+                facility_working_version=facility.version,
+                schema_version="1.0",
+                as_of=command.as_of,
+                market_bundle=command.market_bundle,
+                policy_bundle=command.policy_bundle,
+                legal_interpretation_bundle=command.legal_interpretation_bundle,
+                computation_bundle=command.computation_bundle,
+                inputs=command.inputs,
+                created_by=command.actor_id,
+                created_at=now,
+            )
+            transaction.insert_snapshot(
+                SnapshotData(
+                    manifest=manifest,
+                    legal_name=facility.legal_name,
+                    currency=facility.currency,
+                    facility_commitment=facility.facility_commitment,
+                )
+            )
+            outbox_payload = canonical_json_bytes(
+                {
+                    "event_type": "pipeline.start",
+                    "snapshot_digest": manifest.digest,
+                    "snapshot_id": manifest.snapshot_id,
+                }
+            )
+            transaction.insert_outbox_message(
+                OutboxMessageData(
+                    message_id=self._id_factory("msg"),
+                    topic="pipeline.start",
+                    message_key=f"{facility.resource_id}:{facility.version}",
+                    payload=outbox_payload,
+                    payload_digest=domain_digest("outbox_message", 1, outbox_payload),
+                    created_at=now,
+                    available_at=now,
+                )
+            )
+            transaction.append_audit_event(
+                AuditEventData(
+                    event_id=self._id_factory("aud"),
+                    actor_id=command.actor_id,
+                    action="snapshot.freeze",
+                    resource_type="facility_snapshot",
+                    resource_id=manifest.snapshot_id,
+                    correlation_id=command.correlation_id,
+                    causation_id=None,
+                    before_digest=facility_digest,
+                    after_digest=manifest.digest,
+                    reason=None,
+                    metadata={"facility_id": facility.resource_id},
+                    occurred_at=now,
+                )
+            )
+            representation = _snapshot_representation(manifest)
+            return StoredResponse(
+                201,
+                {
+                    "ETag": f'"snapshot:{manifest.snapshot_id}:{manifest.digest[7:]}"',
+                    "Location": f"/api/v1/snapshots/{manifest.snapshot_id}",
+                },
+                json.dumps(representation, separators=(",", ":")).encode(),
+            )
+
+        stored, replayed = self._store.execute_serializable_idempotent(
+            scope, fingerprint, now, execute
+        )
+        return CommandResponse(stored.status, stored.headers, stored.body, replayed)
+
 
 def _validate_create(command: CreateFacilityCommand) -> None:
     if not 1 <= len(command.legal_name) <= 200:
@@ -202,6 +349,30 @@ def _validate_update(command: UpdateFacilityCommand) -> None:
         raise FacilityCommandError("If-Match is required")
 
 
+def _validate_freeze(command: FreezeFacilityCommand) -> None:
+    if not command.if_match:
+        raise FacilityCommandError("If-Match is required")
+    if command.as_of.tzinfo is None or command.as_of.utcoffset() is None:
+        raise FacilityCommandError("snapshot as-of time must be timezone-aware")
+
+
+def _require_bundle(
+    transaction: IntegrityTransaction,
+    reference: BundleReference,
+    expected_type: BundleType,
+) -> VersionBundle:
+    bundle = transaction.get_bundle(reference.resource_id)
+    if (
+        bundle is None
+        or bundle.bundle_type is not expected_type
+        or bundle.digest != reference.digest
+    ):
+        raise BundleReferenceRejected(
+            f"snapshot requires an immutable {expected_type.value} bundle with matching digest"
+        )
+    return bundle
+
+
 def _facility_representation(facility: FacilityState) -> dict[str, str | int]:
     return {
         "id": facility.resource_id,
@@ -218,3 +389,21 @@ def _facility_digest(representation: dict[str, str | int]) -> str:
 
 def _facility_etag(facility: FacilityState, digest: str) -> str:
     return f'"facility:{facility.resource_id}:v{facility.version}:{digest[7:]}"'
+
+
+def _snapshot_representation(manifest: SnapshotManifest) -> dict[str, object]:
+    return {
+        "snapshot_id": manifest.snapshot_id,
+        "facility_id": manifest.facility_id,
+        "facility_working_version": manifest.facility_working_version,
+        "schema_version": manifest.schema_version,
+        "as_of": canonical_timestamp(manifest.as_of),
+        "market_bundle": manifest.market_bundle.model_dump(),
+        "policy_bundle": manifest.policy_bundle.model_dump(),
+        "legal_interpretation_bundle": manifest.legal_interpretation_bundle.model_dump(),
+        "computation_bundle": manifest.computation_bundle.model_dump(),
+        "inputs": [item.model_dump() for item in manifest.inputs],
+        "created_by": manifest.created_by,
+        "created_at": canonical_timestamp(manifest.created_at),
+        "digest": manifest.digest,
+    }

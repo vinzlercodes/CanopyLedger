@@ -6,6 +6,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 
+from canopyledger.integrity.snapshot import (
+    BundleReference,
+    SnapshotInputReference,
+    SnapshotManifest,
+)
+
 
 @dataclass(frozen=True)
 class FacilityState:
@@ -61,3 +67,37 @@ class UpdateFacilityCommand:
     legal_name: str
     reason: str
     correlation_id: str
+
+
+@dataclass(frozen=True)
+class FreezeFacilityCommand:
+    actor_id: str
+    facility_id: str
+    idempotency_key: str
+    if_match: str
+    as_of: datetime
+    market_bundle: BundleReference
+    policy_bundle: BundleReference
+    legal_interpretation_bundle: BundleReference
+    computation_bundle: BundleReference
+    inputs: tuple[SnapshotInputReference, ...]
+    correlation_id: str
+
+
+@dataclass(frozen=True)
+class SnapshotData:
+    manifest: SnapshotManifest
+    legal_name: str
+    currency: str
+    facility_commitment: str
+
+
+@dataclass(frozen=True)
+class OutboxMessageData:
+    message_id: str
+    topic: str
+    message_key: str
+    payload: bytes
+    payload_digest: str
+    created_at: datetime
+    available_at: datetime
