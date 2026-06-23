@@ -2,7 +2,7 @@
 
 **Canonical plan:** [CANOPYLEDGER_MASTER_PLAN.md](CANOPYLEDGER_MASTER_PLAN.md)
 **Condensed implementation guide:** [MASTER_PLAN.md](MASTER_PLAN.md)
-**Last updated:** 2026-06-23
+**Last updated:** 2026-06-26
 **Current phase:** M1B vertical slice; M0 and M1A complete
 
 ## Status vocabulary
@@ -122,6 +122,8 @@ None.
 | 2026-06-23 | PostgreSQL role bootstrap via PostgreSQL 17 `psql`, twice on `canopyledger_m1a_final2` | PASS | Final M1A idempotent capability-role/schema bootstrap equivalent to `tests/integration/test_database_roles.sh` setup |
 | 2026-06-23 | `DATABASE_URL=postgresql+psycopg://postgres:canopyledger-test@localhost:55432/canopyledger_m1a_final2 uv run alembic upgrade head && ... uv run alembic check && ... .venv/bin/pytest -m postgres -q` | PASS, 29 tests, 89 deselected | Final M1A PostgreSQL marker gate including durable API and replay tests |
 | 2026-06-23 | `.venv/bin/pytest -q` | PASS, 90 tests plus 28 expected database skips | Final M1A full local pytest gate without `DATABASE_URL` |
+| 2026-06-26 | `PATH=/private/tmp/canopyledger-psql-wrapper:$PATH DATABASE_URL=postgresql://postgres:canopyledger-test@localhost:55432/canopyledger_ci_pr_fix bash tests/integration/test_database_roles.sh` | PASS | CI database-role remediation on disposable PostgreSQL 17 database; role probe tables are removed before schema drift checks |
+| 2026-06-26 | `DATABASE_URL=postgresql+psycopg://postgres:canopyledger-test@localhost:55432/canopyledger_ci_pr_fix uv run alembic upgrade head && ... uv run alembic check` | PASS | Alembic reports no new upgrade operations after role-probe cleanup |
 
 ## Decision/change log
 
@@ -135,6 +137,7 @@ None.
 | 2026-06-22 | Freeze creation time is distinct from business `as_of` | Snapshot canonical manifest records schema version, actor, and creation timestamp without conflating reproducibility inputs with publication metadata |
 | 2026-06-22 | Freeze retries the entire short transaction at `SERIALIZABLE` | SQLSTATE 40001 retries cannot publish partial snapshot, audit, outbox, or idempotency state; one facility working version can be frozen only once |
 | 2026-06-22 | Worker authority is a live worker/epoch/input tuple | Heartbeats cannot exceed the attempt maximum; stale or expired workers cannot publish; output, stage/attempt completion, downstream outbox, and audit commit together |
+| 2026-06-26 | CodeQL CI runs without SARIF upload until repository code scanning is enabled | SAST gate can execute queries in CI without failing on disabled GitHub code scanning repository settings |
 
 ## Maintenance rules
 
