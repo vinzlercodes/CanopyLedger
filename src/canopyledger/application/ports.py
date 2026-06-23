@@ -8,6 +8,7 @@ from typing import Protocol
 
 from canopyledger.integrity.bundles import VersionBundle
 from canopyledger.integrity.idempotency import IdempotencyScope, StoredResponse
+from canopyledger.integrity.replay import ReplayPackage, ReplayResult
 
 from .models import (
     AuditEventData,
@@ -40,6 +41,19 @@ class IntegrityTransaction(Protocol):
 
 
 class IntegrityStore(Protocol):
+    def load_replay_package(
+        self, snapshot_id: str, declared_environment: dict[str, str]
+    ) -> ReplayPackage: ...
+
+    def append_replay_audit(
+        self,
+        result: ReplayResult,
+        actor_id: str,
+        correlation_id: str,
+        event_id: str,
+        occurred_at: datetime,
+    ) -> None: ...
+
     def claim_stage(
         self,
         worker_id: str,

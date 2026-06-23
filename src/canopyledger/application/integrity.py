@@ -21,6 +21,7 @@ from canopyledger.integrity.idempotency import (
     StoredResponse,
     request_fingerprint,
 )
+from canopyledger.integrity.replay import ReplayResult, verify_replay
 from canopyledger.integrity.snapshot import BundleReference, SnapshotManifest
 
 from .models import (
@@ -90,6 +91,26 @@ class IntegrityService:
         self._clock = clock
         self._id_factory = id_factory
         self._output_schema_validators = dict(output_schema_validators or {})
+
+    def verify_snapshot_replay(
+        self,
+        *,
+        snapshot_id: str,
+        declared_environment: dict[str, str],
+        current_environment: dict[str, str],
+        actor_id: str,
+        correlation_id: str,
+    ) -> ReplayResult:
+        package = self._store.load_replay_package(snapshot_id, declared_environment)
+        result = verify_replay(package, current_environment=current_environment)
+        self._store.append_replay_audit(
+            result,
+            actor_id,
+            correlation_id,
+            self._id_factory("aud"),
+            self._clock(),
+        )
+        return result
 
     def claim_stage(
         self,
