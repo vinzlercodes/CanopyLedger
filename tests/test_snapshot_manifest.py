@@ -17,6 +17,7 @@ def build_manifest(inputs: tuple[SnapshotInputReference, ...]) -> SnapshotManife
         snapshot_id="snp_0198a000-0000-7000-8000-000000000001",
         facility_id="fac_0198a000-0000-7000-8000-000000000001",
         facility_working_version=42,
+        schema_version="1.0",
         as_of=datetime(2026, 6, 21, 17, 0, tzinfo=UTC),
         market_bundle=BundleReference(
             resource_id="mkt_0198a000-0000-7000-8000-000000000001",
@@ -26,11 +27,17 @@ def build_manifest(inputs: tuple[SnapshotInputReference, ...]) -> SnapshotManife
             resource_id="pol_0198a000-0000-7000-8000-000000000001",
             digest="sha256:" + "b" * 64,
         ),
+        legal_interpretation_bundle=BundleReference(
+            resource_id="leg_0198a000-0000-7000-8000-000000000001",
+            digest="sha256:" + "d" * 64,
+        ),
         computation_bundle=BundleReference(
             resource_id="cmp_0198a000-0000-7000-8000-000000000001",
             digest="sha256:" + "c" * 64,
         ),
         inputs=inputs,
+        created_by="act_0198a000-0000-7000-8000-000000000001",
+        created_at=datetime(2026, 6, 21, 17, 5, tzinfo=UTC),
     )
 
 
@@ -59,6 +66,34 @@ def test_bundle_change_changes_manifest_digest() -> None:
         }
     )
     assert original.digest != changed.digest
+
+
+def test_manifest_pins_legal_interpretation_bundle() -> None:
+    data = build_manifest(()).model_dump()
+    data["legal_interpretation_bundle"] = BundleReference(
+        resource_id="leg_0198a000-0000-7000-8000-000000000001",
+        digest="sha256:" + "d" * 64,
+    )
+    manifest = SnapshotManifest.model_validate(data)
+    assert manifest.legal_interpretation_bundle.digest == "sha256:" + "d" * 64
+    assert b'"legal_interpretation_bundle"' in manifest.canonical_bytes
+
+
+def test_manifest_records_creation_metadata_separately_from_business_as_of() -> None:
+    data = build_manifest(()).model_dump()
+    data.update(
+        {
+            "schema_version": "1.0",
+            "created_by": "act_0198a000-0000-7000-8000-000000000001",
+            "created_at": datetime(2026, 6, 21, 17, 5, tzinfo=UTC),
+        }
+    )
+    manifest = SnapshotManifest.model_validate(data)
+    decoded = manifest.canonical_bytes.decode()
+    assert '"as_of":"2026-06-21T17:00:00.000000Z"' in decoded
+    assert '"created_at":"2026-06-21T17:05:00.000000Z"' in decoded
+    assert '"created_by":"act_0198a000-0000-7000-8000-000000000001"' in decoded
+    assert '"schema_version":"1.0"' in decoded
 
 
 def test_manifest_is_immutable() -> None:

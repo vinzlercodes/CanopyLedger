@@ -1,6 +1,7 @@
 """FastAPI application and first functional facility endpoints."""
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_EVEN, Decimal
@@ -81,6 +82,7 @@ class FreezeFacility(BaseModel):
     as_of: datetime
     market_bundle: BundleReference
     policy_bundle: BundleReference
+    legal_interpretation_bundle: BundleReference
     computation_bundle: BundleReference
     inputs: tuple[SnapshotInputReference, ...] = ()
 
@@ -101,11 +103,15 @@ class SnapshotManifestResponse(BaseModel):
     snapshot_id: str
     facility_id: str
     facility_working_version: int
+    schema_version: str
     as_of: str
     market_bundle: BundleReference
     policy_bundle: BundleReference
+    legal_interpretation_bundle: BundleReference
     computation_bundle: BundleReference
     inputs: tuple[SnapshotInputReference, ...]
+    created_by: str
+    created_at: str
     digest: str
 
 
@@ -126,7 +132,7 @@ class ProblemDetails(BaseModel):
     errors: tuple[ProblemError, ...] | None = None
 
 
-def create_app() -> FastAPI:
+def create_app(*, clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> FastAPI:
     """Create an isolated application instance with functional in-memory adapters."""
     app = FastAPI(title="CanopyLedger API", version="1.0.0")
     facilities: dict[str, FacilityRecord] = {}
@@ -144,7 +150,7 @@ def create_app() -> FastAPI:
             or credentials.credentials != "analyst-demo-token"
         ):
             raise _Problem(401, "UNAUTHENTICATED", "Valid demo bearer token required")
-        return "act_analyst_demo"
+        return "act_0198a000-0000-7000-8000-000000000001"
 
     @app.exception_handler(_Problem)
     async def handle_problem(request: Request, exc: _Problem) -> JSONResponse:
@@ -218,7 +224,7 @@ def create_app() -> FastAPI:
             headers={"ETag": record.etag, "Location": f"/api/v1/facilities/{resource_id}"},
             body=json.dumps(record.representation, separators=(",", ":")).encode(),
         )
-        idempotency.register(scope, fingerprint, stored, now=datetime.now(UTC))
+        idempotency.register(scope, fingerprint, stored, now=clock())
         return _stored_http_response(stored, replayed=False)
 
     @app.get(
@@ -277,7 +283,7 @@ def create_app() -> FastAPI:
             headers={"ETag": updated.etag},
             body=json.dumps(updated.representation, separators=(",", ":")).encode(),
         )
-        idempotency.register(scope, fingerprint, stored, now=datetime.now(UTC))
+        idempotency.register(scope, fingerprint, stored, now=clock())
         return _stored_http_response(stored, replayed=False)
 
     @app.post(
@@ -318,11 +324,15 @@ def create_app() -> FastAPI:
             snapshot_id=new_resource_id("snp"),
             facility_id=facility_id,
             facility_working_version=record.version,
+            schema_version="1.0",
             as_of=command.as_of,
             market_bundle=command.market_bundle,
             policy_bundle=command.policy_bundle,
+            legal_interpretation_bundle=command.legal_interpretation_bundle,
             computation_bundle=command.computation_bundle,
             inputs=command.inputs,
+            created_by=actor,
+            created_at=clock(),
         )
         snapshots[snapshot.snapshot_id] = snapshot
         pipeline_start_outbox.append(snapshot.snapshot_id)
@@ -335,7 +345,7 @@ def create_app() -> FastAPI:
             },
             body=json.dumps(representation, separators=(",", ":")).encode(),
         )
-        idempotency.register(scope, fingerprint, stored, now=datetime.now(UTC))
+        idempotency.register(scope, fingerprint, stored, now=clock())
         return _stored_http_response(stored, replayed=False)
 
     @app.get(
@@ -420,10 +430,14 @@ def _snapshot_representation(snapshot: SnapshotManifest) -> dict[str, object]:
         "snapshot_id": snapshot.snapshot_id,
         "facility_id": snapshot.facility_id,
         "facility_working_version": snapshot.facility_working_version,
+        "schema_version": snapshot.schema_version,
         "as_of": snapshot.as_of.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
         "market_bundle": snapshot.market_bundle.model_dump(),
         "policy_bundle": snapshot.policy_bundle.model_dump(),
+        "legal_interpretation_bundle": snapshot.legal_interpretation_bundle.model_dump(),
         "computation_bundle": snapshot.computation_bundle.model_dump(),
         "inputs": [item.model_dump() for item in snapshot.inputs],
+        "created_by": snapshot.created_by,
+        "created_at": snapshot.created_at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
         "digest": snapshot.digest,
     }

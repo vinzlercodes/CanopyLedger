@@ -1,4 +1,4 @@
-.PHONY: setup test test-database-roles lint typecheck openapi openapi-check verify
+.PHONY: setup test test-database-roles test-m1a-postgres migrate migrate-check lint typecheck openapi openapi-check verify
 
 setup:
 	uv sync --extra dev
@@ -8,6 +8,15 @@ test:
 
 test-database-roles:
 	bash tests/integration/test_database_roles.sh
+
+test-m1a-postgres:
+	uv run pytest -m postgres -q
+
+migrate:
+	uv run alembic upgrade head
+
+migrate-check:
+	uv run alembic check
 
 lint:
 	uv run ruff check .
