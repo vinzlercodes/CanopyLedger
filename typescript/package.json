@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "client:check": "python3 ../scripts/check_typescript_client.py",
+    "client:generate": "python3 ../scripts/check_typescript_client.py --write",
     "test": "tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
