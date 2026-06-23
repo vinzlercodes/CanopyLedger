@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -34,6 +34,12 @@ from canopyledger.integrity.idempotency import (
     StoredResponse,
 )
 from canopyledger.integrity.pipeline import FencedPublication
+from canopyledger.integrity.replay import ReplayArtifact, ReplayPackage, ReplayResult
+from canopyledger.integrity.snapshot import (
+    BundleReference,
+    SnapshotInputReference,
+    SnapshotManifest,
+)
 
 from .schema import (
     audit_event,
@@ -549,6 +555,131 @@ class PostgresIntegrityStore:
                 raise InboxDigestConflict("message ID was reused with a different digest")
             return InboxResult(existing["outcome"], True)
 
+    def load_replay_package(
+        self, snapshot_id: str, declared_environment: dict[str, str]
+    ) -> ReplayPackage:
+        with self._engine.connect() as connection:
+            snapshot = (
+                connection.execute(
+                    select(facility_snapshot).where(facility_snapshot.c.resource_id == snapshot_id)
+                )
+                .mappings()
+                .one()
+            )
+            bundle_ids = (
+                snapshot["market_bundle_id"],
+                snapshot["policy_bundle_id"],
+                snapshot["legal_interpretation_bundle_id"],
+                snapshot["computation_bundle_id"],
+            )
+            bundles = (
+                connection.execute(
+                    select(bundle_table).where(bundle_table.c.resource_id.in_(bundle_ids))
+                )
+                .mappings()
+                .all()
+            )
+            outputs = (
+                connection.execute(
+                    select(pipeline_stage_output).where(
+                        pipeline_stage_output.c.snapshot_id == snapshot_id
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            inputs = (
+                connection.execute(
+                    select(snapshot_input_reference)
+                    .where(snapshot_input_reference.c.snapshot_id == snapshot_id)
+                    .order_by(snapshot_input_reference.c.position)
+                )
+                .mappings()
+                .all()
+            )
+        domains = {
+            "MARKET": "market_bundle",
+            "POLICY": "policy_bundle",
+            "LEGAL_INTERPRETATION": "legal_interpretation_bundle",
+            "COMPUTATION": "computation_bundle",
+        }
+        artifacts = [
+            ReplayArtifact(
+                "facility_snapshot",
+                snapshot_id,
+                "snapshot_manifest",
+                1,
+                snapshot["canonical_manifest"],
+                snapshot["digest"],
+            )
+        ]
+        reconstructed_manifest = _reconstruct_snapshot_manifest(snapshot, inputs)
+        artifacts.append(
+            ReplayArtifact(
+                "facility_snapshot_reconstructed",
+                snapshot_id,
+                "snapshot_manifest",
+                1,
+                reconstructed_manifest.canonical_bytes,
+                snapshot["digest"],
+            )
+        )
+        artifacts.extend(
+            ReplayArtifact(
+                "bundle",
+                row["resource_id"],
+                domains[row["bundle_type"]],
+                1,
+                row["canonical_payload"],
+                row["digest"],
+            )
+            for row in bundles
+        )
+        artifacts.extend(
+            ReplayArtifact(
+                "pipeline_stage_output",
+                row["resource_id"],
+                "pipeline_stage_output",
+                1,
+                row["canonical_output"],
+                row["output_digest"],
+            )
+            for row in outputs
+        )
+        return ReplayPackage(snapshot_id, tuple(artifacts), declared_environment)
+
+    def append_replay_audit(
+        self,
+        result: ReplayResult,
+        actor_id: str,
+        correlation_id: str,
+        event_id: str,
+        occurred_at: datetime,
+    ) -> None:
+        _require_aware(occurred_at)
+        result_digest = domain_digest("replay_result", 1, result.canonical_bytes)
+        with self._engine.begin() as connection:
+            connection.execute(
+                insert(audit_event).values(
+                    event_id=event_id,
+                    actor_id=actor_id,
+                    action="snapshot.replay.verify",
+                    resource_type="facility_snapshot",
+                    resource_id=result.snapshot_id,
+                    correlation_id=correlation_id,
+                    causation_id=None,
+                    before_digest=None,
+                    after_digest=result_digest,
+                    reason=None,
+                    metadata={
+                        "level_a": result.level_a.value,
+                        "level_b": result.level_b.value,
+                        "issues": [issue.code for issue in result.issues],
+                    },
+                    occurred_at=occurred_at,
+                )
+            )
+
     def expire_idempotency_records(self, now: datetime) -> int:
         _require_aware(now)
         with self._engine.begin() as connection:
@@ -723,6 +854,45 @@ class _PostgresIntegrityTransaction:
                 available_at=message.available_at,
             )
         )
+
+
+def _reconstruct_snapshot_manifest(
+    snapshot: RowMapping,
+    inputs: Sequence[RowMapping],
+) -> SnapshotManifest:
+    return SnapshotManifest(
+        snapshot_id=snapshot["resource_id"],
+        facility_id=snapshot["facility_id"],
+        facility_working_version=snapshot["facility_working_version"],
+        schema_version="1.0",
+        as_of=snapshot["as_of"],
+        market_bundle=BundleReference(
+            resource_id=snapshot["market_bundle_id"],
+            digest=snapshot["market_bundle_digest"],
+        ),
+        policy_bundle=BundleReference(
+            resource_id=snapshot["policy_bundle_id"],
+            digest=snapshot["policy_bundle_digest"],
+        ),
+        legal_interpretation_bundle=BundleReference(
+            resource_id=snapshot["legal_interpretation_bundle_id"],
+            digest=snapshot["legal_interpretation_bundle_digest"],
+        ),
+        computation_bundle=BundleReference(
+            resource_id=snapshot["computation_bundle_id"],
+            digest=snapshot["computation_bundle_digest"],
+        ),
+        inputs=tuple(
+            SnapshotInputReference(
+                resource_type=row["resource_type"],
+                resource_id=row["resource_id"],
+                digest=row["digest"],
+            )
+            for row in inputs
+        ),
+        created_by=snapshot["created_by"],
+        created_at=snapshot["created_at"],
+    )
 
 
 def _bundle_from_row(row: Any) -> VersionBundle:
