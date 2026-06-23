@@ -18,6 +18,9 @@ dependencies = [
   "uvicorn>=0.34,<1",
 ]
 
+[project.scripts]
+canopyledger-replay = "canopyledger.cli.replay:main"
+
 [project.optional-dependencies]
 dev = [
   "httpx2>=2.4,<3",

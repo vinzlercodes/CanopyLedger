@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from canopyledger.domain.ids import new_resource_id
@@ -21,6 +21,7 @@ from canopyledger.integrity.idempotency import (
     StoredResponse,
     request_fingerprint,
 )
+from canopyledger.integrity.replay import ReplayResult, verify_replay
 from canopyledger.integrity.snapshot import BundleReference, SnapshotManifest
 
 from .models import (
@@ -29,8 +30,12 @@ from .models import (
     CreateFacilityCommand,
     FacilityState,
     FreezeFacilityCommand,
+    InboxResult,
     OutboxMessageData,
+    PublishedStage,
     SnapshotData,
+    StageLease,
+    StagePublicationData,
     UpdateFacilityCommand,
 )
 from .ports import IntegrityStore, IntegrityTransaction
@@ -65,6 +70,14 @@ class SnapshotAlreadyFrozen(FacilityCommandError):
     """Raised when a working facility version already has an immutable snapshot."""
 
 
+class OutputSchemaRejected(FacilityCommandError):
+    """Raised when a stage output does not match a registered versioned schema."""
+
+
+class InboxDigestConflict(FacilityCommandError):
+    """Raised when a delivered message ID is reused with different content."""
+
+
 class IntegrityService:
     def __init__(
         self,
@@ -72,10 +85,105 @@ class IntegrityService:
         *,
         clock: Callable[[], datetime],
         id_factory: Callable[[str], str] = new_resource_id,
+        output_schema_validators: Mapping[str, Callable[[object], bool]] | None = None,
     ) -> None:
         self._store = store
         self._clock = clock
         self._id_factory = id_factory
+        self._output_schema_validators = dict(output_schema_validators or {})
+
+    def verify_snapshot_replay(
+        self,
+        *,
+        snapshot_id: str,
+        declared_environment: dict[str, str],
+        current_environment: dict[str, str],
+        actor_id: str,
+        correlation_id: str,
+    ) -> ReplayResult:
+        package = self._store.load_replay_package(snapshot_id, declared_environment)
+        result = verify_replay(package, current_environment=current_environment)
+        self._store.append_replay_audit(
+            result,
+            actor_id,
+            correlation_id,
+            self._id_factory("aud"),
+            self._clock(),
+        )
+        return result
+
+    def claim_stage(
+        self,
+        *,
+        worker_id: str,
+        now: datetime,
+        lease_duration: timedelta,
+        maximum_lease_lifetime: timedelta,
+    ) -> StageLease | None:
+        if not worker_id or lease_duration <= timedelta(0):
+            raise FacilityCommandError("worker and positive lease duration are required")
+        if maximum_lease_lifetime < lease_duration:
+            raise FacilityCommandError("maximum lease lifetime cannot be shorter than lease")
+        return self._store.claim_stage(
+            worker_id,
+            now,
+            lease_duration,
+            maximum_lease_lifetime,
+            self._id_factory("att"),
+        )
+
+    def heartbeat(
+        self,
+        *,
+        stage_id: str,
+        worker_id: str,
+        epoch: int,
+        now: datetime,
+        lease_duration: timedelta,
+    ) -> StageLease:
+        return self._store.heartbeat_stage(stage_id, worker_id, epoch, now, lease_duration)
+
+    def publish_stage(
+        self,
+        *,
+        stage_id: str,
+        worker_id: str,
+        epoch: int,
+        input_digest: str,
+        output_schema_version: str,
+        output: object,
+        now: datetime,
+    ) -> PublishedStage:
+        validator = self._output_schema_validators.get(output_schema_version)
+        if validator is None or not validator(output):
+            raise OutputSchemaRejected("stage output schema is unknown or invalid")
+        canonical_output = canonical_json_bytes(output)
+        return self._store.publish_stage(
+            StagePublicationData(
+                stage_id=stage_id,
+                worker_id=worker_id,
+                epoch=epoch,
+                input_digest=input_digest,
+                output_schema_version=output_schema_version,
+                canonical_output=canonical_output,
+                output_digest=domain_digest("pipeline_stage_output", 1, canonical_output),
+                output_id=self._id_factory("out"),
+                outbox_message_id=self._id_factory("msg"),
+                audit_event_id=self._id_factory("aud"),
+                published_at=now,
+            )
+        )
+
+    def record_inbox(
+        self,
+        *,
+        consumer: str,
+        message_id: str,
+        message_digest: str,
+        outcome: bytes,
+        now: datetime,
+    ) -> InboxResult:
+        return self._store.record_inbox(consumer, message_id, message_digest, outcome, now)
 
     def create_facility(self, command: CreateFacilityCommand) -> CommandResponse:
         _validate_create(command)

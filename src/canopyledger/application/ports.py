@@ -3,13 +3,23 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Protocol
 
 from canopyledger.integrity.bundles import VersionBundle
 from canopyledger.integrity.idempotency import IdempotencyScope, StoredResponse
+from canopyledger.integrity.replay import ReplayPackage, ReplayResult
 
-from .models import AuditEventData, FacilityState, OutboxMessageData, SnapshotData
+from .models import (
+    AuditEventData,
+    FacilityState,
+    InboxResult,
+    OutboxMessageData,
+    PublishedStage,
+    SnapshotData,
+    StageLease,
+    StagePublicationData,
+)
 
 
 class IntegrityTransaction(Protocol):
@@ -31,6 +41,48 @@ class IntegrityTransaction(Protocol):
 
 
 class IntegrityStore(Protocol):
+    def load_replay_package(
+        self, snapshot_id: str, declared_environment: dict[str, str]
+    ) -> ReplayPackage: ...
+
+    def append_replay_audit(
+        self,
+        result: ReplayResult,
+        actor_id: str,
+        correlation_id: str,
+        event_id: str,
+        occurred_at: datetime,
+    ) -> None: ...
+
+    def claim_stage(
+        self,
+        worker_id: str,
+        now: datetime,
+        lease_duration: timedelta,
+        maximum_lease_lifetime: timedelta,
+        attempt_id: str,
+    ) -> StageLease | None: ...
+
+    def heartbeat_stage(
+        self,
+        stage_id: str,
+        worker_id: str,
+        epoch: int,
+        now: datetime,
+        lease_duration: timedelta,
+    ) -> StageLease: ...
+
+    def publish_stage(self, publication: StagePublicationData) -> PublishedStage: ...
+
+    def record_inbox(
+        self,
+        consumer: str,
+        message_id: str,
+        message_digest: str,
+        outcome: bytes,
+        now: datetime,
+    ) -> InboxResult: ...
+
     def execute_idempotent(
         self,
         scope: IdempotencyScope,

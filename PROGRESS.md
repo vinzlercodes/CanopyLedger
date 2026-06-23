@@ -2,7 +2,7 @@
 
 **Canonical plan:** [CANOPYLEDGER_MASTER_PLAN.md](CANOPYLEDGER_MASTER_PLAN.md)
 **Condensed implementation guide:** [MASTER_PLAN.md](MASTER_PLAN.md)
-**Last updated:** 2026-06-22
+**Last updated:** 2026-06-23
 **Current phase:** M1A/M1B vertical slice; M0 complete
 
 ## Status vocabulary
@@ -17,7 +17,7 @@
 | Milestone | Status | Built | Remaining | Gate evidence |
 |---|---|---|---|---|
 | M0 Normative foundation | DONE | Approved normative contracts; executable state machine; versioned OpenAPI; PostgreSQL capability roles; OSS landscape review; scaffold, CI, and Apache-2.0 license | - | 66 tests, OpenAPI drift check, PostgreSQL 17 privilege integration, lint, type, and build gates pass; no material research contradiction |
-| M1A Integrity kernel | IN_PROGRESS | Canonical value profile with Python/TypeScript parity vectors; immutable bundles and snapshot manifests; durable idempotency; PostgreSQL resource schema; serializable facility freeze with state copy, four bundle pins, snapshot inputs, audit, and outbox in one transaction; fenced stage publication domain protocol; local immutable object store; facility/snapshot API slice | Transactional fenced output/outbox publication; inbox; durable HTTP wiring; generated TypeScript client; Level A/B replay harness; final M1A gate | 86 Python tests, 20 clean-database PostgreSQL tests, 14 TypeScript parity tests, Ruff, and mypy pass; milestone gate remains open |
+| M1A Integrity kernel | IN_PROGRESS | Canonical value profile with Python/TypeScript parity vectors; immutable bundles and snapshot manifests; durable idempotency; PostgreSQL resource schema; serializable facility freeze; leased `SKIP LOCKED` stage queue; bounded heartbeats and monotonic fencing epochs; inbox deduplication; atomic immutable output/outbox/audit publication; local immutable object store; facility/snapshot API slice; pure Level A/B replay verifier and CLI; PostgreSQL replay package/audit path with reconstructed-manifest input-reference drift detection | Durable HTTP wiring; generated TypeScript client; final M1A gate | 90 Python tests plus 27 expected database skips, 28 clean-database PostgreSQL tests, focused replay tests, Ruff, mypy, OpenAPI drift, and CLI help pass; milestone gate remains open |
 | M1B Initial domain pipeline | IN_PROGRESS | Money value object; inventory valuation; eligibility contribution; contractual reserves; contractual CBB | Receivables; persisted stage outputs; pipeline orchestration/API; certificate JSON; expanded golden/property fixtures | Initial deterministic formula tests pass; milestone gate pending |
 | M2 Evidence controls | NOT_STARTED | - | Entire milestone | Pending |
 | M3 Hedge and liquidity | NOT_STARTED | - | Entire milestone | Pending |
@@ -49,21 +49,21 @@
 | 2026-06-22 | Cross-runtime canonicalization | Shared versioned vectors and TypeScript canonical JSON, decimal, timestamp, and domain-digest implementation | 14 identical accept/reject vectors pass in Python and TypeScript |
 | 2026-06-22 | Durable command safety | Transactional PostgreSQL idempotency with actor/operation/resource scope, replay, conflict, pending, rollback, retention, and permanent tombstones | 8 PostgreSQL command/idempotency behaviors pass, including concurrent same-key execution |
 | 2026-06-22 | Serializable snapshot freeze | Facility state copy; four typed bundle digest pins; immutable manifest metadata; snapshot inputs; audit and pipeline-start outbox; bounded SQLSTATE 40001 retry | 5 PostgreSQL acceptance behaviors pass: success, wrong-type rejection, retry, injected crash rollback, and concurrent one-freeze invariant |
+| 2026-06-22 | Fenced pipeline publication | Concurrent `SKIP LOCKED` claims, monotonic epochs, capped heartbeat, expired reclaim, immutable output, inbox replay, and atomic downstream outbox/audit | 5 PostgreSQL pipeline acceptance tests plus 3 pure fencing tests pass, including stale worker and injected crash rollback/retry |
+| 2026-06-23 | Replay verifier | Deterministic Level A environment and Level B semantic replay result model; replay CLI; application replay audit service; PostgreSQL replay package loader for snapshot manifest, reconstructed manifest, bundles, and stage outputs | Pure replay, CLI, static, PostgreSQL replay, and full clean-database integration gates pass |
 
 ## Active work
 
-1. Implement transactional queue claim, inbox deduplication, and fenced stage/output/outbox publication.
-2. Implement Level A and Level B replay/audit verification.
-3. Wire durable M1A services into the HTTP API.
-4. Generate and verify the TypeScript client from the versioned OpenAPI artifact.
-5. Run the complete M1A gate and then continue M1B receivables, orchestration, and certificates.
+1. Wire durable M1A services into the HTTP API.
+2. Generate and verify the TypeScript client from the versioned OpenAPI artifact.
+3. Run the complete M1A gate and then continue M1B receivables, orchestration, and certificates.
 
 ## Remaining work
 
 All roadmap items not marked `DONE` remain required. The PostgreSQL integrity adapter now provides
 durable bundles, command idempotency, and serializable snapshot freeze, but the HTTP application is
-still wired to in-memory repositories. Pipeline queue/output publication, inbox processing, replay,
-and the generated client remain incomplete. Detailed requirements live in
+still wired to in-memory repositories. Replay verification, durable HTTP wiring, and the generated
+client remain incomplete. Detailed requirements live in
 `CANOPYLEDGER_MASTER_PLAN.md` and contract files.
 
 ## Blockers
@@ -89,6 +89,18 @@ None.
 | 2026-06-22 | `.venv/bin/pytest -q && .venv/bin/ruff check . && .venv/bin/mypy src` | PASS, 86 tests plus 19 expected database skips | Full Python regression, lint, typing, and deterministic OpenAPI drift gate after serializable freeze |
 | 2026-06-22 | `DATABASE_URL=... .venv/bin/pytest tests/integration -q` on fresh PostgreSQL 17 database | PASS, 20 tests | Schema controls, immutable bundles, durable idempotency, serializable freeze, retry, rollback, and concurrency |
 | 2026-06-22 | `npm test` in `typescript/` | PASS, 14 tests | Cross-runtime canonical accept/reject parity vectors |
+| 2026-06-22 | `DATABASE_URL=... .venv/bin/pytest tests/integration -q` on Task 6 verification database | PASS, 25 tests | Complete schema, bundle, idempotency, freeze, queue, inbox, fencing, publication, crash, and concurrency regression |
+| 2026-06-22 | `.venv/bin/pytest -q && .venv/bin/ruff check . && .venv/bin/mypy src && .venv/bin/python scripts/export_openapi.py --check` | PASS, 86 tests plus 24 expected database skips | Full non-database and static regression after fenced publication |
+| 2026-06-23 | `.venv/bin/pytest tests/test_replay.py tests/test_replay_cli.py -q` | PASS, 4 tests | Pure Level A/B replay verifier and replay CLI contract |
+| 2026-06-23 | `.venv/bin/ruff check src/canopyledger/integrity/replay.py src/canopyledger/cli/replay.py src/canopyledger/application/integrity.py src/canopyledger/application/ports.py src/canopyledger/persistence/postgres.py tests/test_replay.py tests/test_replay_cli.py tests/integration/test_postgres_replay.py` | PASS | Focused replay implementation, service, adapter, CLI, and tests |
+| 2026-06-23 | `.venv/bin/mypy src/canopyledger/integrity/replay.py src/canopyledger/application/integrity.py src/canopyledger/application/ports.py src/canopyledger/persistence/postgres.py` | PASS | Focused replay typing |
+| 2026-06-23 | `.venv/bin/pytest -q` | PASS, 90 tests plus 27 expected database skips | Full non-database Python regression after replay verifier changes |
+| 2026-06-23 | `.venv/bin/python -m canopyledger.cli.replay --help` | PASS | Replay CLI entry-point help |
+| 2026-06-23 | `.venv/bin/ruff check .` | PASS | Full repository Ruff check after replay verifier changes |
+| 2026-06-23 | `.venv/bin/mypy src` | PASS | Full strict typing after replay verifier changes |
+| 2026-06-23 | `.venv/bin/python scripts/export_openapi.py --check` | PASS | Deterministic OpenAPI artifact unchanged by replay work |
+| 2026-06-23 | `DATABASE_URL=postgresql+psycopg://postgres:canopyledger-test@localhost:55432/canopyledger_task7_verify .venv/bin/pytest tests/integration/test_postgres_replay.py -q` | PASS, 3 tests | PostgreSQL replay package/audit success, bundle corruption detection, and reconstructed snapshot-input drift detection |
+| 2026-06-23 | `DATABASE_URL=postgresql+psycopg://postgres:canopyledger-test@localhost:55432/canopyledger_task7_full .venv/bin/pytest tests/integration -q` | PASS, 28 tests | Full clean-database PostgreSQL integration regression after role bootstrap |
 
 ## Decision/change log
 
@@ -101,6 +113,7 @@ None.
 | 2026-06-21 | M0 completion follows tracker-defined gaps | Existing master plan and contract catalogue remain authoritative; persistence tables and TypeScript client remain M1A |
 | 2026-06-22 | Freeze creation time is distinct from business `as_of` | Snapshot canonical manifest records schema version, actor, and creation timestamp without conflating reproducibility inputs with publication metadata |
 | 2026-06-22 | Freeze retries the entire short transaction at `SERIALIZABLE` | SQLSTATE 40001 retries cannot publish partial snapshot, audit, outbox, or idempotency state; one facility working version can be frozen only once |
+| 2026-06-22 | Worker authority is a live worker/epoch/input tuple | Heartbeats cannot exceed the attempt maximum; stale or expired workers cannot publish; output, stage/attempt completion, downstream outbox, and audit commit together |
 
 ## Maintenance rules
 
