@@ -78,6 +78,15 @@ expect_denied "SET ROLE application_writer; CREATE TABLE canopyledger.denied (id
 expect_denied "SET ROLE pipeline_writer; CREATE TABLE canopyledger.denied (id integer);"
 expect_denied "SET ROLE application_writer; CREATE TEMP TABLE denied (id integer);"
 
+"${PSQL[@]}" -c "
+SET ROLE migration_owner;
+DROP TABLE IF EXISTS canopyledger.role_probe;
+DROP TABLE IF EXISTS analytics.role_probe;
+DROP TABLE IF EXISTS reporting.role_probe;
+DROP TABLE IF EXISTS audit.role_probe;
+RESET ROLE;
+"
+
 "${PSQL[@]}" -Atc "
 SELECT count(*) = 0
 FROM pg_class relation
