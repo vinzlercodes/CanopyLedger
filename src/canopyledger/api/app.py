@@ -1,15 +1,31 @@
 """FastAPI application and first functional facility endpoints."""
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_EVEN, Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Header, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy import create_engine
 
+from canopyledger.application.integrity import (
+    BundleReferenceRejected,
+    CreateFacilityCommand,
+    FacilityCommandError,
+    FacilityNotFound,
+    FreezeFacilityCommand,
+    IntegrityService,
+    PreconditionFailed,
+    SnapshotAlreadyFrozen,
+    UpdateFacilityCommand,
+)
+from canopyledger.application.models import CommandResponse
 from canopyledger.domain.ids import new_resource_id
 from canopyledger.integrity.canonical import canonical_json_bytes, domain_digest
 from canopyledger.integrity.idempotency import (
@@ -24,6 +40,7 @@ from canopyledger.integrity.snapshot import (
     SnapshotInputReference,
     SnapshotManifest,
 )
+from canopyledger.persistence.postgres import PostgresIntegrityStore
 
 
 @dataclass(frozen=True)
@@ -79,22 +96,79 @@ class FreezeFacility(BaseModel):
     as_of: datetime
     market_bundle: BundleReference
     policy_bundle: BundleReference
+    legal_interpretation_bundle: BundleReference
     computation_bundle: BundleReference
     inputs: tuple[SnapshotInputReference, ...] = ()
 
 
-def create_app() -> FastAPI:
+class HealthResponse(BaseModel):
+    status: str
+
+
+class FacilityResponse(BaseModel):
+    id: str
+    legal_name: str
+    currency: str
+    facility_commitment: str
+    version: int
+
+
+class SnapshotManifestResponse(BaseModel):
+    snapshot_id: str
+    facility_id: str
+    facility_working_version: int
+    schema_version: str
+    as_of: str
+    market_bundle: BundleReference
+    policy_bundle: BundleReference
+    legal_interpretation_bundle: BundleReference
+    computation_bundle: BundleReference
+    inputs: tuple[SnapshotInputReference, ...]
+    created_by: str
+    created_at: str
+    digest: str
+
+
+class ProblemError(BaseModel):
+    field: tuple[str | int, ...]
+    message: str
+    kind: str
+
+
+class ProblemDetails(BaseModel):
+    type: str
+    title: str
+    status: int
+    detail: str
+    instance: str
+    code: str
+    trace_id: str
+    errors: tuple[ProblemError, ...] | None = None
+
+
+def create_app(
+    *,
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    integrity_service: IntegrityService | None = None,
+) -> FastAPI:
     """Create an isolated application instance with functional in-memory adapters."""
     app = FastAPI(title="CanopyLedger API", version="1.0.0")
     facilities: dict[str, FacilityRecord] = {}
     snapshots: dict[str, SnapshotManifest] = {}
     pipeline_start_outbox: list[str] = []
     idempotency = IdempotencyLedger()
+    bearer = HTTPBearer(auto_error=False)
 
-    def current_actor(authorization: Annotated[str | None, Header()] = None) -> str:
-        if authorization != "Bearer analyst-demo-token":
+    def current_actor(
+        credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
+    ) -> str:
+        if (
+            credentials is None
+            or credentials.scheme.lower() != "bearer"
+            or credentials.credentials != "analyst-demo-token"
+        ):
             raise _Problem(401, "UNAUTHENTICATED", "Valid demo bearer token required")
-        return "act_analyst_demo"
+        return "act_0198a000-0000-7000-8000-000000000001"
 
     @app.exception_handler(_Problem)
     async def handle_problem(request: Request, exc: _Problem) -> JSONResponse:
@@ -106,16 +180,81 @@ def create_app() -> FastAPI:
     ) -> JSONResponse:
         return _problem_response(request, 409, "IDEMPOTENCY_KEY_REUSED", str(exc))
 
-    @app.get("/health")
-    def health() -> dict[str, str]:
-        return {"status": "ok"}
+    @app.exception_handler(RequestValidationError)
+    async def handle_request_validation(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        errors = tuple(
+            ProblemError(
+                field=tuple(item["loc"]),
+                message=item["msg"],
+                kind=item["type"],
+            )
+            for item in exc.errors()
+        )
+        return _problem_response(
+            request,
+            422,
+            "VALIDATION_FAILED",
+            "Request validation failed",
+            errors=errors,
+        )
 
-    @app.post("/api/v1/facilities", status_code=201)
+    @app.exception_handler(FacilityNotFound)
+    async def handle_facility_not_found(request: Request, exc: FacilityNotFound) -> JSONResponse:
+        return _problem_response(request, 404, "RESOURCE_NOT_FOUND", str(exc))
+
+    @app.exception_handler(PreconditionFailed)
+    async def handle_precondition_failed(request: Request, exc: PreconditionFailed) -> JSONResponse:
+        return _problem_response(request, 412, "PRECONDITION_FAILED", str(exc))
+
+    @app.exception_handler(SnapshotAlreadyFrozen)
+    async def handle_snapshot_already_frozen(
+        request: Request, exc: SnapshotAlreadyFrozen
+    ) -> JSONResponse:
+        return _problem_response(request, 409, "SNAPSHOT_ALREADY_FROZEN", str(exc))
+
+    @app.exception_handler(BundleReferenceRejected)
+    async def handle_bundle_reference_rejected(
+        request: Request, exc: BundleReferenceRejected
+    ) -> JSONResponse:
+        return _problem_response(request, 422, "BUNDLE_REFERENCE_REJECTED", str(exc))
+
+    @app.exception_handler(FacilityCommandError)
+    async def handle_facility_command_error(
+        request: Request, exc: FacilityCommandError
+    ) -> JSONResponse:
+        return _problem_response(request, 422, "VALIDATION_FAILED", str(exc))
+
+    @app.get("/health", operation_id="healthCheck", response_model=HealthResponse)
+    def health() -> HealthResponse:
+        return HealthResponse(status="ok")
+
+    @app.post(
+        "/api/v1/facilities",
+        status_code=201,
+        operation_id="createFacility",
+        response_model=FacilityResponse,
+        responses=_problem_responses(401, 409, 422),
+    )
     def create_facility(
         command: CreateFacility,
         actor: Annotated[str, Depends(current_actor)],
         idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
     ) -> Response:
+        if integrity_service is not None:
+            return _command_http_response(
+                integrity_service.create_facility(
+                    CreateFacilityCommand(
+                        actor_id=actor,
+                        idempotency_key=idempotency_key,
+                        legal_name=command.legal_name,
+                        currency=command.currency,
+                        facility_commitment=f"{command.facility_commitment:.2f}",
+                        correlation_id=new_resource_id("cor"),
+                    )
+                )
+            )
         scope = IdempotencyScope(actor, "create_facility", "facilities", idempotency_key)
         body = command.model_dump(mode="json")
         fingerprint = request_fingerprint(
@@ -142,21 +281,36 @@ def create_app() -> FastAPI:
             headers={"ETag": record.etag, "Location": f"/api/v1/facilities/{resource_id}"},
             body=json.dumps(record.representation, separators=(",", ":")).encode(),
         )
-        idempotency.register(scope, fingerprint, stored, now=datetime.now(UTC))
+        idempotency.register(scope, fingerprint, stored, now=clock())
         return _stored_http_response(stored, replayed=False)
 
-    @app.get("/api/v1/facilities/{facility_id}")
+    @app.get(
+        "/api/v1/facilities/{facility_id}",
+        operation_id="getFacility",
+        response_model=FacilityResponse,
+        responses=_problem_responses(401, 404, 422),
+    )
     def get_facility(
         facility_id: str,
         actor: Annotated[str, Depends(current_actor)],
     ) -> Response:
         del actor
+        if integrity_service is not None:
+            result = integrity_service.get_facility(facility_id)
+            if result is None:
+                raise _Problem(404, "RESOURCE_NOT_FOUND", "Facility not found")
+            return _command_http_response(result)
         record = facilities.get(facility_id)
         if record is None:
             raise _Problem(404, "RESOURCE_NOT_FOUND", "Facility not found")
         return JSONResponse(record.representation, headers={"ETag": record.etag})
 
-    @app.patch("/api/v1/facilities/{facility_id}")
+    @app.patch(
+        "/api/v1/facilities/{facility_id}",
+        operation_id="updateFacility",
+        response_model=FacilityResponse,
+        responses=_problem_responses(401, 404, 409, 412, 422, 428),
+    )
     def update_facility(
         facility_id: str,
         command: UpdateFacility,
@@ -164,11 +318,25 @@ def create_app() -> FastAPI:
         idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
         if_match: Annotated[str | None, Header(alias="If-Match")] = None,
     ) -> Response:
+        if if_match is None:
+            raise _Problem(428, "PRECONDITION_REQUIRED", "If-Match is required")
+        if integrity_service is not None:
+            return _command_http_response(
+                integrity_service.update_facility(
+                    UpdateFacilityCommand(
+                        actor_id=actor,
+                        facility_id=facility_id,
+                        idempotency_key=idempotency_key,
+                        if_match=if_match,
+                        legal_name=command.legal_name,
+                        reason=command.reason,
+                        correlation_id=new_resource_id("cor"),
+                    )
+                )
+            )
         record = facilities.get(facility_id)
         if record is None:
             raise _Problem(404, "RESOURCE_NOT_FOUND", "Facility not found")
-        if if_match is None:
-            raise _Problem(428, "PRECONDITION_REQUIRED", "If-Match is required")
         if if_match != record.etag:
             raise _Problem(412, "PRECONDITION_FAILED", "Strong ETag does not match")
 
@@ -191,10 +359,16 @@ def create_app() -> FastAPI:
             headers={"ETag": updated.etag},
             body=json.dumps(updated.representation, separators=(",", ":")).encode(),
         )
-        idempotency.register(scope, fingerprint, stored, now=datetime.now(UTC))
+        idempotency.register(scope, fingerprint, stored, now=clock())
         return _stored_http_response(stored, replayed=False)
 
-    @app.post("/api/v1/facilities/{facility_id}/snapshots", status_code=201)
+    @app.post(
+        "/api/v1/facilities/{facility_id}/snapshots",
+        status_code=201,
+        operation_id="freezeFacility",
+        response_model=SnapshotManifestResponse,
+        responses=_problem_responses(401, 404, 409, 412, 422, 428),
+    )
     def freeze_facility(
         facility_id: str,
         command: FreezeFacility,
@@ -202,11 +376,29 @@ def create_app() -> FastAPI:
         idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
         if_match: Annotated[str | None, Header(alias="If-Match")] = None,
     ) -> Response:
+        if if_match is None:
+            raise _Problem(428, "PRECONDITION_REQUIRED", "If-Match is required")
+        if integrity_service is not None:
+            return _command_http_response(
+                integrity_service.freeze_facility(
+                    FreezeFacilityCommand(
+                        actor_id=actor,
+                        facility_id=facility_id,
+                        idempotency_key=idempotency_key,
+                        if_match=if_match,
+                        as_of=command.as_of,
+                        market_bundle=command.market_bundle,
+                        policy_bundle=command.policy_bundle,
+                        legal_interpretation_bundle=command.legal_interpretation_bundle,
+                        computation_bundle=command.computation_bundle,
+                        inputs=command.inputs,
+                        correlation_id=new_resource_id("cor"),
+                    )
+                )
+            )
         record = facilities.get(facility_id)
         if record is None:
             raise _Problem(404, "RESOURCE_NOT_FOUND", "Facility not found")
-        if if_match is None:
-            raise _Problem(428, "PRECONDITION_REQUIRED", "If-Match is required")
         if if_match != record.etag:
             raise _Problem(412, "PRECONDITION_FAILED", "Strong ETag does not match")
 
@@ -226,11 +418,15 @@ def create_app() -> FastAPI:
             snapshot_id=new_resource_id("snp"),
             facility_id=facility_id,
             facility_working_version=record.version,
+            schema_version="1.0",
             as_of=command.as_of,
             market_bundle=command.market_bundle,
             policy_bundle=command.policy_bundle,
+            legal_interpretation_bundle=command.legal_interpretation_bundle,
             computation_bundle=command.computation_bundle,
             inputs=command.inputs,
+            created_by=actor,
+            created_at=clock(),
         )
         snapshots[snapshot.snapshot_id] = snapshot
         pipeline_start_outbox.append(snapshot.snapshot_id)
@@ -243,21 +439,47 @@ def create_app() -> FastAPI:
             },
             body=json.dumps(representation, separators=(",", ":")).encode(),
         )
-        idempotency.register(scope, fingerprint, stored, now=datetime.now(UTC))
+        idempotency.register(scope, fingerprint, stored, now=clock())
         return _stored_http_response(stored, replayed=False)
 
-    @app.get("/api/v1/snapshots/{snapshot_id}/manifest")
+    @app.get(
+        "/api/v1/snapshots/{snapshot_id}/manifest",
+        operation_id="getSnapshotManifest",
+        response_model=SnapshotManifestResponse,
+        responses=_problem_responses(401, 404, 422),
+    )
     def get_snapshot_manifest(
         snapshot_id: str,
         actor: Annotated[str, Depends(current_actor)],
-    ) -> dict[str, object]:
+    ) -> Response | dict[str, object]:
         del actor
+        if integrity_service is not None:
+            result = integrity_service.get_snapshot_manifest(snapshot_id)
+            if result is None:
+                raise _Problem(404, "RESOURCE_NOT_FOUND", "Snapshot not found")
+            return Response(
+                content=result.body,
+                status_code=result.status,
+                media_type="application/json",
+                headers=dict(result.headers),
+            )
         snapshot = snapshots.get(snapshot_id)
         if snapshot is None:
             raise _Problem(404, "RESOURCE_NOT_FOUND", "Snapshot not found")
         return _snapshot_representation(snapshot)
 
     return app
+
+
+def create_postgres_app(
+    database_url: str,
+    *,
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+) -> FastAPI:
+    """Create production-style API wiring backed by PostgreSQL integrity services."""
+    engine = create_engine(database_url)
+    service = IntegrityService(PostgresIntegrityStore(engine), clock=clock)
+    return create_app(clock=clock, integrity_service=service)
 
 
 class _Problem(Exception):
@@ -267,19 +489,42 @@ class _Problem(Exception):
         self.detail = detail
 
 
-def _problem_response(request: Request, status: int, code: str, detail: str) -> JSONResponse:
+def _problem_responses(*statuses: int) -> dict[int | str, dict[str, Any]]:
+    return {
+        status: {
+            "description": "Problem Details",
+            "content": {
+                "application/problem+json": {
+                    "schema": {"$ref": "#/components/schemas/ProblemDetails"}
+                }
+            },
+        }
+        for status in statuses
+    }
+
+
+def _problem_response(
+    request: Request,
+    status: int,
+    code: str,
+    detail: str,
+    *,
+    errors: tuple[ProblemError, ...] | None = None,
+) -> JSONResponse:
+    problem = ProblemDetails(
+        type=f"https://canopyledger.example/problems/{code.lower()}",
+        title=code.replace("_", " ").title(),
+        status=status,
+        detail=detail,
+        instance=str(request.url.path),
+        code=code,
+        trace_id=new_resource_id("trc"),
+        errors=errors,
+    )
     return JSONResponse(
         status_code=status,
         media_type="application/problem+json",
-        content={
-            "type": f"https://canopyledger.example/problems/{code.lower()}",
-            "title": code.replace("_", " ").title(),
-            "status": status,
-            "detail": detail,
-            "instance": str(request.url.path),
-            "code": code,
-            "trace_id": new_resource_id("trc"),
-        },
+        content=problem.model_dump(mode="json", exclude_none=True),
     )
 
 
@@ -295,15 +540,31 @@ def _stored_http_response(stored: StoredResponse, *, replayed: bool) -> Response
     )
 
 
+def _command_http_response(result: CommandResponse) -> Response:
+    headers = dict(result.headers)
+    if result.replayed:
+        headers["Idempotency-Replayed"] = "true"
+    return Response(
+        content=result.body,
+        status_code=result.status,
+        media_type="application/json",
+        headers=headers,
+    )
+
+
 def _snapshot_representation(snapshot: SnapshotManifest) -> dict[str, object]:
     return {
         "snapshot_id": snapshot.snapshot_id,
         "facility_id": snapshot.facility_id,
         "facility_working_version": snapshot.facility_working_version,
+        "schema_version": snapshot.schema_version,
         "as_of": snapshot.as_of.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
         "market_bundle": snapshot.market_bundle.model_dump(),
         "policy_bundle": snapshot.policy_bundle.model_dump(),
+        "legal_interpretation_bundle": snapshot.legal_interpretation_bundle.model_dump(),
         "computation_bundle": snapshot.computation_bundle.model_dump(),
         "inputs": [item.model_dump() for item in snapshot.inputs],
+        "created_by": snapshot.created_by,
+        "created_at": snapshot.created_at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
         "digest": snapshot.digest,
     }
