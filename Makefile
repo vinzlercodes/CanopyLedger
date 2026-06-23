@@ -1,4 +1,4 @@
-.PHONY: setup test test-database-roles test-m1a-postgres migrate migrate-check lint typecheck openapi openapi-check verify
+.PHONY: setup test test-database-roles test-m1a-postgres migrate migrate-check lint typecheck openapi openapi-check typescript-client-check verify
 
 setup:
 	uv sync --extra dev
@@ -30,4 +30,7 @@ openapi:
 openapi-check:
 	uv run python scripts/export_openapi.py --check
 
-verify: lint typecheck openapi-check test
+typescript-client-check:
+	npm --prefix typescript run client:check
+
+verify: lint typecheck openapi-check typescript-client-check test

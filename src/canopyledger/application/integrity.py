@@ -92,6 +92,29 @@ class IntegrityService:
         self._id_factory = id_factory
         self._output_schema_validators = dict(output_schema_validators or {})
 
+    def get_facility(self, facility_id: str) -> CommandResponse | None:
+        facility = self._store.get_facility(facility_id)
+        if facility is None:
+            return None
+        representation = _facility_representation(facility)
+        digest = _facility_digest(representation)
+        return CommandResponse(
+            200,
+            {"ETag": _facility_etag(facility, digest)},
+            json.dumps(representation, separators=(",", ":")).encode(),
+        )
+
+    def get_snapshot_manifest(self, snapshot_id: str) -> CommandResponse | None:
+        snapshot = self._store.get_snapshot_manifest(snapshot_id)
+        if snapshot is None:
+            return None
+        representation = _snapshot_representation(snapshot.manifest)
+        return CommandResponse(
+            200,
+            {"ETag": f'"snapshot:{snapshot.manifest.snapshot_id}:{snapshot.manifest.digest[7:]}"'},
+            json.dumps(representation, separators=(",", ":")).encode(),
+        )
+
     def verify_snapshot_replay(
         self,
         *,

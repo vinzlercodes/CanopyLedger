@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
+import pytest
 from sqlalchemy import Engine, func, select, text
 
 from canopyledger.application.integrity import (
@@ -18,6 +19,8 @@ from canopyledger.integrity.replay import ReplayStatus
 from canopyledger.integrity.snapshot import SnapshotInputReference
 from canopyledger.persistence.postgres import PostgresIntegrityStore
 from canopyledger.persistence.schema import audit_event
+
+pytestmark = pytest.mark.postgres
 
 NOW = datetime(2026, 6, 22, 12, tzinfo=UTC)
 ACTOR_ID = "act_0198a000-0000-7000-8000-000000000001"
