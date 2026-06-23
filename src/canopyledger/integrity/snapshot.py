@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -47,17 +48,21 @@ class SnapshotManifest(FrozenContract):
     snapshot_id: str = Field(pattern=RESOURCE_ID_PATTERN)
     facility_id: str = Field(pattern=RESOURCE_ID_PATTERN)
     facility_working_version: int = Field(ge=1)
+    schema_version: Literal["1.0"]
     as_of: datetime
     market_bundle: BundleReference
     policy_bundle: BundleReference
+    legal_interpretation_bundle: BundleReference
     computation_bundle: BundleReference
     inputs: tuple[SnapshotInputReference, ...]
+    created_by: str = Field(pattern=RESOURCE_ID_PATTERN)
+    created_at: datetime
 
-    @field_validator("as_of")
+    @field_validator("as_of", "created_at")
     @classmethod
-    def require_aware_as_of(cls, value: datetime) -> datetime:
+    def require_aware_timestamp(cls, value: datetime) -> datetime:
         if value.tzinfo is None or value.utcoffset() is None:
-            raise ValueError("as_of must be timezone-aware")
+            raise ValueError("snapshot timestamps must be timezone-aware")
         return value
 
     @model_validator(mode="after")
@@ -73,11 +78,15 @@ class SnapshotManifest(FrozenContract):
             "snapshot_id": self.snapshot_id,
             "facility_id": self.facility_id,
             "facility_working_version": self.facility_working_version,
+            "schema_version": self.schema_version,
             "as_of": canonical_timestamp(self.as_of),
             "market_bundle": self.market_bundle.model_dump(),
             "policy_bundle": self.policy_bundle.model_dump(),
+            "legal_interpretation_bundle": self.legal_interpretation_bundle.model_dump(),
             "computation_bundle": self.computation_bundle.model_dump(),
             "inputs": [item.model_dump() for item in self.inputs],
+            "created_by": self.created_by,
+            "created_at": canonical_timestamp(self.created_at),
         }
         return canonical_json_bytes(
             payload,

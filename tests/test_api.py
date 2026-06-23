@@ -137,6 +137,10 @@ def test_freeze_creates_immutable_snapshot_manifest() -> None:
                 "resource_id": "pol_0198a000-0000-7000-8000-000000000001",
                 "digest": "sha256:" + "b" * 64,
             },
+            "legal_interpretation_bundle": {
+                "resource_id": "leg_0198a000-0000-7000-8000-000000000001",
+                "digest": "sha256:" + "d" * 64,
+            },
             "computation_bundle": {
                 "resource_id": "cmp_0198a000-0000-7000-8000-000000000001",
                 "digest": "sha256:" + "c" * 64,
@@ -147,7 +151,11 @@ def test_freeze_creates_immutable_snapshot_manifest() -> None:
     assert response.status_code == 201, response.text
     assert response.json()["snapshot_id"].startswith("snp_")
     assert response.json()["facility_working_version"] == 1
+    assert response.json()["schema_version"] == "1.0"
     assert response.json()["digest"].startswith("sha256:")
+    assert response.json()["created_by"].startswith("act_")
+    assert response.json()["created_at"].endswith("Z")
+    assert response.json()["legal_interpretation_bundle"]["digest"] == "sha256:" + "d" * 64
 
     fetched = api.get(
         f"/api/v1/snapshots/{response.json()['snapshot_id']}/manifest",

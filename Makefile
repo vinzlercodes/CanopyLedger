@@ -1,4 +1,4 @@
-.PHONY: setup test lint typecheck verify
+.PHONY: setup test test-database-roles test-m1a-postgres migrate migrate-check lint typecheck openapi openapi-check typescript-client-check verify
 
 setup:
 	uv sync --extra dev
@@ -6,11 +6,31 @@ setup:
 test:
 	uv run pytest
 
+test-database-roles:
+	bash tests/integration/test_database_roles.sh
+
+test-m1a-postgres:
+	uv run pytest -m postgres -q
+
+migrate:
+	uv run alembic upgrade head
+
+migrate-check:
+	uv run alembic check
+
 lint:
 	uv run ruff check .
 
 typecheck:
 	uv run mypy
 
-verify: lint typecheck test
+openapi:
+	uv run python scripts/export_openapi.py
 
+openapi-check:
+	uv run python scripts/export_openapi.py --check
+
+typescript-client-check:
+	npm --prefix typescript run client:check
+
+verify: lint typecheck openapi-check typescript-client-check test
