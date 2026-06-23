@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 
@@ -13,7 +14,7 @@ from canopyledger.domain.ids import new_resource_id
 from canopyledger.integrity.bundles import BundleType, VersionBundle
 from canopyledger.persistence.postgres import PostgresIntegrityStore
 
-pytestmark = __import__("pytest").mark.postgres
+pytestmark = pytest.mark.postgres
 
 ACTOR_ID = "act_0198a000-0000-7000-8000-000000000001"
 NOW = datetime(2026, 6, 23, 12, tzinfo=UTC)
