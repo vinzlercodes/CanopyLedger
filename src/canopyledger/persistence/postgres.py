@@ -96,6 +96,46 @@ class PostgresIntegrityStore:
         self._before_serializable_commit = before_serializable_commit
         self._serialization_attempts = serialization_attempts
 
+    def get_facility(self, resource_id: str) -> FacilityState | None:
+        with self._engine.connect() as connection:
+            row = (
+                connection.execute(
+                    select(facility_working_state).where(
+                        facility_working_state.c.resource_id == resource_id
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+        return None if row is None else _facility_from_row(row)
+
+    def get_snapshot_manifest(self, snapshot_id: str) -> SnapshotData | None:
+        with self._engine.connect() as connection:
+            snapshot = (
+                connection.execute(
+                    select(facility_snapshot).where(facility_snapshot.c.resource_id == snapshot_id)
+                )
+                .mappings()
+                .one_or_none()
+            )
+            if snapshot is None:
+                return None
+            inputs = (
+                connection.execute(
+                    select(snapshot_input_reference)
+                    .where(snapshot_input_reference.c.snapshot_id == snapshot_id)
+                    .order_by(snapshot_input_reference.c.position)
+                )
+                .mappings()
+                .all()
+            )
+        return SnapshotData(
+            manifest=_reconstruct_snapshot_manifest(snapshot, inputs),
+            legal_name=snapshot["legal_name"],
+            currency=snapshot["currency"],
+            facility_commitment=snapshot["facility_commitment"],
+        )
+
     def publish_bundle(self, bundle: VersionBundle) -> VersionBundle:
         try:
             with self._engine.begin() as connection:

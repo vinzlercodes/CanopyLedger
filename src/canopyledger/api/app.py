@@ -12,7 +12,20 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy import create_engine
 
+from canopyledger.application.integrity import (
+    BundleReferenceRejected,
+    CreateFacilityCommand,
+    FacilityCommandError,
+    FacilityNotFound,
+    FreezeFacilityCommand,
+    IntegrityService,
+    PreconditionFailed,
+    SnapshotAlreadyFrozen,
+    UpdateFacilityCommand,
+)
+from canopyledger.application.models import CommandResponse
 from canopyledger.domain.ids import new_resource_id
 from canopyledger.integrity.canonical import canonical_json_bytes, domain_digest
 from canopyledger.integrity.idempotency import (
@@ -27,6 +40,7 @@ from canopyledger.integrity.snapshot import (
     SnapshotInputReference,
     SnapshotManifest,
 )
+from canopyledger.persistence.postgres import PostgresIntegrityStore
 
 
 @dataclass(frozen=True)
@@ -132,7 +146,11 @@ class ProblemDetails(BaseModel):
     errors: tuple[ProblemError, ...] | None = None
 
 
-def create_app(*, clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> FastAPI:
+def create_app(
+    *,
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    integrity_service: IntegrityService | None = None,
+) -> FastAPI:
     """Create an isolated application instance with functional in-memory adapters."""
     app = FastAPI(title="CanopyLedger API", version="1.0.0")
     facilities: dict[str, FacilityRecord] = {}
@@ -182,6 +200,32 @@ def create_app(*, clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> 
             errors=errors,
         )
 
+    @app.exception_handler(FacilityNotFound)
+    async def handle_facility_not_found(request: Request, exc: FacilityNotFound) -> JSONResponse:
+        return _problem_response(request, 404, "RESOURCE_NOT_FOUND", str(exc))
+
+    @app.exception_handler(PreconditionFailed)
+    async def handle_precondition_failed(request: Request, exc: PreconditionFailed) -> JSONResponse:
+        return _problem_response(request, 412, "PRECONDITION_FAILED", str(exc))
+
+    @app.exception_handler(SnapshotAlreadyFrozen)
+    async def handle_snapshot_already_frozen(
+        request: Request, exc: SnapshotAlreadyFrozen
+    ) -> JSONResponse:
+        return _problem_response(request, 409, "SNAPSHOT_ALREADY_FROZEN", str(exc))
+
+    @app.exception_handler(BundleReferenceRejected)
+    async def handle_bundle_reference_rejected(
+        request: Request, exc: BundleReferenceRejected
+    ) -> JSONResponse:
+        return _problem_response(request, 422, "BUNDLE_REFERENCE_REJECTED", str(exc))
+
+    @app.exception_handler(FacilityCommandError)
+    async def handle_facility_command_error(
+        request: Request, exc: FacilityCommandError
+    ) -> JSONResponse:
+        return _problem_response(request, 422, "VALIDATION_FAILED", str(exc))
+
     @app.get("/health", operation_id="healthCheck", response_model=HealthResponse)
     def health() -> HealthResponse:
         return HealthResponse(status="ok")
@@ -198,6 +242,19 @@ def create_app(*, clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> 
         actor: Annotated[str, Depends(current_actor)],
         idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
     ) -> Response:
+        if integrity_service is not None:
+            return _command_http_response(
+                integrity_service.create_facility(
+                    CreateFacilityCommand(
+                        actor_id=actor,
+                        idempotency_key=idempotency_key,
+                        legal_name=command.legal_name,
+                        currency=command.currency,
+                        facility_commitment=f"{command.facility_commitment:.2f}",
+                        correlation_id=new_resource_id("cor"),
+                    )
+                )
+            )
         scope = IdempotencyScope(actor, "create_facility", "facilities", idempotency_key)
         body = command.model_dump(mode="json")
         fingerprint = request_fingerprint(
@@ -238,6 +295,11 @@ def create_app(*, clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> 
         actor: Annotated[str, Depends(current_actor)],
     ) -> Response:
         del actor
+        if integrity_service is not None:
+            result = integrity_service.get_facility(facility_id)
+            if result is None:
+                raise _Problem(404, "RESOURCE_NOT_FOUND", "Facility not found")
+            return _command_http_response(result)
         record = facilities.get(facility_id)
         if record is None:
             raise _Problem(404, "RESOURCE_NOT_FOUND", "Facility not found")
@@ -256,11 +318,25 @@ def create_app(*, clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> 
         idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
         if_match: Annotated[str | None, Header(alias="If-Match")] = None,
     ) -> Response:
+        if if_match is None:
+            raise _Problem(428, "PRECONDITION_REQUIRED", "If-Match is required")
+        if integrity_service is not None:
+            return _command_http_response(
+                integrity_service.update_facility(
+                    UpdateFacilityCommand(
+                        actor_id=actor,
+                        facility_id=facility_id,
+                        idempotency_key=idempotency_key,
+                        if_match=if_match,
+                        legal_name=command.legal_name,
+                        reason=command.reason,
+                        correlation_id=new_resource_id("cor"),
+                    )
+                )
+            )
         record = facilities.get(facility_id)
         if record is None:
             raise _Problem(404, "RESOURCE_NOT_FOUND", "Facility not found")
-        if if_match is None:
-            raise _Problem(428, "PRECONDITION_REQUIRED", "If-Match is required")
         if if_match != record.etag:
             raise _Problem(412, "PRECONDITION_FAILED", "Strong ETag does not match")
 
@@ -300,11 +376,29 @@ def create_app(*, clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> 
         idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
         if_match: Annotated[str | None, Header(alias="If-Match")] = None,
     ) -> Response:
+        if if_match is None:
+            raise _Problem(428, "PRECONDITION_REQUIRED", "If-Match is required")
+        if integrity_service is not None:
+            return _command_http_response(
+                integrity_service.freeze_facility(
+                    FreezeFacilityCommand(
+                        actor_id=actor,
+                        facility_id=facility_id,
+                        idempotency_key=idempotency_key,
+                        if_match=if_match,
+                        as_of=command.as_of,
+                        market_bundle=command.market_bundle,
+                        policy_bundle=command.policy_bundle,
+                        legal_interpretation_bundle=command.legal_interpretation_bundle,
+                        computation_bundle=command.computation_bundle,
+                        inputs=command.inputs,
+                        correlation_id=new_resource_id("cor"),
+                    )
+                )
+            )
         record = facilities.get(facility_id)
         if record is None:
             raise _Problem(404, "RESOURCE_NOT_FOUND", "Facility not found")
-        if if_match is None:
-            raise _Problem(428, "PRECONDITION_REQUIRED", "If-Match is required")
         if if_match != record.etag:
             raise _Problem(412, "PRECONDITION_FAILED", "Strong ETag does not match")
 
@@ -357,14 +451,35 @@ def create_app(*, clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> 
     def get_snapshot_manifest(
         snapshot_id: str,
         actor: Annotated[str, Depends(current_actor)],
-    ) -> dict[str, object]:
+    ) -> Response | dict[str, object]:
         del actor
+        if integrity_service is not None:
+            result = integrity_service.get_snapshot_manifest(snapshot_id)
+            if result is None:
+                raise _Problem(404, "RESOURCE_NOT_FOUND", "Snapshot not found")
+            return Response(
+                content=result.body,
+                status_code=result.status,
+                media_type="application/json",
+                headers=dict(result.headers),
+            )
         snapshot = snapshots.get(snapshot_id)
         if snapshot is None:
             raise _Problem(404, "RESOURCE_NOT_FOUND", "Snapshot not found")
         return _snapshot_representation(snapshot)
 
     return app
+
+
+def create_postgres_app(
+    database_url: str,
+    *,
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+) -> FastAPI:
+    """Create production-style API wiring backed by PostgreSQL integrity services."""
+    engine = create_engine(database_url)
+    service = IntegrityService(PostgresIntegrityStore(engine), clock=clock)
+    return create_app(clock=clock, integrity_service=service)
 
 
 class _Problem(Exception):
@@ -420,6 +535,18 @@ def _stored_http_response(stored: StoredResponse, *, replayed: bool) -> Response
     return Response(
         content=stored.body,
         status_code=stored.status,
+        media_type="application/json",
+        headers=headers,
+    )
+
+
+def _command_http_response(result: CommandResponse) -> Response:
+    headers = dict(result.headers)
+    if result.replayed:
+        headers["Idempotency-Replayed"] = "true"
+    return Response(
+        content=result.body,
+        status_code=result.status,
         media_type="application/json",
         headers=headers,
     )
