@@ -41,6 +41,10 @@ class IntegrityTransaction(Protocol):
 
 
 class IntegrityStore(Protocol):
+    def get_facility(self, resource_id: str) -> FacilityState | None: ...
+
+    def get_snapshot_manifest(self, snapshot_id: str) -> SnapshotData | None: ...
+
     def load_replay_package(
         self, snapshot_id: str, declared_environment: dict[str, str]
     ) -> ReplayPackage: ...
