@@ -3,7 +3,7 @@
 **Canonical plan:** [CANOPYLEDGER_MASTER_PLAN.md](CANOPYLEDGER_MASTER_PLAN.md)
 **Condensed implementation guide:** [MASTER_PLAN.md](MASTER_PLAN.md)
 **Last updated:** 2026-06-23
-**Current phase:** M1A/M1B vertical slice; M0 complete
+**Current phase:** M1B vertical slice; M0 and M1A complete
 
 ## Status vocabulary
 
@@ -17,7 +17,7 @@
 | Milestone | Status | Built | Remaining | Gate evidence |
 |---|---|---|---|---|
 | M0 Normative foundation | DONE | Approved normative contracts; executable state machine; versioned OpenAPI; PostgreSQL capability roles; OSS landscape review; scaffold, CI, and Apache-2.0 license | - | 66 tests, OpenAPI drift check, PostgreSQL 17 privilege integration, lint, type, and build gates pass; no material research contradiction |
-| M1A Integrity kernel | IN_PROGRESS | Canonical value profile with Python/TypeScript parity vectors; immutable bundles and snapshot manifests; durable idempotency; PostgreSQL resource schema; serializable facility freeze; leased `SKIP LOCKED` stage queue; bounded heartbeats and monotonic fencing epochs; inbox deduplication; atomic immutable output/outbox/audit publication; local immutable object store; durable facility/snapshot API wiring; generated TypeScript API client with drift check; pure Level A/B replay verifier and CLI; PostgreSQL replay package/audit path with reconstructed-manifest input-reference drift detection | Final M1A gate | 90 Python tests plus 28 expected database skips, 29 clean-database PostgreSQL tests, focused replay/API tests, 14 TypeScript tests, TypeScript typecheck, client drift check, Ruff, mypy, OpenAPI drift, and CLI help pass; milestone gate remains open |
+| M1A Integrity kernel | DONE | Canonical value profile with Python/TypeScript parity vectors; immutable bundles and snapshot manifests; durable idempotency; PostgreSQL resource schema; serializable facility freeze; leased `SKIP LOCKED` stage queue; bounded heartbeats and monotonic fencing epochs; inbox deduplication; atomic immutable output/outbox/audit publication; local immutable object store; durable facility/snapshot API wiring; generated TypeScript API client with drift check; pure Level A/B replay verifier and CLI; PostgreSQL replay package/audit path with reconstructed-manifest input-reference drift detection | - | Final gate passes: Ruff, mypy, OpenAPI drift, non-PostgreSQL pytest, TypeScript tests/typecheck/client drift, package build, Alembic upgrade/check, and 29 clean-database PostgreSQL tests |
 | M1B Initial domain pipeline | IN_PROGRESS | Money value object; inventory valuation; eligibility contribution; contractual reserves; contractual CBB | Receivables; persisted stage outputs; pipeline orchestration/API; certificate JSON; expanded golden/property fixtures | Initial deterministic formula tests pass; milestone gate pending |
 | M2 Evidence controls | NOT_STARTED | - | Entire milestone | Pending |
 | M3 Hedge and liquidity | NOT_STARTED | - | Entire milestone | Pending |
@@ -53,10 +53,11 @@
 | 2026-06-23 | Replay verifier | Deterministic Level A environment and Level B semantic replay result model; replay CLI; application replay audit service; PostgreSQL replay package loader for snapshot manifest, reconstructed manifest, bundles, and stage outputs | Pure replay, CLI, static, PostgreSQL replay, and full clean-database integration gates pass |
 | 2026-06-23 | Durable API wiring | FastAPI production factory backed by PostgreSQL `IntegrityService`; persistent facility create/read, idempotent replay, freeze, and snapshot-manifest read across app restarts | Focused API/OpenAPI tests pass; full clean-database PostgreSQL integration gate passes |
 | 2026-06-23 | Generated TypeScript API client | Deterministic client generator/check script; checked-in generated `CanopyLedgerClient`; CI and Make client drift gates | Client check, TypeScript typecheck, and TypeScript tests pass |
+| 2026-06-23 | M1A completion gate | Complete integrity kernel across schema, canonical parity, bundles, idempotency, serializable freeze, queue/inbox/publication, replay/audit, durable API, and TypeScript client | Final non-database, TypeScript, build, Alembic, and PostgreSQL marker gates pass |
 
 ## Active work
 
-1. Run the complete M1A gate and then continue M1B receivables, orchestration, and certificates.
+1. Continue M1B receivables, persisted stage outputs, orchestration/API, and certificates.
 
 ## Remaining work
 
@@ -111,6 +112,16 @@ None.
 | 2026-06-23 | `npm --prefix typescript run typecheck` | PASS | TypeScript canonical and generated API client compile |
 | 2026-06-23 | `npm --prefix typescript test` | PASS, 14 tests | TypeScript canonical parity tests after generated client addition |
 | 2026-06-23 | `.venv/bin/ruff check scripts/check_typescript_client.py` | PASS | Client generator/check script lint |
+| 2026-06-23 | `.venv/bin/ruff check .` | PASS | Final M1A full repository Ruff gate |
+| 2026-06-23 | `.venv/bin/mypy` | PASS | Final M1A strict typing gate |
+| 2026-06-23 | `.venv/bin/python scripts/export_openapi.py --check` | PASS | Final M1A OpenAPI drift gate |
+| 2026-06-23 | `.venv/bin/pytest -m "not postgres" -q` | PASS, 89 tests, 29 deselected | Final M1A non-PostgreSQL pytest gate |
+| 2026-06-23 | `npm --prefix typescript run typecheck && npm --prefix typescript run client:check` | PASS | Final M1A TypeScript typecheck and generated-client drift gate |
+| 2026-06-23 | `npm --prefix typescript test` | PASS, 14 tests | Final M1A TypeScript test gate |
+| 2026-06-23 | `uv build` | PASS | Final M1A source distribution and wheel build |
+| 2026-06-23 | PostgreSQL role bootstrap via PostgreSQL 17 `psql`, twice on `canopyledger_m1a_final2` | PASS | Final M1A idempotent capability-role/schema bootstrap equivalent to `tests/integration/test_database_roles.sh` setup |
+| 2026-06-23 | `DATABASE_URL=postgresql+psycopg://postgres:canopyledger-test@localhost:55432/canopyledger_m1a_final2 uv run alembic upgrade head && ... uv run alembic check && ... .venv/bin/pytest -m postgres -q` | PASS, 29 tests, 89 deselected | Final M1A PostgreSQL marker gate including durable API and replay tests |
+| 2026-06-23 | `.venv/bin/pytest -q` | PASS, 90 tests plus 28 expected database skips | Final M1A full local pytest gate without `DATABASE_URL` |
 
 ## Decision/change log
 
