@@ -1,0 +1,164 @@
+{
+  "certificate_id": "cbb_0198a000-0000-7000-8000-000000000101",
+  "computation_bundle_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "current_principal": {
+    "amount": "180000.00",
+    "currency": "EUR"
+  },
+  "facility_id": "fac_0198a000-0000-7000-8000-000000000101",
+  "facility_limit": {
+    "amount": "850000.00",
+    "currency": "EUR"
+  },
+  "inventory_lots": [
+    {
+      "advance_rate": "0.65",
+      "benchmark_symbol": "KC",
+      "liquidation_cost": {
+        "amount": "5200.00",
+        "currency": "EUR"
+      },
+      "lot_id": "lot_0198a000-0000-7000-8000-000000000101",
+      "physical_differential_usd_per_mt": "185.00",
+      "quantity": "18.4",
+      "quantity_unit": "metric_tonne",
+      "reason_codes": [
+        "WAREHOUSE_RECEIPT_APPROVED"
+      ],
+      "selling_cost_usd_per_mt": "142.00"
+    },
+    {
+      "advance_rate": "0.60",
+      "benchmark_symbol": "KC",
+      "liquidation_cost": {
+        "amount": "3000.00",
+        "currency": "EUR"
+      },
+      "lot_id": "lot_0198a000-0000-7000-8000-000000000102",
+      "physical_differential_usd_per_mt": "95.00",
+      "quantity": "12.0",
+      "quantity_unit": "metric_tonne",
+      "reason_codes": [
+        "INSPECTION_CURRENT"
+      ],
+      "selling_cost_usd_per_mt": "120.00"
+    },
+    {
+      "advance_rate": "0.50",
+      "benchmark_symbol": "KC",
+      "liquidation_cost": {
+        "amount": "750.00",
+        "currency": "EUR"
+      },
+      "lot_id": "lot_0198a000-0000-7000-8000-000000000103",
+      "physical_differential_usd_per_mt": "-60.00",
+      "quantity": "6.5",
+      "quantity_unit": "metric_tonne",
+      "reason_codes": [
+        "QUALITY_HAIRCUT_APPLIED"
+      ],
+      "selling_cost_usd_per_mt": "150.00"
+    }
+  ],
+  "lc_exposure": {
+    "amount": "35000.00",
+    "currency": "EUR"
+  },
+  "market_bundle_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "market_snapshot": {
+    "as_of": "2026-06-21T17:00:00.000000Z",
+    "fx_rates": [
+      {
+        "observed_at": "2026-06-21T16:55:00.000000Z",
+        "pair": "EUR/USD",
+        "rate": "0.918",
+        "source": "synthetic-fixture"
+      }
+    ],
+    "prices": [
+      {
+        "observed_at": "2026-06-21T16:55:00.000000Z",
+        "price": "5871.42",
+        "source": "synthetic-fixture",
+        "symbol": "KC",
+        "unit": "USD_PER_MT"
+      }
+    ],
+    "snapshot_id": "mkt_0198a000-0000-7000-8000-000000000101"
+  },
+  "other_contractual_usage": {
+    "amount": "12500.00",
+    "currency": "EUR"
+  },
+  "policy_bundle_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "receivables": [
+    {
+      "advance_rate": "0.80",
+      "age_days": 45,
+      "credit_note_amount": {
+        "amount": "2500.00",
+        "currency": "USD"
+      },
+      "delivery_evidence_approved": true,
+      "fx_pair": "EUR/USD",
+      "invoice_amount": {
+        "amount": "125000.00",
+        "currency": "USD"
+      },
+      "max_age_days": 90,
+      "obligor_id": "obl_1",
+      "receivable_id": "rec_0198a000-0000-7000-8000-000000000101"
+    },
+    {
+      "advance_rate": "0.75",
+      "age_days": 80,
+      "credit_note_amount": {
+        "amount": "0.00",
+        "currency": "EUR"
+      },
+      "delivery_evidence_approved": true,
+      "fx_pair": "EUR/USD",
+      "invoice_amount": {
+        "amount": "74000.00",
+        "currency": "EUR"
+      },
+      "max_age_days": 90,
+      "obligor_id": "obl_2",
+      "receivable_id": "rec_0198a000-0000-7000-8000-000000000102"
+    },
+    {
+      "advance_rate": "0.80",
+      "age_days": 95,
+      "credit_note_amount": {
+        "amount": "0.00",
+        "currency": "EUR"
+      },
+      "delivery_evidence_approved": true,
+      "fx_pair": "EUR/USD",
+      "invoice_amount": {
+        "amount": "30000.00",
+        "currency": "EUR"
+      },
+      "max_age_days": 90,
+      "obligor_id": "obl_3",
+      "receivable_id": "rec_0198a000-0000-7000-8000-000000000103"
+    }
+  ],
+  "reserves": [
+    {
+      "amount": {
+        "amount": "18000.00",
+        "currency": "EUR"
+      },
+      "reserve_type": "documentation"
+    },
+    {
+      "amount": {
+        "amount": "7500.00",
+        "currency": "EUR"
+      },
+      "reserve_type": "dilution"
+    }
+  ],
+  "snapshot_id": "snp_0198a000-0000-7000-8000-000000000101"
+}

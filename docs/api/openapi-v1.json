@@ -23,6 +23,294 @@
         "title": "BundleReference",
         "type": "object"
       },
+      "CbbCertificateContributionResponse": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          },
+          "source_type": {
+            "title": "Source Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_type",
+          "source_id",
+          "amount"
+        ],
+        "title": "CbbCertificateContributionResponse",
+        "type": "object"
+      },
+      "CbbCertificateDemoRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "certificate_id": {
+            "pattern": "^cbb_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "title": "Certificate Id",
+            "type": "string"
+          },
+          "contributions": {
+            "items": {
+              "$ref": "#/components/schemas/CbbContributionInput"
+            },
+            "minItems": 1,
+            "title": "Contributions",
+            "type": "array"
+          },
+          "facility_id": {
+            "pattern": "^fac_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "title": "Facility Id",
+            "type": "string"
+          },
+          "facility_limit": {
+            "$ref": "#/components/schemas/MoneyInput"
+          },
+          "reason_codes": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "reserves": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/CbbReserveInput"
+            },
+            "title": "Reserves",
+            "type": "array"
+          },
+          "snapshot_id": {
+            "pattern": "^snp_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "title": "Snapshot Id",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/ContractualUsageInput"
+          }
+        },
+        "required": [
+          "certificate_id",
+          "snapshot_id",
+          "facility_id",
+          "facility_limit",
+          "contributions",
+          "usage"
+        ],
+        "title": "CbbCertificateDemoRequest",
+        "type": "object"
+      },
+      "CbbCertificateReserveResponse": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "reserve_type": {
+            "title": "Reserve Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reserve_type",
+          "amount"
+        ],
+        "title": "CbbCertificateReserveResponse",
+        "type": "object"
+      },
+      "CbbCertificateResponse": {
+        "properties": {
+          "certificate_id": {
+            "title": "Certificate Id",
+            "type": "string"
+          },
+          "facility_id": {
+            "title": "Facility Id",
+            "type": "string"
+          },
+          "output_digest": {
+            "title": "Output Digest",
+            "type": "string"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "result": {
+            "$ref": "#/components/schemas/CbbCertificateResultResponse"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "certificate_id",
+          "snapshot_id",
+          "facility_id",
+          "schema_version",
+          "result",
+          "reason_codes",
+          "output_digest"
+        ],
+        "title": "CbbCertificateResponse",
+        "type": "object"
+      },
+      "CbbCertificateResultResponse": {
+        "properties": {
+          "contractual_availability": {
+            "title": "Contractual Availability",
+            "type": "string"
+          },
+          "contractual_borrowing_base": {
+            "title": "Contractual Borrowing Base",
+            "type": "string"
+          },
+          "contractual_exposure_limit": {
+            "title": "Contractual Exposure Limit",
+            "type": "string"
+          },
+          "contributions": {
+            "items": {
+              "$ref": "#/components/schemas/CbbCertificateContributionResponse"
+            },
+            "title": "Contributions",
+            "type": "array"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "current_principal": {
+            "title": "Current Principal",
+            "type": "string"
+          },
+          "facility_limit": {
+            "title": "Facility Limit",
+            "type": "string"
+          },
+          "gross_eligible_contribution": {
+            "title": "Gross Eligible Contribution",
+            "type": "string"
+          },
+          "lc_exposure": {
+            "title": "Lc Exposure",
+            "type": "string"
+          },
+          "other_contractual_usage": {
+            "title": "Other Contractual Usage",
+            "type": "string"
+          },
+          "reserves": {
+            "items": {
+              "$ref": "#/components/schemas/CbbCertificateReserveResponse"
+            },
+            "title": "Reserves",
+            "type": "array"
+          },
+          "total_reserves": {
+            "title": "Total Reserves",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "facility_limit",
+          "gross_eligible_contribution",
+          "total_reserves",
+          "contractual_borrowing_base",
+          "contractual_exposure_limit",
+          "current_principal",
+          "lc_exposure",
+          "other_contractual_usage",
+          "contractual_availability",
+          "contributions",
+          "reserves"
+        ],
+        "title": "CbbCertificateResultResponse",
+        "type": "object"
+      },
+      "CbbContributionInput": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/MoneyInput"
+          },
+          "source_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Source Id",
+            "type": "string"
+          },
+          "source_type": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Source Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_type",
+          "source_id",
+          "amount"
+        ],
+        "title": "CbbContributionInput",
+        "type": "object"
+      },
+      "CbbReserveInput": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/MoneyInput"
+          },
+          "reserve_type": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Reserve Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reserve_type",
+          "amount"
+        ],
+        "title": "CbbReserveInput",
+        "type": "object"
+      },
+      "ContractualUsageInput": {
+        "additionalProperties": false,
+        "properties": {
+          "current_principal": {
+            "$ref": "#/components/schemas/MoneyInput"
+          },
+          "lc_exposure": {
+            "$ref": "#/components/schemas/MoneyInput"
+          },
+          "other_contractual_usage": {
+            "$ref": "#/components/schemas/MoneyInput"
+          }
+        },
+        "required": [
+          "current_principal",
+          "lc_exposure",
+          "other_contractual_usage"
+        ],
+        "title": "ContractualUsageInput",
+        "type": "object"
+      },
       "CreateFacility": {
         "additionalProperties": false,
         "properties": {
@@ -131,6 +419,49 @@
         "title": "FreezeFacility",
         "type": "object"
       },
+      "FxRateInput": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Observed At",
+            "type": "string"
+          },
+          "pair": {
+            "maxLength": 20,
+            "minLength": 3,
+            "title": "Pair",
+            "type": "string"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Rate"
+          },
+          "source": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pair",
+          "rate",
+          "observed_at",
+          "source"
+        ],
+        "title": "FxRateInput",
+        "type": "object"
+      },
       "HealthResponse": {
         "properties": {
           "status": {
@@ -142,6 +473,396 @@
           "status"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "InventoryLotPipelineInput": {
+        "additionalProperties": false,
+        "properties": {
+          "advance_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Advance Rate"
+          },
+          "benchmark_symbol": {
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Benchmark Symbol",
+            "type": "string"
+          },
+          "liquidation_cost": {
+            "$ref": "#/components/schemas/MoneyInput"
+          },
+          "lot_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Lot Id",
+            "type": "string"
+          },
+          "physical_differential_usd_per_mt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Physical Differential Usd Per Mt"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "quantity_unit": {
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Quantity Unit",
+            "type": "string"
+          },
+          "reason_codes": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "selling_cost_usd_per_mt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Selling Cost Usd Per Mt"
+          }
+        },
+        "required": [
+          "lot_id",
+          "quantity",
+          "quantity_unit",
+          "benchmark_symbol",
+          "physical_differential_usd_per_mt",
+          "selling_cost_usd_per_mt",
+          "liquidation_cost",
+          "advance_rate"
+        ],
+        "title": "InventoryLotPipelineInput",
+        "type": "object"
+      },
+      "M1BPipelineDemoRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "certificate_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Certificate Id",
+            "type": "string"
+          },
+          "computation_bundle_digest": {
+            "title": "Computation Bundle Digest",
+            "type": "string"
+          },
+          "current_principal": {
+            "$ref": "#/components/schemas/MoneyInput"
+          },
+          "facility_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Facility Id",
+            "type": "string"
+          },
+          "facility_limit": {
+            "$ref": "#/components/schemas/MoneyInput"
+          },
+          "inventory_lots": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/InventoryLotPipelineInput"
+            },
+            "title": "Inventory Lots",
+            "type": "array"
+          },
+          "lc_exposure": {
+            "$ref": "#/components/schemas/MoneyInput"
+          },
+          "market_bundle_digest": {
+            "title": "Market Bundle Digest",
+            "type": "string"
+          },
+          "market_snapshot": {
+            "$ref": "#/components/schemas/MarketSnapshotInput"
+          },
+          "other_contractual_usage": {
+            "$ref": "#/components/schemas/MoneyInput"
+          },
+          "policy_bundle_digest": {
+            "title": "Policy Bundle Digest",
+            "type": "string"
+          },
+          "receivables": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ReceivablePipelineInput"
+            },
+            "title": "Receivables",
+            "type": "array"
+          },
+          "reserves": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/CbbReserveInput"
+            },
+            "title": "Reserves",
+            "type": "array"
+          },
+          "snapshot_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Snapshot Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot_id",
+          "facility_id",
+          "certificate_id",
+          "facility_limit",
+          "current_principal",
+          "lc_exposure",
+          "other_contractual_usage",
+          "market_snapshot",
+          "market_bundle_digest",
+          "policy_bundle_digest",
+          "computation_bundle_digest"
+        ],
+        "title": "M1BPipelineDemoRequest",
+        "type": "object"
+      },
+      "M1BPipelineDemoResponse": {
+        "properties": {
+          "certificate": {
+            "$ref": "#/components/schemas/CbbCertificateResponse"
+          },
+          "stage_outputs": {
+            "items": {
+              "$ref": "#/components/schemas/StageOutputResponse"
+            },
+            "title": "Stage Outputs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "stage_outputs",
+          "certificate"
+        ],
+        "title": "M1BPipelineDemoResponse",
+        "type": "object"
+      },
+      "MarketSnapshotInput": {
+        "additionalProperties": false,
+        "properties": {
+          "as_of": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "As Of",
+            "type": "string"
+          },
+          "fx_rates": {
+            "items": {
+              "$ref": "#/components/schemas/FxRateInput"
+            },
+            "minItems": 1,
+            "title": "Fx Rates",
+            "type": "array"
+          },
+          "prices": {
+            "items": {
+              "$ref": "#/components/schemas/PriceObservationInput"
+            },
+            "minItems": 1,
+            "title": "Prices",
+            "type": "array"
+          },
+          "snapshot_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Snapshot Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot_id",
+          "as_of",
+          "prices",
+          "fx_rates"
+        ],
+        "title": "MarketSnapshotInput",
+        "type": "object"
+      },
+      "MoneyInput": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "title": "MoneyInput",
+        "type": "object"
+      },
+      "PriceObservationInput": {
+        "additionalProperties": false,
+        "properties": {
+          "observed_at": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Observed At",
+            "type": "string"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Price"
+          },
+          "source": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          },
+          "symbol": {
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Symbol",
+            "type": "string"
+          },
+          "unit": {
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "price",
+          "unit",
+          "observed_at",
+          "source"
+        ],
+        "title": "PriceObservationInput",
+        "type": "object"
+      },
+      "ReceivablePipelineInput": {
+        "additionalProperties": false,
+        "properties": {
+          "advance_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Advance Rate"
+          },
+          "age_days": {
+            "minimum": 0.0,
+            "title": "Age Days",
+            "type": "integer"
+          },
+          "credit_note_amount": {
+            "$ref": "#/components/schemas/MoneyInput"
+          },
+          "delivery_evidence_approved": {
+            "title": "Delivery Evidence Approved",
+            "type": "boolean"
+          },
+          "fx_pair": {
+            "maxLength": 20,
+            "minLength": 3,
+            "title": "Fx Pair",
+            "type": "string"
+          },
+          "invoice_amount": {
+            "$ref": "#/components/schemas/MoneyInput"
+          },
+          "max_age_days": {
+            "minimum": 0.0,
+            "title": "Max Age Days",
+            "type": "integer"
+          },
+          "obligor_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Obligor Id",
+            "type": "string"
+          },
+          "receivable_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Receivable Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "receivable_id",
+          "obligor_id",
+          "invoice_amount",
+          "credit_note_amount",
+          "fx_pair",
+          "age_days",
+          "advance_rate",
+          "max_age_days",
+          "delivery_evidence_approved"
+        ],
+        "title": "ReceivablePipelineInput",
         "type": "object"
       },
       "SnapshotInputReference": {
@@ -244,6 +965,79 @@
         "title": "SnapshotManifestResponse",
         "type": "object"
       },
+      "StageOutputResponse": {
+        "properties": {
+          "computation_bundle_digest": {
+            "title": "Computation Bundle Digest",
+            "type": "string"
+          },
+          "input_digests": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Input Digests",
+            "type": "array"
+          },
+          "output_digest": {
+            "title": "Output Digest",
+            "type": "string"
+          },
+          "policy_bundle_digest": {
+            "title": "Policy Bundle Digest",
+            "type": "string"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "result": {
+            "additionalProperties": true,
+            "title": "Result",
+            "type": "object"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "stage_output_id": {
+            "title": "Stage Output Id",
+            "type": "string"
+          },
+          "stage_version": {
+            "title": "Stage Version",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "stage_output_id",
+          "snapshot_id",
+          "stage",
+          "stage_version",
+          "input_digests",
+          "policy_bundle_digest",
+          "computation_bundle_digest",
+          "result",
+          "warnings",
+          "reason_codes",
+          "output_digest"
+        ],
+        "title": "StageOutputResponse",
+        "type": "object"
+      },
       "UpdateFacility": {
         "additionalProperties": false,
         "properties": {
@@ -281,6 +1075,59 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/cbb-certificates/demo": {
+      "post": {
+        "operationId": "buildCbbCertificateDemo",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CbbCertificateDemoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CbbCertificateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Build Cbb Certificate Demo"
+      }
+    },
     "/api/v1/facilities": {
       "post": {
         "operationId": "createFacility",
@@ -673,6 +1520,59 @@
           }
         ],
         "summary": "Freeze Facility"
+      }
+    },
+    "/api/v1/m1b/pipeline/demo": {
+      "post": {
+        "operationId": "runM1BPipelineDemo",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/M1BPipelineDemoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/M1BPipelineDemoResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Run M1B Pipeline Demo"
       }
     },
     "/api/v1/snapshots/{snapshot_id}/manifest": {

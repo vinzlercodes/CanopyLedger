@@ -26,7 +26,26 @@ from canopyledger.application.integrity import (
     UpdateFacilityCommand,
 )
 from canopyledger.application.models import CommandResponse
+from canopyledger.borrowing_base.calculation import (
+    BorrowingBaseError,
+    CollateralContribution,
+    ContractualReserve,
+    calculate_contractual_borrowing_base,
+)
+from canopyledger.borrowing_base.certificate import (
+    CbbCertificateError,
+    ContractualUsage,
+    build_cbb_certificate,
+)
 from canopyledger.domain.ids import new_resource_id
+from canopyledger.domain.money import Money
+from canopyledger.initial_domain.pipeline import (
+    InventoryLotInput,
+    M1BPipelineInput,
+    ReceivableInput,
+    ReserveInput,
+    run_initial_domain_pipeline,
+)
 from canopyledger.integrity.canonical import canonical_json_bytes, domain_digest
 from canopyledger.integrity.idempotency import (
     IdempotencyConflict,
@@ -40,6 +59,7 @@ from canopyledger.integrity.snapshot import (
     SnapshotInputReference,
     SnapshotManifest,
 )
+from canopyledger.market.snapshot import FxRate, MarketSnapshot, PriceObservation
 from canopyledger.persistence.postgres import PostgresIntegrityStore
 
 
@@ -103,6 +123,213 @@ class FreezeFacility(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
+
+
+class MoneyInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    amount: Decimal
+    currency: str = Field(pattern=r"^[A-Z]{3}$")
+
+    def to_money(self) -> Money:
+        return Money(self.amount, self.currency).quantized()
+
+
+class CbbContributionInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_type: str = Field(min_length=1, max_length=50)
+    source_id: str = Field(min_length=1, max_length=100)
+    amount: MoneyInput
+
+
+class CbbReserveInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reserve_type: str = Field(min_length=1, max_length=80)
+    amount: MoneyInput
+
+
+class ContractualUsageInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    current_principal: MoneyInput
+    lc_exposure: MoneyInput
+    other_contractual_usage: MoneyInput
+
+
+class CbbCertificateDemoRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    certificate_id: str = Field(
+        pattern=r"^cbb_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    )
+    snapshot_id: str = Field(
+        pattern=r"^snp_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    )
+    facility_id: str = Field(
+        pattern=r"^fac_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    )
+    facility_limit: MoneyInput
+    contributions: tuple[CbbContributionInput, ...] = Field(min_length=1)
+    reserves: tuple[CbbReserveInput, ...] = ()
+    usage: ContractualUsageInput
+    reason_codes: tuple[str, ...] = ()
+
+
+class CbbCertificateContributionResponse(BaseModel):
+    source_type: str
+    source_id: str
+    amount: str
+
+
+class CbbCertificateReserveResponse(BaseModel):
+    reserve_type: str
+    amount: str
+
+
+class CbbCertificateResultResponse(BaseModel):
+    currency: str
+    facility_limit: str
+    gross_eligible_contribution: str
+    total_reserves: str
+    contractual_borrowing_base: str
+    contractual_exposure_limit: str
+    current_principal: str
+    lc_exposure: str
+    other_contractual_usage: str
+    contractual_availability: str
+    contributions: tuple[CbbCertificateContributionResponse, ...]
+    reserves: tuple[CbbCertificateReserveResponse, ...]
+
+
+class CbbCertificateResponse(BaseModel):
+    certificate_id: str
+    snapshot_id: str
+    facility_id: str
+    schema_version: str
+    result: CbbCertificateResultResponse
+    reason_codes: tuple[str, ...]
+    output_digest: str
+
+
+class PriceObservationInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    symbol: str = Field(min_length=1, max_length=30)
+    price: Decimal
+    unit: str = Field(min_length=1, max_length=30)
+    observed_at: str = Field(min_length=1, max_length=40)
+    source: str = Field(min_length=1, max_length=80)
+
+
+class FxRateInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    pair: str = Field(min_length=3, max_length=20)
+    rate: Decimal
+    observed_at: str = Field(min_length=1, max_length=40)
+    source: str = Field(min_length=1, max_length=80)
+
+
+class MarketSnapshotInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    snapshot_id: str = Field(min_length=1, max_length=100)
+    as_of: str = Field(min_length=1, max_length=40)
+    prices: tuple[PriceObservationInput, ...] = Field(min_length=1)
+    fx_rates: tuple[FxRateInput, ...] = Field(min_length=1)
+
+    def to_market_snapshot(self) -> MarketSnapshot:
+        return MarketSnapshot(
+            snapshot_id=self.snapshot_id,
+            as_of=self.as_of,
+            prices=tuple(
+                PriceObservation(
+                    symbol=price.symbol,
+                    price=price.price,
+                    unit=price.unit,
+                    observed_at=price.observed_at,
+                    source=price.source,
+                )
+                for price in self.prices
+            ),
+            fx_rates=tuple(
+                FxRate(
+                    pair=rate.pair,
+                    rate=rate.rate,
+                    observed_at=rate.observed_at,
+                    source=rate.source,
+                )
+                for rate in self.fx_rates
+            ),
+        )
+
+
+class InventoryLotPipelineInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lot_id: str = Field(min_length=1, max_length=100)
+    quantity: Decimal
+    quantity_unit: str = Field(min_length=1, max_length=30)
+    benchmark_symbol: str = Field(min_length=1, max_length=30)
+    physical_differential_usd_per_mt: Decimal
+    selling_cost_usd_per_mt: Decimal
+    liquidation_cost: MoneyInput
+    advance_rate: Decimal
+    reason_codes: tuple[str, ...] = ()
+
+
+class ReceivablePipelineInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    receivable_id: str = Field(min_length=1, max_length=100)
+    obligor_id: str = Field(min_length=1, max_length=100)
+    invoice_amount: MoneyInput
+    credit_note_amount: MoneyInput
+    fx_pair: str = Field(min_length=3, max_length=20)
+    age_days: int = Field(ge=0)
+    advance_rate: Decimal
+    max_age_days: int = Field(ge=0)
+    delivery_evidence_approved: bool
+
+
+class M1BPipelineDemoRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    snapshot_id: str = Field(min_length=1, max_length=100)
+    facility_id: str = Field(min_length=1, max_length=100)
+    certificate_id: str = Field(min_length=1, max_length=100)
+    facility_limit: MoneyInput
+    current_principal: MoneyInput
+    lc_exposure: MoneyInput
+    other_contractual_usage: MoneyInput
+    market_snapshot: MarketSnapshotInput
+    inventory_lots: tuple[InventoryLotPipelineInput, ...] = ()
+    receivables: tuple[ReceivablePipelineInput, ...] = ()
+    reserves: tuple[CbbReserveInput, ...] = ()
+    market_bundle_digest: str
+    policy_bundle_digest: str
+    computation_bundle_digest: str
+
+
+class StageOutputResponse(BaseModel):
+    stage_output_id: str
+    snapshot_id: str
+    stage: str
+    stage_version: str
+    input_digests: tuple[str, ...]
+    policy_bundle_digest: str
+    computation_bundle_digest: str
+    result: dict[str, Any]
+    warnings: tuple[str, ...]
+    reason_codes: tuple[str, ...]
+    output_digest: str
+
+
+class M1BPipelineDemoResponse(BaseModel):
+    stage_outputs: tuple[StageOutputResponse, ...]
+    certificate: CbbCertificateResponse
 
 
 class FacilityResponse(BaseModel):
@@ -226,9 +453,131 @@ def create_app(
     ) -> JSONResponse:
         return _problem_response(request, 422, "VALIDATION_FAILED", str(exc))
 
+    @app.exception_handler(BorrowingBaseError)
+    async def handle_borrowing_base_error(
+        request: Request, exc: BorrowingBaseError
+    ) -> JSONResponse:
+        return _problem_response(request, 422, "VALIDATION_FAILED", str(exc))
+
+    @app.exception_handler(CbbCertificateError)
+    async def handle_cbb_error(request: Request, exc: CbbCertificateError) -> JSONResponse:
+        return _problem_response(request, 422, "VALIDATION_FAILED", str(exc))
+
     @app.get("/health", operation_id="healthCheck", response_model=HealthResponse)
     def health() -> HealthResponse:
         return HealthResponse(status="ok")
+
+    @app.post(
+        "/api/v1/cbb-certificates/demo",
+        operation_id="buildCbbCertificateDemo",
+        response_model=CbbCertificateResponse,
+        responses=_problem_responses(401, 422),
+    )
+    def build_cbb_certificate_demo(
+        command: CbbCertificateDemoRequest,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> CbbCertificateResponse:
+        del actor
+        contributions = tuple(
+            CollateralContribution(
+                item.source_type,
+                item.source_id,
+                item.amount.to_money(),
+            )
+            for item in command.contributions
+        )
+        reserves = tuple(
+            ContractualReserve(item.reserve_type, item.amount.to_money())
+            for item in command.reserves
+        )
+        assessment = calculate_contractual_borrowing_base(
+            facility_limit=command.facility_limit.to_money(),
+            contributions=contributions,
+            reserves=reserves,
+        )
+        certificate = build_cbb_certificate(
+            certificate_id=command.certificate_id,
+            snapshot_id=command.snapshot_id,
+            facility_id=command.facility_id,
+            assessment=assessment,
+            contributions=contributions,
+            reserves=reserves,
+            usage=ContractualUsage(
+                current_principal=command.usage.current_principal.to_money(),
+                lc_exposure=command.usage.lc_exposure.to_money(),
+                other_contractual_usage=command.usage.other_contractual_usage.to_money(),
+            ),
+            reason_codes=command.reason_codes,
+        )
+        return CbbCertificateResponse.model_validate(certificate.to_canonical_dict())
+
+    @app.post(
+        "/api/v1/m1b/pipeline/demo",
+        operation_id="runM1BPipelineDemo",
+        response_model=M1BPipelineDemoResponse,
+        responses=_problem_responses(401, 422),
+    )
+    def run_m1b_pipeline_demo(
+        command: M1BPipelineDemoRequest,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> M1BPipelineDemoResponse:
+        del actor
+        result = run_initial_domain_pipeline(
+            M1BPipelineInput(
+                snapshot_id=command.snapshot_id,
+                facility_id=command.facility_id,
+                certificate_id=command.certificate_id,
+                facility_limit=command.facility_limit.to_money(),
+                current_principal=command.current_principal.to_money(),
+                lc_exposure=command.lc_exposure.to_money(),
+                other_contractual_usage=command.other_contractual_usage.to_money(),
+                market_snapshot=command.market_snapshot.to_market_snapshot(),
+                inventory_lots=tuple(
+                    InventoryLotInput(
+                        lot_id=lot.lot_id,
+                        quantity=lot.quantity,
+                        quantity_unit=lot.quantity_unit,
+                        benchmark_symbol=lot.benchmark_symbol,
+                        physical_differential_usd_per_mt=lot.physical_differential_usd_per_mt,
+                        selling_cost_usd_per_mt=lot.selling_cost_usd_per_mt,
+                        liquidation_cost=lot.liquidation_cost.to_money(),
+                        advance_rate=lot.advance_rate,
+                        reason_codes=lot.reason_codes,
+                    )
+                    for lot in command.inventory_lots
+                ),
+                receivables=tuple(
+                    ReceivableInput(
+                        receivable_id=receivable.receivable_id,
+                        obligor_id=receivable.obligor_id,
+                        invoice_amount=receivable.invoice_amount.to_money(),
+                        credit_note_amount=receivable.credit_note_amount.to_money(),
+                        fx_pair=receivable.fx_pair,
+                        age_days=receivable.age_days,
+                        advance_rate=receivable.advance_rate,
+                        max_age_days=receivable.max_age_days,
+                        delivery_evidence_approved=receivable.delivery_evidence_approved,
+                    )
+                    for receivable in command.receivables
+                ),
+                reserves=tuple(
+                    ReserveInput(reserve.reserve_type, reserve.amount.to_money())
+                    for reserve in command.reserves
+                ),
+                market_bundle_digest=command.market_bundle_digest,
+                policy_bundle_digest=command.policy_bundle_digest,
+                computation_bundle_digest=command.computation_bundle_digest,
+            )
+        )
+        return M1BPipelineDemoResponse(
+            stage_outputs=tuple(
+                StageOutputResponse.model_validate(output.to_canonical_dict())
+                for output in result.stage_outputs
+            ),
+            certificate=CbbCertificateResponse.model_validate(
+                result.certificate.to_canonical_dict()
+            ),
+        )
 
     @app.post(
         "/api/v1/facilities",
