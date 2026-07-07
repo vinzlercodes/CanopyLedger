@@ -1,0 +1,12 @@
+{
+  "contractual_availability": "7378.41",
+  "contractual_borrowing_base": "234878.41",
+  "gross_eligible_contribution": "260378.41",
+  "stages": [
+    "market_normalization",
+    "collateral_valuation",
+    "eligibility_and_reserves",
+    "contractual_borrowing_base"
+  ],
+  "total_reserves": "25500.00"
+}
