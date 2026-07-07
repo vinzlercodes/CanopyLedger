@@ -20,6 +20,7 @@ dependencies = [
 
 [project.scripts]
 canopyledger-replay = "canopyledger.cli.replay:main"
+canopyledger-cbb-demo = "canopyledger.cli.cbb_demo:main"
 
 [project.optional-dependencies]
 dev = [
