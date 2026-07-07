@@ -41,12 +41,14 @@ def test_operation_ids_are_explicit_stable_and_unique() -> None:
     }
 
     assert operation_ids == {
+        "buildCbbCertificateDemo",
         "healthCheck",
         "createFacility",
         "getFacility",
         "updateFacility",
         "freezeFacility",
         "getSnapshotManifest",
+        "runM1BPipelineDemo",
     }
 
 
