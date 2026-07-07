@@ -13,8 +13,14 @@ __pycache__/
 .venv/
 .venv-system/
 .codex/
+.gitnexus/
 AGENTS.md
+CANOPYLEDGER_MASTER_PLAN.md
+MASTER_PLAN.md
 PROGRESS.md
+docs/contracts/
+docs/research/
+docs/superpowers/
 dist/
 build/
 *.egg-info/
