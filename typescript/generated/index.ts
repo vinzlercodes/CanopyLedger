@@ -6,6 +6,70 @@ export interface BundleReference {
   readonly resource_id: string;
 }
 
+export interface CbbCertificateContributionResponse {
+  readonly amount: string;
+  readonly source_id: string;
+  readonly source_type: string;
+}
+
+export interface CbbCertificateDemoRequest {
+  readonly certificate_id: string;
+  readonly contributions: readonly CbbContributionInput[];
+  readonly facility_id: string;
+  readonly facility_limit: MoneyInput;
+  readonly reason_codes?: readonly string[];
+  readonly reserves?: readonly CbbReserveInput[];
+  readonly snapshot_id: string;
+  readonly usage: ContractualUsageInput;
+}
+
+export interface CbbCertificateReserveResponse {
+  readonly amount: string;
+  readonly reserve_type: string;
+}
+
+export interface CbbCertificateResponse {
+  readonly certificate_id: string;
+  readonly facility_id: string;
+  readonly output_digest: string;
+  readonly reason_codes: readonly string[];
+  readonly result: CbbCertificateResultResponse;
+  readonly schema_version: string;
+  readonly snapshot_id: string;
+}
+
+export interface CbbCertificateResultResponse {
+  readonly contractual_availability: string;
+  readonly contractual_borrowing_base: string;
+  readonly contractual_exposure_limit: string;
+  readonly contributions: readonly CbbCertificateContributionResponse[];
+  readonly currency: string;
+  readonly current_principal: string;
+  readonly facility_limit: string;
+  readonly gross_eligible_contribution: string;
+  readonly lc_exposure: string;
+  readonly other_contractual_usage: string;
+  readonly reserves: readonly CbbCertificateReserveResponse[];
+  readonly total_reserves: string;
+}
+
+export interface CbbContributionInput {
+  readonly amount: MoneyInput;
+  readonly source_id: string;
+  readonly source_type: string;
+}
+
+export interface CbbReserveInput {
+  readonly amount: MoneyInput;
+  readonly reserve_type: string;
+}
+
+export interface ContractualUsageInput {
+  readonly current_principal: MoneyInput;
+  readonly lc_exposure: MoneyInput;
+  readonly other_contractual_usage: MoneyInput;
+}
+
 export interface CreateFacility {
   readonly currency: string;
   readonly facility_commitment: number | string;
@@ -29,8 +93,81 @@ export interface FreezeFacility {
   readonly policy_bundle: BundleReference;
 }
 
+export interface FxRateInput {
+  readonly observed_at: string;
+  readonly pair: string;
+  readonly rate: number | string;
+  readonly source: string;
+}
+
 export interface HealthResponse {
   readonly status: string;
+}
+
+export interface InventoryLotPipelineInput {
+  readonly advance_rate: number | string;
+  readonly benchmark_symbol: string;
+  readonly liquidation_cost: MoneyInput;
+  readonly lot_id: string;
+  readonly physical_differential_usd_per_mt: number | string;
+  readonly quantity: number | string;
+  readonly quantity_unit: string;
+  readonly reason_codes?: readonly string[];
+  readonly selling_cost_usd_per_mt: number | string;
+}
+
+export interface M1BPipelineDemoRequest {
+  readonly certificate_id: string;
+  readonly computation_bundle_digest: string;
+  readonly current_principal: MoneyInput;
+  readonly facility_id: string;
+  readonly facility_limit: MoneyInput;
+  readonly inventory_lots?: readonly InventoryLotPipelineInput[];
+  readonly lc_exposure: MoneyInput;
+  readonly market_bundle_digest: string;
+  readonly market_snapshot: MarketSnapshotInput;
+  readonly other_contractual_usage: MoneyInput;
+  readonly policy_bundle_digest: string;
+  readonly receivables?: readonly ReceivablePipelineInput[];
+  readonly reserves?: readonly CbbReserveInput[];
+  readonly snapshot_id: string;
+}
+
+export interface M1BPipelineDemoResponse {
+  readonly certificate: CbbCertificateResponse;
+  readonly stage_outputs: readonly StageOutputResponse[];
+}
+
+export interface MarketSnapshotInput {
+  readonly as_of: string;
+  readonly fx_rates: readonly FxRateInput[];
+  readonly prices: readonly PriceObservationInput[];
+  readonly snapshot_id: string;
+}
+
+export interface MoneyInput {
+  readonly amount: number | string;
+  readonly currency: string;
+}
+
+export interface PriceObservationInput {
+  readonly observed_at: string;
+  readonly price: number | string;
+  readonly source: string;
+  readonly symbol: string;
+  readonly unit: string;
+}
+
+export interface ReceivablePipelineInput {
+  readonly advance_rate: number | string;
+  readonly age_days: number;
+  readonly credit_note_amount: MoneyInput;
+  readonly delivery_evidence_approved: boolean;
+  readonly fx_pair: string;
+  readonly invoice_amount: MoneyInput;
+  readonly max_age_days: number;
+  readonly obligor_id: string;
+  readonly receivable_id: string;
 }
 
 export interface SnapshotInputReference {
@@ -53,6 +190,20 @@ export interface SnapshotManifestResponse {
   readonly policy_bundle: BundleReference;
   readonly schema_version: string;
   readonly snapshot_id: string;
+}
+
+export interface StageOutputResponse {
+  readonly computation_bundle_digest: string;
+  readonly input_digests: readonly string[];
+  readonly output_digest: string;
+  readonly policy_bundle_digest: string;
+  readonly reason_codes: readonly string[];
+  readonly result: Record<string, unknown>;
+  readonly snapshot_id: string;
+  readonly stage: string;
+  readonly stage_output_id: string;
+  readonly stage_version: string;
+  readonly warnings: readonly string[];
 }
 
 export interface UpdateFacility {
@@ -83,6 +234,15 @@ export class CanopyLedgerClient {
     this.#baseUrl = options.baseUrl.replace(/\/$/, "");
     this.#fetchImpl = options.fetchImpl ?? fetch;
     this.#defaultHeaders = options.defaultHeaders ?? {};
+  }
+
+  async buildCbbCertificateDemo(body: CbbCertificateDemoRequest, headers: RequestHeaders = {}): Promise<ApiResponse<CbbCertificateResponse>> {
+    return this.#request<CbbCertificateResponse>(
+      "POST",
+      `/api/v1/cbb-certificates/demo`,
+      body,
+      headers,
+    );
   }
 
   async createFacility(body: CreateFacility, headers: RequestHeaders = {}): Promise<ApiResponse<FacilityResponse>> {
@@ -148,6 +308,15 @@ export class CanopyLedgerClient {
       "GET",
       `/health`,
       undefined,
+      headers,
+    );
+  }
+
+  async runM1BPipelineDemo(body: M1BPipelineDemoRequest, headers: RequestHeaders = {}): Promise<ApiResponse<M1BPipelineDemoResponse>> {
+    return this.#request<M1BPipelineDemoResponse>(
+      "POST",
+      `/api/v1/m1b/pipeline/demo`,
+      body,
       headers,
     );
   }
