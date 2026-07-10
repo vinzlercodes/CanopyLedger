@@ -70,6 +70,10 @@ class SnapshotManifest(FrozenContract):
         identities = [(item.resource_type, item.resource_id) for item in self.inputs]
         if len(identities) != len(set(identities)):
             raise ValueError("snapshot input identities must be unique")
+        if any(item.resource_type == "candidate_fact" for item in self.inputs):
+            raise ValueError(
+                "Candidate evidence cannot satisfy an approved-fact requirement"
+            )
         return self
 
     @property
