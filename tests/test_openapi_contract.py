@@ -41,14 +41,23 @@ def test_operation_ids_are_explicit_stable_and_unique() -> None:
     }
 
     assert operation_ids == {
+        "approveCandidateFact",
         "buildCbbCertificateDemo",
-        "healthCheck",
+        "createCandidateFact",
         "createFacility",
-        "getFacility",
-        "updateFacility",
         "freezeFacility",
+        "getCandidateFactReview",
+        "getFacility",
         "getSnapshotManifest",
+        "healthCheck",
+        "rejectCandidateFact",
+        "recordOwnershipClaim",
+        "recordWarehouseReceiptEvidence",
+        "reconcileLotQuantity",
         "runM1BPipelineDemo",
+        "supersedeApprovedFact",
+        "updateFacility",
+        "uploadEvidenceDocument",
     }
 
 
