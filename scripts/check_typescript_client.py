@@ -95,7 +95,10 @@ def _ts_type(schema: dict[str, Any]) -> str:
         return " | ".join(dict.fromkeys(_ts_type(item) for item in schema["anyOf"]))
     schema_type = schema.get("type")
     if schema_type == "array":
-        return f"readonly {_ts_type(schema['items'])}[]"
+        item_type = _ts_type(schema["items"])
+        if " | " in item_type:
+            item_type = f"({item_type})"
+        return f"readonly {item_type}[]"
     if schema_type == "integer" or schema_type == "number":
         return "number"
     if schema_type == "boolean":

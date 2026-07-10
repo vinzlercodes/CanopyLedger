@@ -24,7 +24,11 @@ def auth_headers() -> dict[str, str]:
     return {"Authorization": "Bearer analyst-demo-token"}
 
 
-def publish_required_bundles(engine: Engine) -> list[dict[str, str]]:
+def publish_required_bundles(
+    engine: Engine,
+    *,
+    policy_payload: object | None = None,
+) -> list[dict[str, str]]:
     store = PostgresIntegrityStore(engine)
     references = []
     for bundle_type, prefix in (
@@ -38,7 +42,9 @@ def publish_required_bundles(engine: Engine) -> list[dict[str, str]]:
             resource_id=resource_id,
             bundle_type=bundle_type,
             schema_version="1.0",
-            payload={"resource_id": resource_id},
+            payload=policy_payload
+            if bundle_type is BundleType.POLICY and policy_payload is not None
+            else {"resource_id": resource_id},
             created_by=ACTOR_ID,
             created_at=NOW,
         )
@@ -92,13 +98,7 @@ def test_facility_idempotency_and_snapshot_survive_app_restart(
         "policy_bundle": policy,
         "legal_interpretation_bundle": legal,
         "computation_bundle": computation,
-        "inputs": [
-            {
-                "resource_type": "approved_fact",
-                "resource_id": new_resource_id("fct"),
-                "digest": f"sha256:{'a' * 64}",
-            }
-        ],
+        "inputs": [],
     }
     frozen = restarted_client.post(
         f"/api/v1/facilities/{facility_id}/snapshots",
@@ -125,3 +125,90 @@ def test_facility_idempotency_and_snapshot_survive_app_restart(
     assert manifest.status_code == 200, manifest.text
     assert manifest.json() == frozen.json()
     assert json.dumps(manifest.json(), sort_keys=True)
+
+
+def test_postgres_freeze_expands_policy_required_evidence(
+    database_url: str,
+    database_engine: Engine,
+) -> None:
+    api = client(database_url)
+    lot_id = "lot_0198a000-0000-7000-8000-000000000001"
+    policy_payload = {
+        "critical_fact_requirements": [
+            {"fact_type": "ownership", "subject_id": lot_id, "period": "2026-07"}
+        ]
+    }
+    market, policy, legal, computation = publish_required_bundles(
+        database_engine,
+        policy_payload=policy_payload,
+    )
+    document = api.post(
+        "/api/v1/evidence/documents",
+        headers=auth_headers(),
+        json={
+            "filename": "ownership.pdf",
+            "content_type": "application/pdf",
+            "content_base64": "b3duZXJzaGlwCg==",
+        },
+    )
+    assert document.status_code == 201, document.text
+    candidate = api.post(
+        "/api/v1/evidence/candidate-facts",
+        headers=auth_headers(),
+        json={
+            "fact_type": "ownership",
+            "subject_id": lot_id,
+            "period": "2026-07",
+            "value": {"owner_party_id": "pty_0198a000-0000-7000-8000-000000000001"},
+            "document_version_id": document.json()["document_version_id"],
+            "document_byte_digest": document.json()["byte_digest"],
+            "page_region": "page=1;box=10,20,300,80",
+            "extraction_method": "deterministic_template",
+            "extractor_version": "ownership-template-v1",
+            "raw_value": "pty_0198a000-0000-7000-8000-000000000001",
+            "normalized_value": "pty_0198a000-0000-7000-8000-000000000001",
+        },
+    )
+    assert candidate.status_code == 201, candidate.text
+    approved = api.post(
+        f"/api/v1/evidence/candidate-facts/{candidate.json()['candidate_fact_id']}/approve",
+        headers=auth_headers(),
+        json={},
+    )
+    assert approved.status_code == 201, approved.text
+    created = api.post(
+        "/api/v1/facilities",
+        headers={**auth_headers(), "Idempotency-Key": "policy-freeze-create-0001"},
+        json={
+            "legal_name": "Policy Coffee Trading BV",
+            "currency": "EUR",
+            "facility_commitment": "12000000.00",
+        },
+    )
+    assert created.status_code == 201, created.text
+
+    frozen = api.post(
+        f"/api/v1/facilities/{created.json()['id']}/snapshots",
+            headers={
+                **auth_headers(),
+                "Idempotency-Key": "policy-freeze-0001",
+                "If-Match": created.headers["etag"],
+            },
+        json={
+            "as_of": "2026-06-23T12:00:00.000000Z",
+            "market_bundle": market,
+            "policy_bundle": policy,
+            "legal_interpretation_bundle": legal,
+            "computation_bundle": computation,
+            "inputs": [],
+        },
+    )
+
+    assert frozen.status_code == 201, frozen.text
+    assert frozen.json()["inputs"] == [
+        {
+            "resource_type": "approved_fact",
+            "resource_id": approved.json()["approved_fact_id"],
+            "digest": approved.json()["digest"],
+        }
+    ]
