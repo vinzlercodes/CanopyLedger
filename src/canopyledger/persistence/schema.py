@@ -137,6 +137,201 @@ snapshot_input_reference = Table(
     schema=SCHEMA,
 )
 
+evidence_document = Table(
+    "evidence_document",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column("created_by", String(40), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    schema=SCHEMA,
+)
+
+evidence_document_version = Table(
+    "evidence_document_version",
+    metadata,
+    Column("resource_id", String(80), primary_key=True),
+    Column(
+        "document_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.evidence_document.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column("version", Integer, nullable=False),
+    Column("filename", String(255), nullable=False),
+    Column("content_type", String(120), nullable=False),
+    Column("original_bytes", LargeBinary, nullable=False),
+    Column("byte_digest", String(71), nullable=False),
+    Column("size_bytes", BigInteger, nullable=False),
+    Column("object_key", String(256), nullable=False),
+    Column("created_by", String(40), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("document_id", "version", name="document_version_number"),
+    UniqueConstraint("resource_id", "byte_digest", name="document_version_digest"),
+    CheckConstraint("version >= 1", name="positive_version"),
+    CheckConstraint("size_bytes >= 0", name="nonnegative_size"),
+    schema=SCHEMA,
+)
+
+candidate_fact = Table(
+    "candidate_fact",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column("fact_type", String(80), nullable=False),
+    Column("subject_id", String(100), nullable=False),
+    Column("period", String(40), nullable=False),
+    Column("value", JSONB, nullable=False),
+    Column(
+        "document_version_id",
+        String(80),
+        ForeignKey(f"{SCHEMA}.evidence_document_version.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column("document_byte_digest", String(71), nullable=False),
+    Column("page_region", String(200), nullable=False),
+    Column("extraction_method", String(80), nullable=False),
+    Column("extractor_version", String(120), nullable=False),
+    Column("raw_value", Text, nullable=False),
+    Column("normalized_value", Text, nullable=False),
+    Column("extracted_at", DateTime(timezone=True), nullable=False),
+    ForeignKeyConstraint(
+        ["document_version_id", "document_byte_digest"],
+        [
+            f"{SCHEMA}.evidence_document_version.resource_id",
+            f"{SCHEMA}.evidence_document_version.byte_digest",
+        ],
+        ondelete="RESTRICT",
+        name="candidate_fact_document_version",
+    ),
+    schema=SCHEMA,
+)
+
+approved_fact = Table(
+    "approved_fact",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column(
+        "candidate_fact_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.candidate_fact.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    ),
+    Column("fact_type", String(80), nullable=False),
+    Column("subject_id", String(100), nullable=False),
+    Column("period", String(40), nullable=False),
+    Column("value", JSONB, nullable=False),
+    Column(
+        "document_version_id",
+        String(80),
+        ForeignKey(f"{SCHEMA}.evidence_document_version.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column("document_byte_digest", String(71), nullable=False),
+    Column("approved_by", String(40), nullable=False),
+    Column("approved_at", DateTime(timezone=True), nullable=False),
+    Column(
+        "superseded_by",
+        String(40),
+        ForeignKey(
+            f"{SCHEMA}.approved_fact.resource_id",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+    ),
+    ForeignKeyConstraint(
+        ["candidate_fact_id"],
+        [f"{SCHEMA}.candidate_fact.resource_id"],
+        ondelete="RESTRICT",
+        name="approved_fact_candidate",
+    ),
+    ForeignKeyConstraint(
+        ["document_version_id", "document_byte_digest"],
+        [
+            f"{SCHEMA}.evidence_document_version.resource_id",
+            f"{SCHEMA}.evidence_document_version.byte_digest",
+        ],
+        ondelete="RESTRICT",
+        name="approved_fact_document_version",
+    ),
+    schema=SCHEMA,
+)
+Index(
+    "one_active_approved_fact_per_identity",
+    approved_fact.c.fact_type,
+    approved_fact.c.subject_id,
+    approved_fact.c.period,
+    unique=True,
+    postgresql_where=approved_fact.c.superseded_by.is_(None),
+)
+
+rejected_fact = Table(
+    "rejected_fact",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column(
+        "candidate_fact_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.candidate_fact.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    ),
+    Column("fact_type", String(80), nullable=False),
+    Column("subject_id", String(100), nullable=False),
+    Column("period", String(40), nullable=False),
+    Column("rejected_by", String(40), nullable=False),
+    Column("rejected_at", DateTime(timezone=True), nullable=False),
+    Column("reason", Text, nullable=False),
+    schema=SCHEMA,
+)
+
+warehouse_receipt_evidence = Table(
+    "warehouse_receipt_evidence",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column("receipt_number", String(100), nullable=False),
+    Column("warehouse_id", String(40), nullable=False),
+    Column("lot_id", String(40), nullable=False),
+    Column("quantity", String(80), nullable=False),
+    Column(
+        "approved_fact_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.approved_fact.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    UniqueConstraint("warehouse_id", "receipt_number", name="receipt_number_per_warehouse"),
+    schema=SCHEMA,
+)
+
+inventory_ownership_claim = Table(
+    "inventory_ownership_claim",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column("lot_id", String(40), nullable=False),
+    Column("period", String(40), nullable=False),
+    Column("owner_party_id", String(40), nullable=False),
+    Column("pledgee_id", String(40), nullable=False),
+    Column(
+        "approved_fact_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.approved_fact.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    UniqueConstraint("lot_id", "period", name="ownership_claim_identity"),
+    schema=SCHEMA,
+)
+
+quantity_reconciliation_issue = Table(
+    "quantity_reconciliation_issue",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column("lot_id", String(40), nullable=False),
+    Column("expected_quantity", String(80), nullable=False),
+    Column("receipt_quantity", String(80), nullable=False),
+    Column("difference", String(80), nullable=False),
+    Column("detected_at", DateTime(timezone=True), nullable=False),
+    schema=SCHEMA,
+)
+
 idempotency_record = Table(
     "idempotency_record",
     metadata,

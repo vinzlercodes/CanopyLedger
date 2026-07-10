@@ -22,6 +22,12 @@ _IMMUTABLE_TABLES = (
     "bundle",
     "facility_snapshot",
     "snapshot_input_reference",
+    "evidence_document_version",
+    "candidate_fact",
+    "rejected_fact",
+    "warehouse_receipt_evidence",
+    "inventory_ownership_claim",
+    "quantity_reconciliation_issue",
     "pipeline_stage_output",
     "audit_event",
     "idempotency_tombstone",
@@ -54,6 +60,48 @@ def upgrade() -> None:
             FOR EACH ROW EXECUTE FUNCTION {SCHEMA}.reject_immutable_change()
             """
         )
+    op.execute(
+        f"""
+        CREATE OR REPLACE FUNCTION {SCHEMA}.guard_approved_fact_change()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        SET search_path = pg_catalog
+        AS $$
+        BEGIN
+            IF TG_OP = 'DELETE' THEN
+                RAISE EXCEPTION 'approved facts cannot be deleted' USING ERRCODE = '55000';
+            END IF;
+            IF NEW.resource_id IS DISTINCT FROM OLD.resource_id
+               OR NEW.candidate_fact_id IS DISTINCT FROM OLD.candidate_fact_id
+               OR NEW.fact_type IS DISTINCT FROM OLD.fact_type
+               OR NEW.subject_id IS DISTINCT FROM OLD.subject_id
+               OR NEW.period IS DISTINCT FROM OLD.period
+               OR NEW.value IS DISTINCT FROM OLD.value
+               OR NEW.document_version_id IS DISTINCT FROM OLD.document_version_id
+               OR NEW.document_byte_digest IS DISTINCT FROM OLD.document_byte_digest
+               OR NEW.approved_by IS DISTINCT FROM OLD.approved_by
+               OR NEW.approved_at IS DISTINCT FROM OLD.approved_at THEN
+                RAISE EXCEPTION 'approved fact content is immutable'
+                    USING ERRCODE = '55000';
+            END IF;
+            IF OLD.superseded_by IS NOT NULL
+               OR NEW.superseded_by IS NULL
+               OR NEW.superseded_by IS NOT DISTINCT FROM OLD.superseded_by THEN
+                RAISE EXCEPTION 'approved fact supersession is immutable'
+                    USING ERRCODE = '55000';
+            END IF;
+            RETURN NEW;
+        END;
+        $$
+        """
+    )
+    op.execute(
+        f"""
+        CREATE TRIGGER approved_fact_guarded
+        BEFORE UPDATE OR DELETE ON {SCHEMA}.approved_fact
+        FOR EACH ROW EXECUTE FUNCTION {SCHEMA}.guard_approved_fact_change()
+        """
+    )
     op.execute(
         f"""
         CREATE OR REPLACE FUNCTION {SCHEMA}.guard_outbox_change()
@@ -99,7 +147,14 @@ def upgrade() -> None:
                     TO application_writer;
                 GRANT SELECT, INSERT ON {SCHEMA}.bundle, {SCHEMA}.facility_snapshot,
                     {SCHEMA}.snapshot_input_reference, {SCHEMA}.idempotency_tombstone,
-                    {SCHEMA}.audit_event TO application_writer;
+                    {SCHEMA}.audit_event, {SCHEMA}.evidence_document,
+                    {SCHEMA}.evidence_document_version, {SCHEMA}.candidate_fact,
+                    {SCHEMA}.rejected_fact,
+                    {SCHEMA}.warehouse_receipt_evidence,
+                    {SCHEMA}.inventory_ownership_claim,
+                    {SCHEMA}.quantity_reconciliation_issue TO application_writer;
+                GRANT SELECT, INSERT, UPDATE ON {SCHEMA}.approved_fact
+                    TO application_writer;
             END IF;
             IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'pipeline_writer') THEN
                 GRANT SELECT, INSERT, UPDATE ON {SCHEMA}.pipeline_run,
@@ -118,5 +173,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute(f"DROP FUNCTION IF EXISTS {SCHEMA}.guard_outbox_change() CASCADE")
+    op.execute(f"DROP FUNCTION IF EXISTS {SCHEMA}.guard_approved_fact_change() CASCADE")
     op.execute(f"DROP FUNCTION IF EXISTS {SCHEMA}.reject_immutable_change() CASCADE")
     metadata.drop_all(bind=op.get_bind(), checkfirst=False)
