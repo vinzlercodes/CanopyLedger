@@ -107,3 +107,14 @@ def test_manifest_rejects_naive_as_of() -> None:
     data["as_of"] = datetime(2026, 6, 21, 17, 0)
     with pytest.raises(ValidationError, match="timezone-aware"):
         SnapshotManifest.model_validate(data)
+
+
+def test_manifest_rejects_candidate_fact_inputs() -> None:
+    candidate = SnapshotInputReference(
+        resource_type="candidate_fact",
+        resource_id="caf_0198a000-0000-7000-8000-000000000001",
+        digest="sha256:" + "1" * 64,
+    )
+
+    with pytest.raises(ValidationError, match="Candidate evidence cannot"):
+        build_manifest((candidate,))
