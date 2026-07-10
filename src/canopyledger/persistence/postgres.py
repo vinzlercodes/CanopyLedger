@@ -11,6 +11,10 @@ from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.exc import IntegrityError
 
+from canopyledger.application.evidence import (
+    OwnershipClaimRecord,
+    WarehouseReceiptRecord,
+)
 from canopyledger.application.integrity import (
     InboxDigestConflict,
     SnapshotAlreadyFrozen,
@@ -26,6 +30,19 @@ from canopyledger.application.models import (
     StagePublicationData,
 )
 from canopyledger.application.ports import IntegrityTransaction
+from canopyledger.evidence.controls import (
+    ApprovedFact,
+    CandidateFact,
+    DocumentVersion,
+    DuplicateWarehouseReceipt,
+    EvidenceControlError,
+    FactIdentity,
+    InventoryOwnershipClaim,
+    OwnershipConflict,
+    QuantityReconciliationIssue,
+    RejectedFact,
+    WarehouseReceiptEvidence,
+)
 from canopyledger.integrity.bundles import BundleType, VersionBundle
 from canopyledger.integrity.canonical import canonical_json_bytes, domain_digest
 from canopyledger.integrity.idempotency import (
@@ -42,18 +59,26 @@ from canopyledger.integrity.snapshot import (
 )
 
 from .schema import (
+    approved_fact,
     audit_event,
+    candidate_fact,
+    evidence_document,
+    evidence_document_version,
     facility_snapshot,
     facility_working_state,
     idempotency_record,
     idempotency_tombstone,
     inbox_receipt,
+    inventory_ownership_claim,
     outbox_message,
     pipeline_run,
     pipeline_stage,
     pipeline_stage_attempt,
     pipeline_stage_output,
+    quantity_reconciliation_issue,
+    rejected_fact,
     snapshot_input_reference,
+    warehouse_receipt_evidence,
 )
 from .schema import (
     bundle as bundle_table,
@@ -76,6 +101,363 @@ class RetryableSerializationConflict(RuntimeError):
 
 class SerializationRetryExhausted(RuntimeError):
     """Raised when bounded serializable retries cannot obtain a commit."""
+
+
+class PostgresEvidenceStore:
+    """PostgreSQL adapter for M2 evidence review resources."""
+
+    def __init__(self, engine: Engine) -> None:
+        self._engine = engine
+
+    def insert_document_version(
+        self, document: DocumentVersion, *, original_bytes: bytes
+    ) -> None:
+        try:
+            with self._engine.begin() as connection:
+                connection.execute(
+                    postgres_insert(evidence_document)
+                    .values(
+                        resource_id=document.document_id,
+                        created_by=document.created_by,
+                        created_at=document.created_at,
+                    )
+                    .on_conflict_do_nothing(index_elements=[evidence_document.c.resource_id])
+                )
+                connection.execute(
+                    insert(evidence_document_version).values(
+                        resource_id=document.resource_id,
+                        document_id=document.document_id,
+                        version=document.version,
+                        filename=document.filename,
+                        content_type=document.content_type,
+                        original_bytes=original_bytes,
+                        byte_digest=document.byte_digest,
+                        size_bytes=document.size_bytes,
+                        object_key=f"evidence/{document.resource_id}",
+                        created_by=document.created_by,
+                        created_at=document.created_at,
+                    )
+                )
+        except IntegrityError as exc:
+            existing = self.get_document_version(document.resource_id)
+            if existing == document:
+                return
+            raise EvidenceControlError(
+                "document version already exists with different content"
+            ) from exc
+
+    def get_document_version(self, document_version_id: str) -> DocumentVersion | None:
+        with self._engine.connect() as connection:
+            row = (
+                connection.execute(
+                    select(evidence_document_version).where(
+                        evidence_document_version.c.resource_id == document_version_id
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+        return None if row is None else _document_version_from_row(row)
+
+    def insert_candidate_fact(self, candidate: CandidateFact) -> None:
+        try:
+            with self._engine.begin() as connection:
+                connection.execute(
+                    insert(candidate_fact).values(
+                        resource_id=candidate.fact_id,
+                        fact_type=candidate.identity.fact_type,
+                        subject_id=candidate.identity.subject_id,
+                        period=candidate.identity.period,
+                        value=candidate.value,
+                        document_version_id=candidate.document_version_id,
+                        document_byte_digest=candidate.document_byte_digest,
+                        page_region=candidate.page_region or "",
+                        extraction_method=candidate.extraction_method or "",
+                        extractor_version=candidate.extractor_version or "",
+                        raw_value=candidate.raw_value or "",
+                        normalized_value=candidate.normalized_value or "",
+                        extracted_at=candidate.extracted_at,
+                    )
+                )
+        except IntegrityError as exc:
+            existing = self.get_candidate_fact(candidate.fact_id)
+            if existing == candidate:
+                return
+            raise EvidenceControlError(
+                "candidate fact already exists with different content"
+            ) from exc
+
+    def get_candidate_fact(self, candidate_fact_id: str) -> CandidateFact | None:
+        with self._engine.connect() as connection:
+            row = (
+                connection.execute(
+                    select(candidate_fact).where(candidate_fact.c.resource_id == candidate_fact_id)
+                )
+                .mappings()
+                .one_or_none()
+            )
+        return None if row is None else _candidate_fact_from_row(row)
+
+    def get_approved_fact_for_candidate(self, candidate_fact_id: str) -> ApprovedFact | None:
+        with self._engine.connect() as connection:
+            row = (
+                connection.execute(
+                    select(approved_fact).where(
+                        approved_fact.c.candidate_fact_id == candidate_fact_id
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+        return None if row is None else _approved_fact_from_row(row)
+
+    def get_rejected_fact_for_candidate(self, candidate_fact_id: str) -> RejectedFact | None:
+        with self._engine.connect() as connection:
+            row = (
+                connection.execute(
+                    select(rejected_fact).where(
+                        rejected_fact.c.candidate_fact_id == candidate_fact_id
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+        return None if row is None else _rejected_fact_from_row(row)
+
+    def get_active_approved_fact(self, identity: FactIdentity) -> ApprovedFact | None:
+        with self._engine.connect() as connection:
+            row = (
+                connection.execute(
+                    select(approved_fact).where(
+                        approved_fact.c.fact_type == identity.fact_type,
+                        approved_fact.c.subject_id == identity.subject_id,
+                        approved_fact.c.period == identity.period,
+                        approved_fact.c.superseded_by.is_(None),
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+        return None if row is None else _approved_fact_from_row(row)
+
+    def get_approved_fact(self, approved_fact_id: str) -> ApprovedFact | None:
+        with self._engine.connect() as connection:
+            row = (
+                connection.execute(
+                    select(approved_fact).where(
+                        approved_fact.c.resource_id == approved_fact_id
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+        return None if row is None else _approved_fact_from_row(row)
+
+    def list_approved_facts_for_identity(
+        self, identity: FactIdentity
+    ) -> tuple[ApprovedFact, ...]:
+        with self._engine.connect() as connection:
+            rows = (
+                connection.execute(
+                    select(approved_fact)
+                    .where(
+                        approved_fact.c.fact_type == identity.fact_type,
+                        approved_fact.c.subject_id == identity.subject_id,
+                        approved_fact.c.period == identity.period,
+                    )
+                    .order_by(approved_fact.c.approved_at, approved_fact.c.resource_id)
+                )
+                .mappings()
+                .all()
+            )
+        return tuple(_approved_fact_from_row(row) for row in rows)
+
+    def insert_approved_fact(self, approved: ApprovedFact) -> None:
+        try:
+            with self._engine.begin() as connection:
+                connection.execute(
+                    insert(approved_fact).values(
+                        resource_id=approved.fact_id,
+                        candidate_fact_id=approved.candidate_fact_id,
+                        fact_type=approved.identity.fact_type,
+                        subject_id=approved.identity.subject_id,
+                        period=approved.identity.period,
+                        value=approved.value,
+                        document_version_id=approved.document_version_id,
+                        document_byte_digest=approved.document_byte_digest,
+                        approved_by=approved.approved_by,
+                        approved_at=approved.approved_at,
+                        superseded_by=approved.superseded_by,
+                    )
+                )
+        except IntegrityError as exc:
+            raise EvidenceControlError("approved fact conflicts with existing evidence") from exc
+
+    def supersede_approved_fact(
+        self, *, superseded: ApprovedFact, replacement: ApprovedFact
+    ) -> None:
+        try:
+            with self._engine.begin() as connection:
+                result = connection.execute(
+                    update(approved_fact)
+                    .where(
+                        approved_fact.c.resource_id == superseded.fact_id,
+                        approved_fact.c.superseded_by.is_(None),
+                    )
+                    .values(superseded_by=replacement.fact_id)
+                )
+                if result.rowcount != 1:
+                    raise EvidenceControlError("approved fact changed before supersession")
+                connection.execute(
+                    insert(approved_fact).values(
+                        resource_id=replacement.fact_id,
+                        candidate_fact_id=replacement.candidate_fact_id,
+                        fact_type=replacement.identity.fact_type,
+                        subject_id=replacement.identity.subject_id,
+                        period=replacement.identity.period,
+                        value=replacement.value,
+                        document_version_id=replacement.document_version_id,
+                        document_byte_digest=replacement.document_byte_digest,
+                        approved_by=replacement.approved_by,
+                        approved_at=replacement.approved_at,
+                        superseded_by=replacement.superseded_by,
+                    )
+                )
+        except IntegrityError as exc:
+            raise EvidenceControlError("approved fact conflicts with existing evidence") from exc
+
+    def insert_rejected_fact(self, rejected: RejectedFact) -> None:
+        try:
+            with self._engine.begin() as connection:
+                connection.execute(
+                    insert(rejected_fact).values(
+                        resource_id=rejected.fact_id,
+                        candidate_fact_id=rejected.candidate_fact_id,
+                        fact_type=rejected.identity.fact_type,
+                        subject_id=rejected.identity.subject_id,
+                        period=rejected.identity.period,
+                        rejected_by=rejected.rejected_by,
+                        rejected_at=rejected.rejected_at,
+                        reason=rejected.reason,
+                    )
+                )
+        except IntegrityError as exc:
+            raise EvidenceControlError("rejected fact conflicts with existing evidence") from exc
+
+    def get_warehouse_receipt(
+        self, *, warehouse_id: str, receipt_number: str
+    ) -> WarehouseReceiptRecord | None:
+        with self._engine.connect() as connection:
+            row = (
+                connection.execute(
+                    select(warehouse_receipt_evidence).where(
+                        warehouse_receipt_evidence.c.warehouse_id == warehouse_id,
+                        warehouse_receipt_evidence.c.receipt_number == receipt_number,
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+        return None if row is None else _warehouse_receipt_from_row(row)
+
+    def insert_warehouse_receipt(
+        self, *, resource_id: str, receipt: WarehouseReceiptEvidence
+    ) -> None:
+        try:
+            with self._engine.begin() as connection:
+                connection.execute(
+                    insert(warehouse_receipt_evidence).values(
+                        resource_id=resource_id,
+                        receipt_number=receipt.receipt_number,
+                        warehouse_id=receipt.warehouse_id,
+                        lot_id=receipt.lot_id,
+                        quantity=receipt.quantity,
+                        approved_fact_id=receipt.approved_fact_id,
+                    )
+                )
+        except IntegrityError as exc:
+            existing = self.get_warehouse_receipt(
+                warehouse_id=receipt.warehouse_id,
+                receipt_number=receipt.receipt_number,
+            )
+            if existing is not None and existing.receipt == receipt:
+                return
+            raise DuplicateWarehouseReceipt(
+                "warehouse receipt number already has approved evidence"
+            ) from exc
+
+    def list_warehouse_receipts_for_lot(
+        self, lot_id: str
+    ) -> tuple[WarehouseReceiptRecord, ...]:
+        with self._engine.connect() as connection:
+            rows = (
+                connection.execute(
+                    select(warehouse_receipt_evidence)
+                    .where(warehouse_receipt_evidence.c.lot_id == lot_id)
+                    .order_by(warehouse_receipt_evidence.c.resource_id)
+                )
+                .mappings()
+                .all()
+            )
+        return tuple(_warehouse_receipt_from_row(row) for row in rows)
+
+    def get_ownership_claim(
+        self, *, lot_id: str, period: str
+    ) -> OwnershipClaimRecord | None:
+        with self._engine.connect() as connection:
+            row = (
+                connection.execute(
+                    select(inventory_ownership_claim).where(
+                        inventory_ownership_claim.c.lot_id == lot_id,
+                        inventory_ownership_claim.c.period == period,
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+        return None if row is None else _ownership_claim_from_row(row)
+
+    def insert_ownership_claim(
+        self, *, resource_id: str, claim: InventoryOwnershipClaim
+    ) -> None:
+        try:
+            with self._engine.begin() as connection:
+                connection.execute(
+                    insert(inventory_ownership_claim).values(
+                        resource_id=resource_id,
+                        lot_id=claim.lot_id,
+                        period=claim.period,
+                        owner_party_id=claim.owner_party_id,
+                        pledgee_id=claim.pledgee_id,
+                        approved_fact_id=claim.approved_fact_id,
+                    )
+                )
+        except IntegrityError as exc:
+            existing = self.get_ownership_claim(lot_id=claim.lot_id, period=claim.period)
+            if existing is not None and existing.claim == claim:
+                return
+            raise OwnershipConflict(
+                "lot already has conflicting ownership or pledge evidence"
+            ) from exc
+
+    def insert_quantity_reconciliation_issue(
+        self,
+        *,
+        resource_id: str,
+        issue: QuantityReconciliationIssue,
+        detected_at: datetime,
+    ) -> None:
+        with self._engine.begin() as connection:
+            connection.execute(
+                insert(quantity_reconciliation_issue).values(
+                    resource_id=resource_id,
+                    lot_id=issue.lot_id,
+                    expected_quantity=issue.expected_quantity,
+                    receipt_quantity=issue.receipt_quantity,
+                    difference=issue.difference,
+                    detected_at=detected_at,
+                )
+            )
 
 
 class PostgresIntegrityStore:
@@ -956,6 +1338,99 @@ def _facility_from_row(row: RowMapping) -> FacilityState:
         version=row["version"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+    )
+
+
+def _document_version_from_row(row: RowMapping) -> DocumentVersion:
+    return DocumentVersion(
+        resource_id=row["resource_id"],
+        document_id=row["document_id"],
+        version=row["version"],
+        filename=row["filename"],
+        content_type=row["content_type"],
+        byte_digest=row["byte_digest"],
+        size_bytes=row["size_bytes"],
+        created_by=row["created_by"],
+        created_at=row["created_at"],
+    )
+
+
+def _candidate_fact_from_row(row: RowMapping) -> CandidateFact:
+    return CandidateFact(
+        fact_id=row["resource_id"],
+        identity=FactIdentity(
+            fact_type=row["fact_type"],
+            subject_id=row["subject_id"],
+            period=row["period"],
+        ),
+        value=dict(row["value"]),
+        document_version_id=row["document_version_id"],
+        document_byte_digest=row["document_byte_digest"],
+        extracted_at=row["extracted_at"],
+        page_region=row["page_region"],
+        extraction_method=row["extraction_method"],
+        extractor_version=row["extractor_version"],
+        raw_value=row["raw_value"],
+        normalized_value=row["normalized_value"],
+    )
+
+
+def _approved_fact_from_row(row: RowMapping) -> ApprovedFact:
+    return ApprovedFact(
+        fact_id=row["resource_id"],
+        candidate_fact_id=row["candidate_fact_id"],
+        identity=FactIdentity(
+            fact_type=row["fact_type"],
+            subject_id=row["subject_id"],
+            period=row["period"],
+        ),
+        value=dict(row["value"]),
+        document_version_id=row["document_version_id"],
+        document_byte_digest=row["document_byte_digest"],
+        approved_by=row["approved_by"],
+        approved_at=row["approved_at"],
+        superseded_by=row["superseded_by"],
+    )
+
+
+def _rejected_fact_from_row(row: RowMapping) -> RejectedFact:
+    return RejectedFact(
+        fact_id=row["resource_id"],
+        candidate_fact_id=row["candidate_fact_id"],
+        identity=FactIdentity(
+            fact_type=row["fact_type"],
+            subject_id=row["subject_id"],
+            period=row["period"],
+        ),
+        rejected_by=row["rejected_by"],
+        rejected_at=row["rejected_at"],
+        reason=row["reason"],
+    )
+
+
+def _warehouse_receipt_from_row(row: RowMapping) -> WarehouseReceiptRecord:
+    return WarehouseReceiptRecord(
+        resource_id=row["resource_id"],
+        receipt=WarehouseReceiptEvidence(
+            receipt_number=row["receipt_number"],
+            warehouse_id=row["warehouse_id"],
+            lot_id=row["lot_id"],
+            quantity=row["quantity"],
+            approved_fact_id=row["approved_fact_id"],
+        ),
+    )
+
+
+def _ownership_claim_from_row(row: RowMapping) -> OwnershipClaimRecord:
+    return OwnershipClaimRecord(
+        resource_id=row["resource_id"],
+        claim=InventoryOwnershipClaim(
+            lot_id=row["lot_id"],
+            period=row["period"],
+            owner_party_id=row["owner_party_id"],
+            pledgee_id=row["pledgee_id"],
+            approved_fact_id=row["approved_fact_id"],
+        ),
     )
 
 
