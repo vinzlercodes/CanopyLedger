@@ -24,7 +24,7 @@ from canopyledger.initial_domain.pipeline import (
 )
 from canopyledger.initial_domain.postgres import PostgresM1BPipelineRunner
 from canopyledger.integrity.bundles import BundleType, VersionBundle
-from canopyledger.integrity.snapshot import BundleReference
+from canopyledger.integrity.snapshot import BundleReference, SnapshotInputReference
 from canopyledger.market.snapshot import FxRate, MarketSnapshot, PriceObservation
 from canopyledger.persistence.postgres import PostgresIntegrityStore
 from canopyledger.persistence.schema import pipeline_stage, pipeline_stage_output
@@ -79,6 +79,9 @@ def test_m1b_pipeline_publishes_four_stage_outputs_for_frozen_snapshot(
 def _freeze_snapshot(
     service: IntegrityService,
     store: PostgresIntegrityStore,
+    *,
+    inputs: tuple[SnapshotInputReference, ...] = (),
+    bundle_payloads: dict[BundleType, dict[str, object]] | None = None,
 ) -> tuple[str, dict[BundleType, BundleReference]]:
     created = service.create_facility(
         CreateFacilityCommand(
@@ -103,7 +106,10 @@ def _freeze_snapshot(
             resource_id=resource_id,
             bundle_type=bundle_type,
             schema_version="1.0",
-            payload={"resource_id": resource_id},
+            payload={
+                "resource_id": resource_id,
+                **({} if bundle_payloads is None else bundle_payloads.get(bundle_type, {})),
+            },
             created_by=ACTOR_ID,
             created_at=NOW,
         )
@@ -120,7 +126,7 @@ def _freeze_snapshot(
             policy_bundle=references[BundleType.POLICY],
             legal_interpretation_bundle=references[BundleType.LEGAL_INTERPRETATION],
             computation_bundle=references[BundleType.COMPUTATION],
-            inputs=(),
+            inputs=inputs,
             correlation_id=new_resource_id("cor"),
         )
     )

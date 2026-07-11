@@ -144,6 +144,28 @@ export interface EvidenceReviewPacketResponse {
   readonly supersession_chain: readonly string[];
 }
 
+export interface ExchangeContractSpecificationInput {
+  readonly calendar_version: string;
+  readonly contract_size: number | string;
+  readonly contract_size_unit: string;
+  readonly contract_symbol: string;
+  readonly currency: string;
+  readonly delivery_months: readonly string[];
+  readonly effective_from: string;
+  readonly effective_to: string;
+  readonly exchange: string;
+  readonly exercise_style: ExerciseStyle;
+  readonly price_unit: string;
+  readonly price_unit_factor: number | string;
+  readonly product_code: string;
+  readonly settlement_rule: string;
+  readonly source_document_digest: string;
+  readonly tick_size: number | string;
+}
+
+export interface ExerciseStyle {
+}
+
 export interface FacilityResponse {
   readonly currency: string;
   readonly facility_commitment: string;
@@ -161,6 +183,14 @@ export interface FreezeFacility {
   readonly policy_bundle: BundleReference;
 }
 
+export interface FuturesPositionInput {
+  readonly contract_specification: ExchangeContractSpecificationInput;
+  readonly contracts: number | string;
+  readonly current_futures_price: number | string;
+  readonly delivery_month: string;
+  readonly entry_futures_price: number | string;
+}
+
 export interface FxRateInput {
   readonly observed_at: string;
   readonly pair: string;
@@ -174,6 +204,62 @@ export interface HTTPValidationError {
 
 export interface HealthResponse {
   readonly status: string;
+}
+
+export interface HedgeLiquidityDemoRequest {
+  readonly as_of: string;
+  readonly assessment_id: string;
+  readonly available_cash: MoneyInput;
+  readonly basis_exposure: number | string;
+  readonly cbb_output_digest: string;
+  readonly computation_bundle_digest: string;
+  readonly exposure_unit: string;
+  readonly futures_positions?: readonly FuturesPositionInput[];
+  readonly fx_exposure: MoneyInput;
+  readonly fx_rates_to_facility?: Record<string, unknown>;
+  readonly market_bundle_digest: string;
+  readonly multi_day_futures_moves: Record<string, unknown>;
+  readonly one_day_futures_moves: Record<string, unknown>;
+  readonly option_positions?: readonly OptionPositionInput[];
+  readonly physical_exposure?: readonly PhysicalExposureInput[];
+  readonly policy_bundle_digest: string;
+  readonly purchase_commitments?: readonly PhysicalExposureInput[];
+  readonly required_liquidity_coverage_ratio?: number | string;
+  readonly sales_commitments?: readonly PhysicalExposureInput[];
+  readonly snapshot_id: string;
+  readonly undrawn_contractual_availability: MoneyInput;
+  readonly unit_conversion_factors?: readonly HedgeUnitFactorInput[];
+}
+
+export interface HedgeLiquidityPreviewResponse {
+  readonly assessment_id: string;
+  readonly authoritativeness: string;
+  readonly reason_codes: readonly string[];
+  readonly result: Record<string, unknown>;
+  readonly snapshot_id: string;
+  readonly warnings: readonly string[];
+}
+
+export interface HedgeLiquidityStageOutputResponse {
+  readonly completed_at: string;
+  readonly computation_bundle_digest: string;
+  readonly input_digests: readonly string[];
+  readonly output_digest: string;
+  readonly policy_bundle_digest: string;
+  readonly reason_codes: readonly string[];
+  readonly result: Record<string, unknown>;
+  readonly snapshot_id: string;
+  readonly stage: string;
+  readonly stage_output_id: string;
+  readonly stage_version: string;
+  readonly started_at: string;
+  readonly warnings: readonly string[];
+}
+
+export interface HedgeUnitFactorInput {
+  readonly factor: number | string;
+  readonly input_unit: string;
+  readonly output_unit: string;
 }
 
 export interface InventoryLotPipelineInput {
@@ -222,6 +308,23 @@ export interface MoneyInput {
   readonly currency: string;
 }
 
+export interface OptionPositionInput {
+  readonly contract_specification: ExchangeContractSpecificationInput;
+  readonly contracts: number | string;
+  readonly delivery_month: string;
+  readonly entry_option_price?: number | string;
+  readonly futures_price: number | string;
+  readonly lattice_steps?: number;
+  readonly option_type: OptionType;
+  readonly risk_free_rate: number | string;
+  readonly strike: number | string;
+  readonly time_to_expiry: number | string;
+  readonly volatility: number | string;
+}
+
+export interface OptionType {
+}
+
 export interface OwnershipClaimCreate {
   readonly approved_fact_id: string;
   readonly lot_id: string;
@@ -237,6 +340,13 @@ export interface OwnershipClaimResponse {
   readonly ownership_claim_id: string;
   readonly period: string;
   readonly pledgee_id: string;
+}
+
+export interface PhysicalExposureInput {
+  readonly delivery_month: string;
+  readonly product_code: string;
+  readonly quantity: number | string;
+  readonly quantity_unit: string;
 }
 
 export interface PriceObservationInput {
@@ -415,6 +525,15 @@ export class CanopyLedgerClient {
     );
   }
 
+  async evaluateHedgeLiquidityDemo(body: HedgeLiquidityDemoRequest, headers: RequestHeaders = {}): Promise<ApiResponse<HedgeLiquidityPreviewResponse>> {
+    return this.#request<HedgeLiquidityPreviewResponse>(
+      "POST",
+      `/api/v1/hedge-liquidity/demo`,
+      body,
+      headers,
+    );
+  }
+
   async freezeFacility(facility_id: string, body: FreezeFacility, headers: RequestHeaders = {}): Promise<ApiResponse<SnapshotManifestResponse>> {
     return this.#request<SnapshotManifestResponse>(
       "POST",
@@ -437,6 +556,15 @@ export class CanopyLedgerClient {
     return this.#request<FacilityResponse>(
       "GET",
       `/api/v1/facilities/${encodeURIComponent(facility_id)}`,
+      undefined,
+      headers,
+    );
+  }
+
+  async getHedgeLiquidityAssessment(snapshot_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<HedgeLiquidityStageOutputResponse>> {
+    return this.#request<HedgeLiquidityStageOutputResponse>(
+      "GET",
+      `/api/v1/snapshots/${encodeURIComponent(snapshot_id)}/hedge-liquidity`,
       undefined,
       headers,
     );

@@ -5,10 +5,10 @@ import binascii
 import json
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_EVEN, Decimal
 from html import escape
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import Depends, FastAPI, Header, Request
 from fastapi.exceptions import RequestValidationError
@@ -58,6 +58,21 @@ from canopyledger.evidence.controls import (
     FactIdentity,
     RejectedFact,
     approved_fact_digest,
+)
+from canopyledger.hedge.engine import (
+    ExchangeContractSpecification,
+    ExerciseStyle,
+    FuturesPosition,
+    HedgeLiquidityError,
+    HedgeLiquidityInput,
+    OptionPosition,
+    OptionType,
+    PhysicalExposure,
+    evaluate_hedge_and_liquidity,
+)
+from canopyledger.hedge.postgres import (
+    PostgresHedgeLiquidityInputStore,
+    PostgresHedgeLiquidityRunner,
 )
 from canopyledger.initial_domain.pipeline import (
     InventoryLotInput,
@@ -498,6 +513,190 @@ class M1BPipelineDemoResponse(BaseModel):
     certificate: CbbCertificateResponse
 
 
+class HedgeUnitFactorInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    input_unit: str = Field(min_length=1, max_length=40)
+    output_unit: str = Field(min_length=1, max_length=40)
+    factor: Decimal = Field(gt=0)
+
+
+class ExchangeContractSpecificationInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    exchange: str = Field(min_length=1, max_length=40)
+    product_code: str = Field(min_length=1, max_length=20)
+    contract_symbol: str = Field(min_length=1, max_length=30)
+    contract_size: Decimal = Field(gt=0)
+    contract_size_unit: str = Field(min_length=1, max_length=40)
+    price_unit: str = Field(min_length=1, max_length=40)
+    price_unit_factor: Decimal = Field(gt=0)
+    tick_size: Decimal = Field(gt=0)
+    currency: str = Field(pattern=r"^[A-Z]{3}$")
+    exercise_style: ExerciseStyle
+    settlement_rule: str = Field(min_length=1, max_length=80)
+    calendar_version: str = Field(min_length=1, max_length=80)
+    delivery_months: tuple[str, ...] = Field(min_length=1)
+    effective_from: str = Field(min_length=1, max_length=40)
+    effective_to: str = Field(min_length=1, max_length=40)
+    source_document_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+    def to_contract_specification(self) -> ExchangeContractSpecification:
+        return ExchangeContractSpecification(**self.model_dump())
+
+
+class PhysicalExposureInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product_code: str = Field(min_length=1, max_length=20)
+    delivery_month: str = Field(min_length=1, max_length=20)
+    quantity: Decimal = Field(ge=0)
+    quantity_unit: str = Field(min_length=1, max_length=40)
+
+    def to_physical_exposure(self) -> PhysicalExposure:
+        return PhysicalExposure(**self.model_dump())
+
+
+class FuturesPositionInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    contract_specification: ExchangeContractSpecificationInput
+    contracts: Decimal
+    delivery_month: str = Field(min_length=1, max_length=20)
+    entry_futures_price: Decimal
+    current_futures_price: Decimal
+
+    def to_futures_position(self) -> FuturesPosition:
+        return FuturesPosition(
+            contract_specification=self.contract_specification.to_contract_specification(),
+            contracts=self.contracts,
+            delivery_month=self.delivery_month,
+            entry_futures_price=self.entry_futures_price,
+            current_futures_price=self.current_futures_price,
+        )
+
+
+class OptionPositionInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    contract_specification: ExchangeContractSpecificationInput
+    contracts: Decimal
+    delivery_month: str = Field(min_length=1, max_length=20)
+    option_type: OptionType
+    strike: Decimal = Field(gt=0)
+    futures_price: Decimal = Field(ge=0)
+    volatility: Decimal = Field(ge=0)
+    risk_free_rate: Decimal
+    time_to_expiry: Decimal = Field(ge=0)
+    lattice_steps: int = Field(default=200, ge=2, le=2000)
+    entry_option_price: Decimal | None = None
+
+    def to_option_position(self) -> OptionPosition:
+        return OptionPosition(
+            contract_specification=self.contract_specification.to_contract_specification(),
+            contracts=self.contracts,
+            delivery_month=self.delivery_month,
+            option_type=self.option_type,
+            strike=self.strike,
+            futures_price=self.futures_price,
+            volatility=self.volatility,
+            risk_free_rate=self.risk_free_rate,
+            time_to_expiry=self.time_to_expiry,
+            lattice_steps=self.lattice_steps,
+            entry_option_price=self.entry_option_price,
+        )
+
+
+class HedgeLiquidityDemoRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    assessment_id: str = Field(min_length=1, max_length=100)
+    snapshot_id: str = Field(min_length=1, max_length=100)
+    as_of: date
+    cbb_output_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    market_bundle_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    policy_bundle_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    computation_bundle_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    exposure_unit: str = Field(min_length=1, max_length=40)
+    unit_conversion_factors: tuple[HedgeUnitFactorInput, ...] = ()
+    physical_exposure: tuple[PhysicalExposureInput, ...] = ()
+    purchase_commitments: tuple[PhysicalExposureInput, ...] = ()
+    sales_commitments: tuple[PhysicalExposureInput, ...] = ()
+    futures_positions: tuple[FuturesPositionInput, ...] = ()
+    option_positions: tuple[OptionPositionInput, ...] = ()
+    fx_exposure: MoneyInput
+    basis_exposure: Decimal
+    available_cash: MoneyInput
+    undrawn_contractual_availability: MoneyInput
+    one_day_futures_moves: dict[str, Decimal]
+    multi_day_futures_moves: dict[str, Decimal]
+    fx_rates_to_facility: dict[str, Decimal] = Field(default_factory=dict)
+    required_liquidity_coverage_ratio: Decimal = Field(default=Decimal("1"), gt=0)
+
+    def to_hedge_liquidity_input(self) -> HedgeLiquidityInput:
+        from canopyledger.domain.units import UnitConversionTable
+
+        return HedgeLiquidityInput(
+            assessment_id=self.assessment_id,
+            snapshot_id=self.snapshot_id,
+            as_of=self.as_of,
+            cbb_output_digest=self.cbb_output_digest,
+            market_bundle_digest=self.market_bundle_digest,
+            policy_bundle_digest=self.policy_bundle_digest,
+            computation_bundle_digest=self.computation_bundle_digest,
+            exposure_unit=self.exposure_unit,
+            unit_conversion_table=UnitConversionTable(
+                version="m3-request-unit-table-v1",
+                factors={
+                    (factor.input_unit, factor.output_unit): factor.factor
+                    for factor in self.unit_conversion_factors
+                },
+            ),
+            physical_exposure=tuple(item.to_physical_exposure() for item in self.physical_exposure),
+            purchase_commitments=tuple(
+                item.to_physical_exposure() for item in self.purchase_commitments
+            ),
+            sales_commitments=tuple(item.to_physical_exposure() for item in self.sales_commitments),
+            futures_positions=tuple(item.to_futures_position() for item in self.futures_positions),
+            option_positions=tuple(item.to_option_position() for item in self.option_positions),
+            fx_exposure=self.fx_exposure.to_money(),
+            basis_exposure=self.basis_exposure,
+            available_cash=self.available_cash.to_money(),
+            undrawn_contractual_availability=self.undrawn_contractual_availability.to_money(),
+            one_day_futures_moves=self.one_day_futures_moves,
+            multi_day_futures_moves=self.multi_day_futures_moves,
+            fx_rates_to_facility=self.fx_rates_to_facility,
+            required_liquidity_coverage_ratio=self.required_liquidity_coverage_ratio,
+        )
+
+
+class HedgeLiquidityPreviewResponse(BaseModel):
+    """A calculation sandbox response that cannot be mistaken for a published S5 output."""
+
+    assessment_id: str
+    snapshot_id: str
+    result: dict[str, Any]
+    warnings: tuple[str, ...]
+    reason_codes: tuple[str, ...]
+    authoritativeness: Literal["preview"]
+
+
+class HedgeLiquidityStageOutputResponse(BaseModel):
+    stage_output_id: str
+    snapshot_id: str
+    stage: str
+    stage_version: str
+    input_digests: tuple[str, ...]
+    policy_bundle_digest: str
+    computation_bundle_digest: str
+    result: dict[str, Any]
+    warnings: tuple[str, ...]
+    reason_codes: tuple[str, ...]
+    started_at: datetime
+    completed_at: datetime
+    output_digest: str
+
+
 class FacilityResponse(BaseModel):
     id: str
     legal_name: str
@@ -545,6 +744,7 @@ def create_app(
     integrity_service: IntegrityService | None = None,
     evidence_service: EvidenceService | None = None,
     policy_bundle_loader: Callable[[str], VersionBundle | None] | None = None,
+    hedge_output_loader: Callable[[str], dict[str, object] | None] | None = None,
 ) -> FastAPI:
     """Create an isolated application instance with functional in-memory adapters."""
     app = FastAPI(title="CanopyLedger API", version="1.0.0")
@@ -645,6 +845,12 @@ def create_app(
 
     @app.exception_handler(CbbCertificateError)
     async def handle_cbb_error(request: Request, exc: CbbCertificateError) -> JSONResponse:
+        return _problem_response(request, 422, "VALIDATION_FAILED", str(exc))
+
+    @app.exception_handler(HedgeLiquidityError)
+    async def handle_hedge_liquidity_error(
+        request: Request, exc: HedgeLiquidityError
+    ) -> JSONResponse:
         return _problem_response(request, 422, "VALIDATION_FAILED", str(exc))
 
     @app.get("/health", operation_id="healthCheck", response_model=HealthResponse)
@@ -961,6 +1167,46 @@ def create_app(
         )
 
     @app.post(
+        "/api/v1/hedge-liquidity/demo",
+        operation_id="evaluateHedgeLiquidityDemo",
+        response_model=HedgeLiquidityPreviewResponse,
+        description="Non-authoritative preview only; does not publish an S5 stage output.",
+        responses=_problem_responses(401, 422),
+    )
+    def evaluate_hedge_liquidity_demo(
+        command: HedgeLiquidityDemoRequest,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> HedgeLiquidityPreviewResponse:
+        del actor
+        assessment = evaluate_hedge_and_liquidity(command.to_hedge_liquidity_input())
+        return HedgeLiquidityPreviewResponse(
+            assessment_id=assessment.assessment_id,
+            snapshot_id=assessment.snapshot_id,
+            result=assessment.result,
+            warnings=assessment.warnings,
+            reason_codes=assessment.reason_codes,
+            authoritativeness="preview",
+        )
+
+    @app.get(
+        "/api/v1/snapshots/{snapshot_id}/hedge-liquidity",
+        operation_id="getHedgeLiquidityAssessment",
+        response_model=HedgeLiquidityStageOutputResponse,
+        responses=_problem_responses(401, 404),
+    )
+    def get_hedge_liquidity_assessment(
+        snapshot_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> HedgeLiquidityStageOutputResponse:
+        del actor
+        if hedge_output_loader is None:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Hedge/liquidity assessment not found")
+        output = hedge_output_loader(snapshot_id)
+        if output is None:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Hedge/liquidity assessment not found")
+        return HedgeLiquidityStageOutputResponse.model_validate(output)
+
+    @app.post(
         "/api/v1/facilities",
         status_code=201,
         operation_id="createFacility",
@@ -1218,17 +1464,31 @@ def create_postgres_app(
     """Create production-style API wiring backed by PostgreSQL integrity services."""
     engine = create_engine(database_url)
     store = PostgresIntegrityStore(engine)
-    integrity = IntegrityService(store, clock=clock)
+    hedge_input_store = PostgresHedgeLiquidityInputStore(engine)
+    integrity = IntegrityService(
+        store,
+        clock=clock,
+        snapshot_input_validators={
+            "hedge_liquidity_input": hedge_input_store.validate_snapshot_reference,
+        },
+    )
     evidence = EvidenceService(
         store=PostgresEvidenceStore(engine),
         clock=clock,
         id_factory=new_resource_id,
+    )
+    hedge_runner = PostgresHedgeLiquidityRunner(
+        engine,
+        store,
+        hedge_input_store,
+        clock=clock,
     )
     return create_app(
         clock=clock,
         integrity_service=integrity,
         evidence_service=evidence,
         policy_bundle_loader=store.load_bundle,
+        hedge_output_loader=hedge_runner.load_published_output,
     )
 
 
@@ -1366,8 +1626,7 @@ def _evidence_review_page(packet: EvidenceReviewPacket) -> HTMLResponse:
     fact_type = _html(candidate.identity.fact_type)
     period = _html(candidate.identity.period)
     extractor = (
-        f"{_html(candidate.extraction_method or '')} "
-        f"{_html(candidate.extractor_version or '')}"
+        f"{_html(candidate.extraction_method or '')} {_html(candidate.extractor_version or '')}"
     )
     approve_url = f"/api/v1/evidence/candidate-facts/{candidate_id}/approve"
     reject_url = f"/api/v1/evidence/candidate-facts/{candidate_id}/reject"
@@ -1381,7 +1640,7 @@ def _evidence_review_page(packet: EvidenceReviewPacket) -> HTMLResponse:
     )
     chain = _review_list(packet.supersession_chain)
     rejection = (
-        f"<p class=\"warning\">Rejected: {_html(packet.rejection.reason)}</p>"
+        f'<p class="warning">Rejected: {_html(packet.rejection.reason)}</p>'
         if packet.rejection is not None
         else ""
     )
@@ -1683,9 +1942,7 @@ def _critical_fact_requirements(policy: VersionBundle) -> tuple[FactIdentity, ..
             raise EvidenceControlError(
                 "policy critical fact requirement must include fact_type, subject_id, and period"
             )
-        requirements.append(
-            FactIdentity(fact_type=fact_type, subject_id=subject_id, period=period)
-        )
+        requirements.append(FactIdentity(fact_type=fact_type, subject_id=subject_id, period=period))
     return tuple(requirements)
 
 

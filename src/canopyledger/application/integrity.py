@@ -22,7 +22,11 @@ from canopyledger.integrity.idempotency import (
     request_fingerprint,
 )
 from canopyledger.integrity.replay import ReplayResult, verify_replay
-from canopyledger.integrity.snapshot import BundleReference, SnapshotManifest
+from canopyledger.integrity.snapshot import (
+    BundleReference,
+    SnapshotInputReference,
+    SnapshotManifest,
+)
 
 from .models import (
     AuditEventData,
@@ -86,11 +90,15 @@ class IntegrityService:
         clock: Callable[[], datetime],
         id_factory: Callable[[str], str] = new_resource_id,
         output_schema_validators: Mapping[str, Callable[[object], bool]] | None = None,
+        snapshot_input_validators: Mapping[
+            str, Callable[[SnapshotInputReference], None]
+        ] | None = None,
     ) -> None:
         self._store = store
         self._clock = clock
         self._id_factory = id_factory
         self._output_schema_validators = dict(output_schema_validators or {})
+        self._snapshot_input_validators = dict(snapshot_input_validators or {})
 
     def get_facility(self, facility_id: str) -> CommandResponse | None:
         facility = self._store.get_facility(facility_id)
@@ -385,6 +393,12 @@ class IntegrityService:
                 command.computation_bundle,
                 BundleType.COMPUTATION,
             )
+            for input_reference in command.inputs:
+                validator = self._snapshot_input_validators.get(
+                    input_reference.resource_type
+                )
+                if validator is not None:
+                    validator(input_reference)
             manifest = SnapshotManifest(
                 snapshot_id=self._id_factory("snp"),
                 facility_id=facility.resource_id,
