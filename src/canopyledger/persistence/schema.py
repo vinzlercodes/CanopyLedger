@@ -56,7 +56,7 @@ bundle = Table(
     Column("digest", String(71), nullable=False, unique=True),
     Column("created_by", String(40), nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
-    UniqueConstraint("resource_id", "digest", name="identity_digest"),
+    UniqueConstraint("resource_id", "digest", name="bundle_identity_digest"),
     CheckConstraint(
         "bundle_type IN ('MARKET', 'POLICY', 'LEGAL_INTERPRETATION', 'COMPUTATION')",
         name="known_type",
@@ -329,6 +329,19 @@ quantity_reconciliation_issue = Table(
     Column("receipt_quantity", String(80), nullable=False),
     Column("difference", String(80), nullable=False),
     Column("detected_at", DateTime(timezone=True), nullable=False),
+    schema=SCHEMA,
+)
+
+
+hedge_liquidity_input = Table(
+    "hedge_liquidity_input",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column("canonical_payload", LargeBinary, nullable=False),
+    Column("digest", String(71), nullable=False, unique=True),
+    Column("created_by", String(40), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("resource_id", "digest", name="hedge_liquidity_input_identity_digest"),
     schema=SCHEMA,
 )
 
