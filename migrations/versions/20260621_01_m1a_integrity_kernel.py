@@ -28,6 +28,7 @@ _IMMUTABLE_TABLES = (
     "warehouse_receipt_evidence",
     "inventory_ownership_claim",
     "quantity_reconciliation_issue",
+    "hedge_liquidity_input",
     "pipeline_stage_output",
     "audit_event",
     "idempotency_tombstone",
@@ -152,7 +153,8 @@ def upgrade() -> None:
                     {SCHEMA}.rejected_fact,
                     {SCHEMA}.warehouse_receipt_evidence,
                     {SCHEMA}.inventory_ownership_claim,
-                    {SCHEMA}.quantity_reconciliation_issue TO application_writer;
+                    {SCHEMA}.quantity_reconciliation_issue,
+                    {SCHEMA}.hedge_liquidity_input TO application_writer;
                 GRANT SELECT, INSERT, UPDATE ON {SCHEMA}.approved_fact
                     TO application_writer;
             END IF;
@@ -163,7 +165,8 @@ def upgrade() -> None:
                 GRANT SELECT, INSERT ON {SCHEMA}.pipeline_stage_output,
                     {SCHEMA}.inbox_receipt, {SCHEMA}.audit_event TO pipeline_writer;
                 GRANT SELECT ON {SCHEMA}.facility_snapshot, {SCHEMA}.bundle,
-                    {SCHEMA}.snapshot_input_reference TO pipeline_writer;
+                    {SCHEMA}.snapshot_input_reference,
+                    {SCHEMA}.hedge_liquidity_input TO pipeline_writer;
             END IF;
         END
         $$
