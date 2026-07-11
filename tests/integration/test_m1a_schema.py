@@ -19,6 +19,7 @@ EXPECTED_TABLES = {
     "evidence_document_version",
     "facility_snapshot",
     "facility_working_state",
+    "hedge_liquidity_input",
     "idempotency_record",
     "idempotency_tombstone",
     "inbox_receipt",
@@ -38,9 +39,7 @@ pytestmark = pytest.mark.postgres
 
 
 def test_metadata_declares_complete_m1a_resource_schema() -> None:
-    assert set(metadata.tables) == {
-        f"canopyledger.{table_name}" for table_name in EXPECTED_TABLES
-    }
+    assert set(metadata.tables) == {f"canopyledger.{table_name}" for table_name in EXPECTED_TABLES}
 
 
 def test_alembic_upgrade_creates_complete_m1a_resource_schema(
@@ -61,6 +60,7 @@ def test_immutable_resources_have_database_update_and_delete_guards(
         "candidate_fact",
         "evidence_document_version",
         "facility_snapshot",
+        "hedge_liquidity_input",
         "idempotency_tombstone",
         "inbox_receipt",
         "inventory_ownership_claim",
@@ -339,6 +339,8 @@ def test_migration_grants_only_required_writer_table_capabilities(
         ("application_writer", "approved_fact", "UPDATE"): True,
         ("application_writer", "approved_fact", "DELETE"): False,
         ("application_writer", "idempotency_record", "DELETE"): True,
+        ("application_writer", "hedge_liquidity_input", "INSERT"): True,
+        ("application_writer", "hedge_liquidity_input", "UPDATE"): False,
         ("application_writer", "pipeline_stage", "UPDATE"): False,
         ("pipeline_writer", "pipeline_stage", "SELECT"): True,
         ("pipeline_writer", "pipeline_stage", "INSERT"): True,
@@ -346,6 +348,7 @@ def test_migration_grants_only_required_writer_table_capabilities(
         ("pipeline_writer", "pipeline_stage", "DELETE"): False,
         ("pipeline_writer", "pipeline_stage_output", "INSERT"): True,
         ("pipeline_writer", "pipeline_stage_output", "UPDATE"): False,
+        ("pipeline_writer", "hedge_liquidity_input", "SELECT"): True,
         ("pipeline_writer", "facility_working_state", "SELECT"): False,
     }
     actual = {
