@@ -677,6 +677,153 @@
         "title": "EvidenceReviewPacketResponse",
         "type": "object"
       },
+      "ExchangeContractSpecificationInput": {
+        "additionalProperties": false,
+        "properties": {
+          "calendar_version": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Calendar Version",
+            "type": "string"
+          },
+          "contract_size": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Contract Size"
+          },
+          "contract_size_unit": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Contract Size Unit",
+            "type": "string"
+          },
+          "contract_symbol": {
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Contract Symbol",
+            "type": "string"
+          },
+          "currency": {
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          },
+          "delivery_months": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Delivery Months",
+            "type": "array"
+          },
+          "effective_from": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Effective From",
+            "type": "string"
+          },
+          "effective_to": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Effective To",
+            "type": "string"
+          },
+          "exchange": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Exchange",
+            "type": "string"
+          },
+          "exercise_style": {
+            "$ref": "#/components/schemas/ExerciseStyle"
+          },
+          "price_unit": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Price Unit",
+            "type": "string"
+          },
+          "price_unit_factor": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Price Unit Factor"
+          },
+          "product_code": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Product Code",
+            "type": "string"
+          },
+          "settlement_rule": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Settlement Rule",
+            "type": "string"
+          },
+          "source_document_digest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Source Document Digest",
+            "type": "string"
+          },
+          "tick_size": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Tick Size"
+          }
+        },
+        "required": [
+          "exchange",
+          "product_code",
+          "contract_symbol",
+          "contract_size",
+          "contract_size_unit",
+          "price_unit",
+          "price_unit_factor",
+          "tick_size",
+          "currency",
+          "exercise_style",
+          "settlement_rule",
+          "calendar_version",
+          "delivery_months",
+          "effective_from",
+          "effective_to",
+          "source_document_digest"
+        ],
+        "title": "ExchangeContractSpecificationInput",
+        "type": "object"
+      },
+      "ExerciseStyle": {
+        "enum": [
+          "american",
+          "european"
+        ],
+        "title": "ExerciseStyle",
+        "type": "string"
+      },
       "FacilityResponse": {
         "properties": {
           "currency": {
@@ -749,6 +896,65 @@
         "title": "FreezeFacility",
         "type": "object"
       },
+      "FuturesPositionInput": {
+        "additionalProperties": false,
+        "properties": {
+          "contract_specification": {
+            "$ref": "#/components/schemas/ExchangeContractSpecificationInput"
+          },
+          "contracts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Contracts"
+          },
+          "current_futures_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Current Futures Price"
+          },
+          "delivery_month": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Delivery Month",
+            "type": "string"
+          },
+          "entry_futures_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Entry Futures Price"
+          }
+        },
+        "required": [
+          "contract_specification",
+          "contracts",
+          "delivery_month",
+          "entry_futures_price",
+          "current_futures_price"
+        ],
+        "title": "FuturesPositionInput",
+        "type": "object"
+      },
       "FxRateInput": {
         "additionalProperties": false,
         "properties": {
@@ -816,6 +1022,369 @@
           "status"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "HedgeLiquidityDemoRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "as_of": {
+            "format": "date",
+            "title": "As Of",
+            "type": "string"
+          },
+          "assessment_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Assessment Id",
+            "type": "string"
+          },
+          "available_cash": {
+            "$ref": "#/components/schemas/MoneyInput"
+          },
+          "basis_exposure": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Basis Exposure"
+          },
+          "cbb_output_digest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Cbb Output Digest",
+            "type": "string"
+          },
+          "computation_bundle_digest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Computation Bundle Digest",
+            "type": "string"
+          },
+          "exposure_unit": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Exposure Unit",
+            "type": "string"
+          },
+          "futures_positions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/FuturesPositionInput"
+            },
+            "title": "Futures Positions",
+            "type": "array"
+          },
+          "fx_exposure": {
+            "$ref": "#/components/schemas/MoneyInput"
+          },
+          "fx_rates_to_facility": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                  "type": "string"
+                }
+              ]
+            },
+            "title": "Fx Rates To Facility",
+            "type": "object"
+          },
+          "market_bundle_digest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Market Bundle Digest",
+            "type": "string"
+          },
+          "multi_day_futures_moves": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                  "type": "string"
+                }
+              ]
+            },
+            "title": "Multi Day Futures Moves",
+            "type": "object"
+          },
+          "one_day_futures_moves": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                  "type": "string"
+                }
+              ]
+            },
+            "title": "One Day Futures Moves",
+            "type": "object"
+          },
+          "option_positions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/OptionPositionInput"
+            },
+            "title": "Option Positions",
+            "type": "array"
+          },
+          "physical_exposure": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PhysicalExposureInput"
+            },
+            "title": "Physical Exposure",
+            "type": "array"
+          },
+          "policy_bundle_digest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "title": "Policy Bundle Digest",
+            "type": "string"
+          },
+          "purchase_commitments": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PhysicalExposureInput"
+            },
+            "title": "Purchase Commitments",
+            "type": "array"
+          },
+          "required_liquidity_coverage_ratio": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "1",
+            "title": "Required Liquidity Coverage Ratio"
+          },
+          "sales_commitments": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PhysicalExposureInput"
+            },
+            "title": "Sales Commitments",
+            "type": "array"
+          },
+          "snapshot_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Snapshot Id",
+            "type": "string"
+          },
+          "undrawn_contractual_availability": {
+            "$ref": "#/components/schemas/MoneyInput"
+          },
+          "unit_conversion_factors": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/HedgeUnitFactorInput"
+            },
+            "title": "Unit Conversion Factors",
+            "type": "array"
+          }
+        },
+        "required": [
+          "assessment_id",
+          "snapshot_id",
+          "as_of",
+          "cbb_output_digest",
+          "market_bundle_digest",
+          "policy_bundle_digest",
+          "computation_bundle_digest",
+          "exposure_unit",
+          "fx_exposure",
+          "basis_exposure",
+          "available_cash",
+          "undrawn_contractual_availability",
+          "one_day_futures_moves",
+          "multi_day_futures_moves"
+        ],
+        "title": "HedgeLiquidityDemoRequest",
+        "type": "object"
+      },
+      "HedgeLiquidityPreviewResponse": {
+        "description": "A calculation sandbox response that cannot be mistaken for a published S5 output.",
+        "properties": {
+          "assessment_id": {
+            "title": "Assessment Id",
+            "type": "string"
+          },
+          "authoritativeness": {
+            "const": "preview",
+            "title": "Authoritativeness",
+            "type": "string"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "result": {
+            "additionalProperties": true,
+            "title": "Result",
+            "type": "object"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "assessment_id",
+          "snapshot_id",
+          "result",
+          "warnings",
+          "reason_codes",
+          "authoritativeness"
+        ],
+        "title": "HedgeLiquidityPreviewResponse",
+        "type": "object"
+      },
+      "HedgeLiquidityStageOutputResponse": {
+        "properties": {
+          "completed_at": {
+            "format": "date-time",
+            "title": "Completed At",
+            "type": "string"
+          },
+          "computation_bundle_digest": {
+            "title": "Computation Bundle Digest",
+            "type": "string"
+          },
+          "input_digests": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Input Digests",
+            "type": "array"
+          },
+          "output_digest": {
+            "title": "Output Digest",
+            "type": "string"
+          },
+          "policy_bundle_digest": {
+            "title": "Policy Bundle Digest",
+            "type": "string"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "result": {
+            "additionalProperties": true,
+            "title": "Result",
+            "type": "object"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "stage_output_id": {
+            "title": "Stage Output Id",
+            "type": "string"
+          },
+          "stage_version": {
+            "title": "Stage Version",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "stage_output_id",
+          "snapshot_id",
+          "stage",
+          "stage_version",
+          "input_digests",
+          "policy_bundle_digest",
+          "computation_bundle_digest",
+          "result",
+          "warnings",
+          "reason_codes",
+          "started_at",
+          "completed_at",
+          "output_digest"
+        ],
+        "title": "HedgeLiquidityStageOutputResponse",
+        "type": "object"
+      },
+      "HedgeUnitFactorInput": {
+        "additionalProperties": false,
+        "properties": {
+          "factor": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Factor"
+          },
+          "input_unit": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Input Unit",
+            "type": "string"
+          },
+          "output_unit": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Output Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "input_unit",
+          "output_unit",
+          "factor"
+        ],
+        "title": "HedgeUnitFactorInput",
         "type": "object"
       },
       "InventoryLotPipelineInput": {
@@ -1090,6 +1659,142 @@
         "title": "MoneyInput",
         "type": "object"
       },
+      "OptionPositionInput": {
+        "additionalProperties": false,
+        "properties": {
+          "contract_specification": {
+            "$ref": "#/components/schemas/ExchangeContractSpecificationInput"
+          },
+          "contracts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Contracts"
+          },
+          "delivery_month": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Delivery Month",
+            "type": "string"
+          },
+          "entry_option_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Option Price"
+          },
+          "futures_price": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Futures Price"
+          },
+          "lattice_steps": {
+            "default": 200,
+            "maximum": 2000.0,
+            "minimum": 2.0,
+            "title": "Lattice Steps",
+            "type": "integer"
+          },
+          "option_type": {
+            "$ref": "#/components/schemas/OptionType"
+          },
+          "risk_free_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Risk Free Rate"
+          },
+          "strike": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Strike"
+          },
+          "time_to_expiry": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Time To Expiry"
+          },
+          "volatility": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Volatility"
+          }
+        },
+        "required": [
+          "contract_specification",
+          "contracts",
+          "delivery_month",
+          "option_type",
+          "strike",
+          "futures_price",
+          "volatility",
+          "risk_free_rate",
+          "time_to_expiry"
+        ],
+        "title": "OptionPositionInput",
+        "type": "object"
+      },
+      "OptionType": {
+        "enum": [
+          "call",
+          "put"
+        ],
+        "title": "OptionType",
+        "type": "string"
+      },
       "OwnershipClaimCreate": {
         "additionalProperties": false,
         "properties": {
@@ -1170,6 +1875,50 @@
           "approved_fact_id"
         ],
         "title": "OwnershipClaimResponse",
+        "type": "object"
+      },
+      "PhysicalExposureInput": {
+        "additionalProperties": false,
+        "properties": {
+          "delivery_month": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Delivery Month",
+            "type": "string"
+          },
+          "product_code": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Product Code",
+            "type": "string"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "quantity_unit": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Quantity Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_code",
+          "delivery_month",
+          "quantity",
+          "quantity_unit"
+        ],
+        "title": "PhysicalExposureInput",
         "type": "object"
       },
       "PriceObservationInput": {
@@ -2768,6 +3517,60 @@
         "summary": "Freeze Facility"
       }
     },
+    "/api/v1/hedge-liquidity/demo": {
+      "post": {
+        "description": "Non-authoritative preview only; does not publish an S5 stage output.",
+        "operationId": "evaluateHedgeLiquidityDemo",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HedgeLiquidityDemoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HedgeLiquidityPreviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Evaluate Hedge Liquidity Demo"
+      }
+    },
     "/api/v1/m1b/pipeline/demo": {
       "post": {
         "operationId": "runM1BPipelineDemo",
@@ -2819,6 +3622,70 @@
           }
         ],
         "summary": "Run M1B Pipeline Demo"
+      }
+    },
+    "/api/v1/snapshots/{snapshot_id}/hedge-liquidity": {
+      "get": {
+        "operationId": "getHedgeLiquidityAssessment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HedgeLiquidityStageOutputResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Hedge Liquidity Assessment"
       }
     },
     "/api/v1/snapshots/{snapshot_id}/manifest": {
