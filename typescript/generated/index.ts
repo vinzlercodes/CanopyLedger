@@ -357,6 +357,23 @@ export interface PriceObservationInput {
   readonly unit: string;
 }
 
+export interface ProblemDetails {
+  readonly code: string;
+  readonly detail: string;
+  readonly errors?: readonly ProblemError[] | string;
+  readonly instance: string;
+  readonly status: number;
+  readonly title: string;
+  readonly trace_id: string;
+  readonly type: string;
+}
+
+export interface ProblemError {
+  readonly field: readonly (string | number)[];
+  readonly kind: string;
+  readonly message: string;
+}
+
 export interface QuantityReconciliationCreate {
   readonly expected_quantity: string;
   readonly lot_id: string;

@@ -1508,6 +1508,7 @@ def _problem_responses(*statuses: int) -> dict[int | str, dict[str, Any]]:
                     "schema": {"$ref": "#/components/schemas/ProblemDetails"}
                 }
             },
+            "model": ProblemDetails,
         }
         for status in statuses
     }

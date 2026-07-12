@@ -105,6 +105,24 @@ def test_checked_in_openapi_matches_deterministic_generation() -> None:
     assert OPENAPI_ARTIFACT.read_bytes() == render_openapi_json(create_app())
 
 
+def test_every_local_schema_reference_resolves() -> None:
+    document = json.loads(OPENAPI_ARTIFACT.read_text())
+    schemas = document["components"]["schemas"]
+
+    def visit(value: object) -> None:
+        if isinstance(value, dict):
+            reference = value.get("$ref")
+            if isinstance(reference, str) and reference.startswith("#/components/schemas/"):
+                assert reference.removeprefix("#/components/schemas/") in schemas
+            for nested in value.values():
+                visit(nested)
+        elif isinstance(value, list):
+            for nested in value:
+                visit(nested)
+
+    visit(document)
+
+
 def test_openapi_artifact_is_valid_json_with_a_trailing_newline() -> None:
     artifact = OPENAPI_ARTIFACT.read_bytes()
     assert artifact.endswith(b"\n")
