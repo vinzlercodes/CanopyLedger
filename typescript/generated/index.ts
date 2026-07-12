@@ -394,6 +394,22 @@ export interface RejectedFactResponse {
   readonly rejected_fact_id: string;
 }
 
+export interface ScenarioCapacityStageOutputResponse {
+  readonly completed_at: string;
+  readonly computation_bundle_digest: string;
+  readonly input_digests: readonly string[];
+  readonly internal_risk_capacity: Record<string, unknown>;
+  readonly output_digest: string;
+  readonly policy_bundle_digest: string;
+  readonly reason_codes: readonly string[];
+  readonly scenario: Record<string, unknown>;
+  readonly snapshot_id: string;
+  readonly stage: string;
+  readonly stage_output_id: string;
+  readonly stage_version: string;
+  readonly started_at: string;
+}
+
 export interface SnapshotInputReference {
   readonly digest: string;
   readonly resource_id: string;
@@ -565,6 +581,24 @@ export class CanopyLedgerClient {
     return this.#request<HedgeLiquidityStageOutputResponse>(
       "GET",
       `/api/v1/snapshots/${encodeURIComponent(snapshot_id)}/hedge-liquidity`,
+      undefined,
+      headers,
+    );
+  }
+
+  async getInternalRiskCapacityAssessment(snapshot_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<ScenarioCapacityStageOutputResponse>> {
+    return this.#request<ScenarioCapacityStageOutputResponse>(
+      "GET",
+      `/api/v1/snapshots/${encodeURIComponent(snapshot_id)}/irc`,
+      undefined,
+      headers,
+    );
+  }
+
+  async getScenarioAssessment(snapshot_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<ScenarioCapacityStageOutputResponse>> {
+    return this.#request<ScenarioCapacityStageOutputResponse>(
+      "GET",
+      `/api/v1/snapshots/${encodeURIComponent(snapshot_id)}/scenarios`,
       undefined,
       headers,
     );
