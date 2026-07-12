@@ -567,6 +567,146 @@ internal_risk_capacity_assessment = Table(
     schema=SCHEMA,
 )
 
+recommendation = Table(
+    "recommendation",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column(
+        "snapshot_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.facility_snapshot.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column("author_id", String(40), nullable=False),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column("canonical_payload", LargeBinary, nullable=False),
+    Column("digest", String(71), nullable=False, unique=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    schema=SCHEMA,
+)
+
+approval_request = Table(
+    "approval_request",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column(
+        "recommendation_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.recommendation.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column("requested_by", String(40), nullable=False),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column("canonical_payload", LargeBinary, nullable=False),
+    Column("digest", String(71), nullable=False, unique=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    schema=SCHEMA,
+)
+
+approval_action = Table(
+    "approval_action",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column(
+        "approval_request_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.approval_request.resource_id", ondelete="RESTRICT"),
+    ),
+    Column(
+        "override_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.decision_override.resource_id", ondelete="RESTRICT"),
+        nullable=True,
+    ),
+    Column("actor_id", String(40), nullable=False),
+    Column("action", String(32), nullable=False),
+    Column("reason", Text, nullable=False),
+    Column("canonical_payload", LargeBinary, nullable=False),
+    Column("digest", String(71), nullable=False, unique=True),
+    Column("occurred_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint(
+        "(approval_request_id IS NULL) <> (override_id IS NULL)", name="one_governance_target"
+    ),
+    schema=SCHEMA,
+)
+
+final_decision = Table(
+    "final_decision",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column(
+        "snapshot_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.facility_snapshot.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column(
+        "recommendation_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.recommendation.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column(
+        "approval_request_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.approval_request.resource_id", ondelete="RESTRICT"),
+    ),
+    Column("status", String(16), nullable=False),
+    Column("approver_id", String(40), nullable=False),
+    Column(
+        "override_id",
+        String(40),
+        ForeignKey(
+            f"{SCHEMA}.decision_override.resource_id",
+            ondelete="RESTRICT",
+            name="fk_final_decision_override",
+            use_alter=True,
+        ),
+    ),
+    Column(
+        "superseded_by",
+        String(40),
+        ForeignKey(f"{SCHEMA}.final_decision.resource_id", deferrable=True, initially="DEFERRED"),
+    ),
+    Column("canonical_payload", LargeBinary, nullable=False),
+    Column("digest", String(71), nullable=False, unique=True),
+    Column("approved_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint("status IN ('APPROVED', 'REJECTED')", name="known_status"),
+    schema=SCHEMA,
+)
+Index(
+    "one_active_final_decision_per_snapshot",
+    final_decision.c.snapshot_id,
+    unique=True,
+    postgresql_where=final_decision.c.superseded_by.is_(None),
+)
+
+decision_override = Table(
+    "decision_override",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column(
+        "original_decision_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.final_decision.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column(
+        "recommendation_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.recommendation.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column("requester_id", String(40), nullable=False),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column("requires_dual_control", Integer, nullable=False),
+    Column("canonical_payload", LargeBinary, nullable=False),
+    Column("digest", String(71), nullable=False, unique=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint("requires_dual_control IN (0, 1)", name="boolean_dual_control"),
+    schema=SCHEMA,
+)
+
 audit_event = Table(
     "audit_event",
     metadata,
