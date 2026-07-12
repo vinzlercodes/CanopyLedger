@@ -67,6 +67,7 @@ class PostgresM1BPipelineRunner:
                 lease_duration=timedelta(minutes=5),
                 maximum_lease_lifetime=timedelta(minutes=5),
                 attempt_id=self._id_factory("att"),
+                pipeline_run_id=run_id,
             )
             if lease is None:
                 raise RuntimeError("M1B pipeline stage was not claimable")
