@@ -6,7 +6,7 @@ from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import Connection, Engine, delete, func, insert, or_, select, update
+from sqlalchemy import Connection, Engine, and_, delete, func, insert, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.exc import IntegrityError
@@ -109,9 +109,7 @@ class PostgresEvidenceStore:
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
 
-    def insert_document_version(
-        self, document: DocumentVersion, *, original_bytes: bytes
-    ) -> None:
+    def insert_document_version(self, document: DocumentVersion, *, original_bytes: bytes) -> None:
         try:
             with self._engine.begin() as connection:
                 connection.execute(
@@ -244,18 +242,14 @@ class PostgresEvidenceStore:
         with self._engine.connect() as connection:
             row = (
                 connection.execute(
-                    select(approved_fact).where(
-                        approved_fact.c.resource_id == approved_fact_id
-                    )
+                    select(approved_fact).where(approved_fact.c.resource_id == approved_fact_id)
                 )
                 .mappings()
                 .one_or_none()
             )
         return None if row is None else _approved_fact_from_row(row)
 
-    def list_approved_facts_for_identity(
-        self, identity: FactIdentity
-    ) -> tuple[ApprovedFact, ...]:
+    def list_approved_facts_for_identity(self, identity: FactIdentity) -> tuple[ApprovedFact, ...]:
         with self._engine.connect() as connection:
             rows = (
                 connection.execute(
@@ -386,9 +380,7 @@ class PostgresEvidenceStore:
                 "warehouse receipt number already has approved evidence"
             ) from exc
 
-    def list_warehouse_receipts_for_lot(
-        self, lot_id: str
-    ) -> tuple[WarehouseReceiptRecord, ...]:
+    def list_warehouse_receipts_for_lot(self, lot_id: str) -> tuple[WarehouseReceiptRecord, ...]:
         with self._engine.connect() as connection:
             rows = (
                 connection.execute(
@@ -401,9 +393,7 @@ class PostgresEvidenceStore:
             )
         return tuple(_warehouse_receipt_from_row(row) for row in rows)
 
-    def get_ownership_claim(
-        self, *, lot_id: str, period: str
-    ) -> OwnershipClaimRecord | None:
+    def get_ownership_claim(self, *, lot_id: str, period: str) -> OwnershipClaimRecord | None:
         with self._engine.connect() as connection:
             row = (
                 connection.execute(
@@ -417,9 +407,7 @@ class PostgresEvidenceStore:
             )
         return None if row is None else _ownership_claim_from_row(row)
 
-    def insert_ownership_claim(
-        self, *, resource_id: str, claim: InventoryOwnershipClaim
-    ) -> None:
+    def insert_ownership_claim(self, *, resource_id: str, claim: InventoryOwnershipClaim) -> None:
         try:
             with self._engine.begin() as connection:
                 connection.execute(
@@ -706,20 +694,22 @@ class PostgresIntegrityStore:
         lease_duration: timedelta,
         maximum_lease_lifetime: timedelta,
         attempt_id: str,
+        pipeline_run_id: str | None = None,
     ) -> StageLease | None:
         _require_aware(now)
+        eligibility = or_(
+            pipeline_stage.c.status == "PENDING",
+            ((pipeline_stage.c.status == "RUNNING") & (pipeline_stage.c.lease_expires_at <= now)),
+        )
+        if pipeline_run_id is not None:
+            eligibility = and_(
+                eligibility,
+                pipeline_stage.c.pipeline_run_id == pipeline_run_id,
+            )
         with self._engine.begin() as connection:
             eligible = (
                 select(pipeline_stage.c.resource_id)
-                .where(
-                    or_(
-                        pipeline_stage.c.status == "PENDING",
-                        (
-                            (pipeline_stage.c.status == "RUNNING")
-                            & (pipeline_stage.c.lease_expires_at <= now)
-                        ),
-                    )
-                )
+                .where(eligibility)
                 .order_by(pipeline_stage.c.created_at, pipeline_stage.c.resource_id)
                 .limit(1)
                 .with_for_update(skip_locked=True)

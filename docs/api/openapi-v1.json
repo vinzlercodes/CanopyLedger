@@ -2151,6 +2151,89 @@
         "title": "RejectedFactResponse",
         "type": "object"
       },
+      "ScenarioCapacityStageOutputResponse": {
+        "properties": {
+          "completed_at": {
+            "format": "date-time",
+            "title": "Completed At",
+            "type": "string"
+          },
+          "computation_bundle_digest": {
+            "title": "Computation Bundle Digest",
+            "type": "string"
+          },
+          "input_digests": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Input Digests",
+            "type": "array"
+          },
+          "internal_risk_capacity": {
+            "additionalProperties": true,
+            "title": "Internal Risk Capacity",
+            "type": "object"
+          },
+          "output_digest": {
+            "title": "Output Digest",
+            "type": "string"
+          },
+          "policy_bundle_digest": {
+            "title": "Policy Bundle Digest",
+            "type": "string"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "scenario": {
+            "additionalProperties": true,
+            "title": "Scenario",
+            "type": "object"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "stage_output_id": {
+            "title": "Stage Output Id",
+            "type": "string"
+          },
+          "stage_version": {
+            "title": "Stage Version",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage_output_id",
+          "snapshot_id",
+          "stage",
+          "stage_version",
+          "input_digests",
+          "policy_bundle_digest",
+          "computation_bundle_digest",
+          "scenario",
+          "internal_risk_capacity",
+          "reason_codes",
+          "started_at",
+          "completed_at",
+          "output_digest"
+        ],
+        "title": "ScenarioCapacityStageOutputResponse",
+        "type": "object"
+      },
       "SnapshotInputReference": {
         "additionalProperties": false,
         "description": "One immutable input included in a snapshot.",
@@ -3688,6 +3771,70 @@
         "summary": "Get Hedge Liquidity Assessment"
       }
     },
+    "/api/v1/snapshots/{snapshot_id}/irc": {
+      "get": {
+        "operationId": "getInternalRiskCapacityAssessment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioCapacityStageOutputResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Internal Risk Capacity Assessment"
+      }
+    },
     "/api/v1/snapshots/{snapshot_id}/manifest": {
       "get": {
         "operationId": "getSnapshotManifest",
@@ -3750,6 +3897,70 @@
           }
         ],
         "summary": "Get Snapshot Manifest"
+      }
+    },
+    "/api/v1/snapshots/{snapshot_id}/scenarios": {
+      "get": {
+        "operationId": "getScenarioAssessment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioCapacityStageOutputResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Scenario Assessment"
       }
     },
     "/health": {
