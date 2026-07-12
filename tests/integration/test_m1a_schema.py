@@ -12,13 +12,17 @@ from canopyledger.persistence.schema import metadata
 
 EXPECTED_TABLES = {
     "approved_fact",
+    "approval_action",
+    "approval_request",
     "audit_event",
     "bundle",
     "candidate_fact",
+    "decision_override",
     "evidence_document",
     "evidence_document_version",
     "facility_snapshot",
     "facility_working_state",
+    "final_decision",
     "hedge_liquidity_input",
     "scenario_capacity_input",
     "internal_risk_capacity_assessment",
@@ -33,6 +37,7 @@ EXPECTED_TABLES = {
     "pipeline_stage_output",
     "quantity_reconciliation_issue",
     "rejected_fact",
+    "recommendation",
     "snapshot_input_reference",
     "warehouse_receipt_evidence",
 }
@@ -58,10 +63,14 @@ def test_immutable_resources_have_database_update_and_delete_guards(
 ) -> None:
     guarded_tables = {
         "audit_event",
+        "approval_action",
+        "approval_request",
         "bundle",
         "candidate_fact",
+        "decision_override",
         "evidence_document_version",
         "facility_snapshot",
+        "final_decision",
         "hedge_liquidity_input",
         "scenario_capacity_input",
         "internal_risk_capacity_assessment",
@@ -71,6 +80,7 @@ def test_immutable_resources_have_database_update_and_delete_guards(
         "pipeline_stage_output",
         "quantity_reconciliation_issue",
         "rejected_fact",
+        "recommendation",
         "snapshot_input_reference",
         "warehouse_receipt_evidence",
     }
@@ -347,6 +357,20 @@ def test_migration_grants_only_required_writer_table_capabilities(
         ("application_writer", "hedge_liquidity_input", "UPDATE"): False,
         ("application_writer", "scenario_capacity_input", "INSERT"): True,
         ("application_writer", "scenario_capacity_input", "UPDATE"): False,
+        ("application_writer", "recommendation", "SELECT"): True,
+        ("application_writer", "recommendation", "INSERT"): True,
+        ("application_writer", "recommendation", "UPDATE"): False,
+        ("application_writer", "approval_request", "INSERT"): True,
+        ("application_writer", "approval_request", "UPDATE"): False,
+        ("application_writer", "approval_action", "INSERT"): True,
+        ("application_writer", "approval_action", "UPDATE"): False,
+        ("application_writer", "decision_override", "INSERT"): True,
+        ("application_writer", "decision_override", "UPDATE"): False,
+        ("application_writer", "final_decision", "INSERT"): True,
+        ("application_writer", "final_decision", "UPDATE"): False,
+        ("application_writer", "facility_snapshot", "SELECT"): True,
+        ("application_writer", "pipeline_stage_output", "SELECT"): True,
+        ("application_writer", "internal_risk_capacity_assessment", "SELECT"): True,
         ("application_writer", "pipeline_stage", "UPDATE"): False,
         ("pipeline_writer", "pipeline_stage", "SELECT"): True,
         ("pipeline_writer", "pipeline_stage", "INSERT"): True,
@@ -372,3 +396,19 @@ def test_migration_grants_only_required_writer_table_capabilities(
         for role, table_name, privilege in expected
     }
     assert actual == expected
+    assert connection.execute(
+        text("SELECT has_column_privilege(:role, :table_name, :column_name, 'UPDATE')"),
+        {
+            "role": "application_writer",
+            "table_name": "canopyledger.final_decision",
+            "column_name": "superseded_by",
+        },
+    ).scalar_one()
+    assert not connection.execute(
+        text("SELECT has_column_privilege(:role, :table_name, :column_name, 'UPDATE')"),
+        {
+            "role": "application_writer",
+            "table_name": "canopyledger.final_decision",
+            "column_name": "status",
+        },
+    ).scalar_one()
