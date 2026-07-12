@@ -191,6 +191,7 @@ class PostgresHedgeLiquidityRunner:
             lease_duration=timedelta(minutes=5),
             maximum_lease_lifetime=timedelta(minutes=5),
             attempt_id=self._id_factory("att"),
+            pipeline_run_id=run_id,
         )
         if lease is None:
             raise HedgeLiquidityPersistenceError("S5 hedge/liquidity stage was not claimable")
@@ -256,9 +257,7 @@ class PostgresHedgeLiquidityRunner:
             raise HedgeLiquidityPersistenceError(
                 "frozen snapshot does not pin the hedge liquidity input digest"
             )
-        cbb_output_digest, undrawn_contractual_availability = self._load_cbb_output(
-            snapshot_id
-        )
+        cbb_output_digest, undrawn_contractual_availability = self._load_cbb_output(snapshot_id)
         value = self._input_store.load_value(
             hedge_input_id,
             snapshot_id=snapshot_id,
