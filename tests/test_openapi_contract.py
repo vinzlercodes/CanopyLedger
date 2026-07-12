@@ -50,6 +50,8 @@ def test_operation_ids_are_explicit_stable_and_unique() -> None:
         "getCandidateFactReview",
         "getFacility",
         "getHedgeLiquidityAssessment",
+        "getInternalRiskCapacityAssessment",
+        "getScenarioAssessment",
         "getSnapshotManifest",
         "healthCheck",
         "rejectCandidateFact",

@@ -345,6 +345,18 @@ hedge_liquidity_input = Table(
     schema=SCHEMA,
 )
 
+scenario_capacity_input = Table(
+    "scenario_capacity_input",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column("canonical_payload", LargeBinary, nullable=False),
+    Column("digest", String(71), nullable=False, unique=True),
+    Column("created_by", String(40), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("resource_id", "digest", name="scenario_capacity_input_identity_digest"),
+    schema=SCHEMA,
+)
+
 idempotency_record = Table(
     "idempotency_record",
     metadata,
@@ -524,6 +536,34 @@ pipeline_stage_output = Table(
         ondelete="RESTRICT",
         name="fk_output_publishing_attempt",
     ),
+    schema=SCHEMA,
+)
+
+internal_risk_capacity_assessment = Table(
+    "internal_risk_capacity_assessment",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column(
+        "snapshot_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.facility_snapshot.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column(
+        "scenario_stage_output_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.pipeline_stage_output.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    ),
+    Column("cbb_output_digest", String(71), nullable=False),
+    Column("uncapped_irc", String(128), nullable=False),
+    Column("irc", String(128), nullable=False),
+    Column("currency", String(3), nullable=False),
+    Column("canonical_payload", LargeBinary, nullable=False),
+    Column("digest", String(71), nullable=False, unique=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("snapshot_id", "digest", name="irc_snapshot_digest"),
     schema=SCHEMA,
 )
 

@@ -98,6 +98,10 @@ from canopyledger.integrity.snapshot import (
 from canopyledger.market.snapshot import FxRate, MarketSnapshot, PriceObservation
 from canopyledger.persistence.postgres import PostgresEvidenceStore, PostgresIntegrityStore
 
+from canopyledger.scenario.postgres import (
+    PostgresScenarioCapacityInputStore,
+    PostgresScenarioCapacityRunner,
+)
 
 @dataclass(frozen=True)
 class FacilityRecord:
@@ -697,6 +701,22 @@ class HedgeLiquidityStageOutputResponse(BaseModel):
     output_digest: str
 
 
+class ScenarioCapacityStageOutputResponse(BaseModel):
+    stage_output_id: str
+    snapshot_id: str
+    stage: str
+    stage_version: str
+    input_digests: tuple[str, ...]
+    policy_bundle_digest: str
+    computation_bundle_digest: str
+    scenario: dict[str, Any]
+    internal_risk_capacity: dict[str, Any]
+    reason_codes: tuple[str, ...]
+    started_at: datetime
+    completed_at: datetime
+    output_digest: str
+
+
 class FacilityResponse(BaseModel):
     id: str
     legal_name: str
@@ -745,6 +765,7 @@ def create_app(
     evidence_service: EvidenceService | None = None,
     policy_bundle_loader: Callable[[str], VersionBundle | None] | None = None,
     hedge_output_loader: Callable[[str], dict[str, object] | None] | None = None,
+    scenario_output_loader: Callable[[str], dict[str, object] | None] | None = None,
 ) -> FastAPI:
     """Create an isolated application instance with functional in-memory adapters."""
     app = FastAPI(title="CanopyLedger API", version="1.0.0")
@@ -1206,6 +1227,36 @@ def create_app(
             raise _Problem(404, "RESOURCE_NOT_FOUND", "Hedge/liquidity assessment not found")
         return HedgeLiquidityStageOutputResponse.model_validate(output)
 
+    @app.get(
+        "/api/v1/snapshots/{snapshot_id}/scenarios",
+        operation_id="getScenarioAssessment",
+        response_model=ScenarioCapacityStageOutputResponse,
+        responses=_problem_responses(401, 404),
+    )
+    def get_scenario_assessment(
+        snapshot_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> ScenarioCapacityStageOutputResponse:
+        del actor
+        if scenario_output_loader is None:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Scenario assessment not found")
+        output = scenario_output_loader(snapshot_id)
+        if output is None:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Scenario assessment not found")
+        return ScenarioCapacityStageOutputResponse.model_validate(output)
+
+    @app.get(
+        "/api/v1/snapshots/{snapshot_id}/irc",
+        operation_id="getInternalRiskCapacityAssessment",
+        response_model=ScenarioCapacityStageOutputResponse,
+        responses=_problem_responses(401, 404),
+    )
+    def get_internal_risk_capacity_assessment(
+        snapshot_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> ScenarioCapacityStageOutputResponse:
+        return get_scenario_assessment(snapshot_id, actor)
+
     @app.post(
         "/api/v1/facilities",
         status_code=201,
@@ -1465,11 +1516,13 @@ def create_postgres_app(
     engine = create_engine(database_url)
     store = PostgresIntegrityStore(engine)
     hedge_input_store = PostgresHedgeLiquidityInputStore(engine)
+    scenario_input_store = PostgresScenarioCapacityInputStore(engine)
     integrity = IntegrityService(
         store,
         clock=clock,
         snapshot_input_validators={
             "hedge_liquidity_input": hedge_input_store.validate_snapshot_reference,
+            "scenario_capacity_input": scenario_input_store.validate_snapshot_reference,
         },
     )
     evidence = EvidenceService(
@@ -1483,12 +1536,16 @@ def create_postgres_app(
         hedge_input_store,
         clock=clock,
     )
+    scenario_runner = PostgresScenarioCapacityRunner(
+        engine, store, scenario_input_store, clock=clock
+    )
     return create_app(
         clock=clock,
         integrity_service=integrity,
         evidence_service=evidence,
         policy_bundle_loader=store.load_bundle,
         hedge_output_loader=hedge_runner.load_published_output,
+        scenario_output_loader=scenario_runner.load_published_output,
     )
 
 
