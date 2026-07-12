@@ -59,6 +59,13 @@ from canopyledger.evidence.controls import (
     RejectedFact,
     approved_fact_digest,
 )
+from canopyledger.governance.core import (
+    DecisionContext,
+    GovernanceError,
+    GovernanceService,
+    RecommendationClass,
+)
+from canopyledger.governance.postgres import PostgresGovernanceService
 from canopyledger.hedge.engine import (
     ExchangeContractSpecification,
     ExerciseStyle,
@@ -717,6 +724,65 @@ class ScenarioCapacityStageOutputResponse(BaseModel):
     output_digest: str
 
 
+class RecommendationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    recommendation_id: str
+    requested_amount: MoneyInput
+    recommendation_class: RecommendationClass
+    conditions: tuple[str, ...] = ()
+    reason_codes: tuple[str, ...] = ()
+    expires_at: datetime
+    cbb: MoneyInput | None = None
+    contractual_availability: MoneyInput | None = None
+    internal_risk_capacity: MoneyInput | None = None
+    liquidity_cap: MoneyInput | None = None
+    facility_commitment: MoneyInput | None = None
+    policy_caps: tuple[MoneyInput, ...] = ()
+    outstanding_exposure: MoneyInput | None = None
+    approved_unfunded_exposure: MoneyInput | None = None
+    cbb_output_digest: str | None = None
+    hedge_liquidity_output_digest: str | None = None
+    irc_output_digest: str | None = None
+    policy_bundle_digest: str | None = None
+
+
+class ApprovalRequestCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    approval_request_id: str
+    expires_at: datetime
+
+
+class ApprovalActionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    approval_action_id: str
+    final_decision_id: str
+    reason: str = Field(min_length=3, max_length=1000)
+
+
+class OverrideRequestCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    override_id: str
+    proposed_exposure_cap: MoneyInput
+    reason: str = Field(min_length=3, max_length=1000)
+    policy_basis: str = Field(min_length=3, max_length=200)
+    expires_at: datetime
+    requires_dual_control: Literal[True] = True
+
+
+class OverrideApprovalCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    approval_action_id: str
+    reason: str = Field(min_length=3, max_length=1000)
+
+
+class GovernanceResourceResponse(BaseModel):
+    resource_id: str
+    digest: str
+    kind: str
+    status: str | None = None
+    superseded_by: str | None = None
+
+
 class FacilityResponse(BaseModel):
     id: str
     legal_name: str
@@ -766,6 +832,9 @@ def create_app(
     policy_bundle_loader: Callable[[str], VersionBundle | None] | None = None,
     hedge_output_loader: Callable[[str], dict[str, object] | None] | None = None,
     scenario_output_loader: Callable[[str], dict[str, object] | None] | None = None,
+    collateral_output_loader: Callable[[str], dict[str, object] | None] | None = None,
+    governance_service: GovernanceService | PostgresGovernanceService | None = None,
+    decision_context_loader: Callable[[str], DecisionContext] | None = None,
 ) -> FastAPI:
     """Create an isolated application instance with functional in-memory adapters."""
     app = FastAPI(title="CanopyLedger API", version="1.0.0")
@@ -778,18 +847,84 @@ def create_app(
         id_factory=new_resource_id,
     )
     idempotency = IdempotencyLedger()
+    governance = governance_service or GovernanceService(clock=clock)
     bearer = HTTPBearer(auto_error=False)
+
+    def govern(operation: Callable[[GovernanceService], Any]) -> Any:
+        if isinstance(governance, PostgresGovernanceService):
+            return governance.execute(operation)
+        return operation(governance)
+
+    def request_decision_context(
+        snapshot_id: str, command: RecommendationCreate
+    ) -> DecisionContext:
+        values = (
+            command.cbb,
+            command.contractual_availability,
+            command.internal_risk_capacity,
+            command.liquidity_cap,
+            command.facility_commitment,
+            command.outstanding_exposure,
+            command.approved_unfunded_exposure,
+            command.cbb_output_digest,
+            command.hedge_liquidity_output_digest,
+            command.irc_output_digest,
+            command.policy_bundle_digest,
+        )
+        if any(item is None for item in values):
+            raise GovernanceError(
+                "decision calculations are required unless an authoritative "
+                "snapshot loader is wired"
+            )
+        assert command.cbb is not None
+        assert command.contractual_availability is not None
+        assert command.internal_risk_capacity is not None
+        assert command.liquidity_cap is not None
+        assert command.facility_commitment is not None
+        assert command.outstanding_exposure is not None
+        assert command.approved_unfunded_exposure is not None
+        assert command.cbb_output_digest is not None
+        assert command.hedge_liquidity_output_digest is not None
+        assert command.irc_output_digest is not None
+        assert command.policy_bundle_digest is not None
+        return DecisionContext(
+            snapshot_id=snapshot_id,
+            cbb=command.cbb.to_money(),
+            contractual_availability=command.contractual_availability.to_money(),
+            internal_risk_capacity=command.internal_risk_capacity.to_money(),
+            liquidity_cap=command.liquidity_cap.to_money(),
+            facility_commitment=command.facility_commitment.to_money(),
+            policy_caps=tuple(item.to_money() for item in command.policy_caps),
+            outstanding_exposure=command.outstanding_exposure.to_money(),
+            approved_unfunded_exposure=command.approved_unfunded_exposure.to_money(),
+            cbb_output_digest=command.cbb_output_digest,
+            hedge_liquidity_output_digest=command.hedge_liquidity_output_digest,
+            irc_output_digest=command.irc_output_digest,
+            policy_bundle_digest=command.policy_bundle_digest,
+        )
 
     def current_actor(
         credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
     ) -> str:
-        if (
-            credentials is None
-            or credentials.scheme.lower() != "bearer"
-            or credentials.credentials != "analyst-demo-token"
-        ):
+        if credentials is None or credentials.scheme.lower() != "bearer":
             raise _Problem(401, "UNAUTHENTICATED", "Valid demo bearer token required")
-        return "act_0198a000-0000-7000-8000-000000000001"
+        actors = {
+            "analyst-demo-token": "act_0198a000-0000-7000-8000-000000000001",
+            "approver-demo-token": "apr_0198a000-0000-7000-8000-000000000001",
+            "second-approver-demo-token": "apr_0198a000-0000-7000-8000-000000000002",
+        }
+        actor = actors.get(credentials.credentials)
+        if actor is None:
+            raise _Problem(401, "UNAUTHENTICATED", "Valid demo bearer token required")
+        return actor
+
+    def current_credit_approver(
+        credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
+    ) -> str:
+        actor = current_actor(credentials)
+        if not actor.startswith("apr_"):
+            raise _Problem(403, "FORBIDDEN", "Credit-approver authority is required")
+        return actor
 
     @app.exception_handler(_Problem)
     async def handle_problem(request: Request, exc: _Problem) -> JSONResponse:
@@ -857,6 +992,10 @@ def create_app(
         request: Request, exc: EvidenceControlError
     ) -> JSONResponse:
         return _problem_response(request, 422, "VALIDATION_FAILED", str(exc))
+
+    @app.exception_handler(GovernanceError)
+    async def handle_governance_error(request: Request, exc: GovernanceError) -> JSONResponse:
+        return _problem_response(request, 422, "GOVERNANCE_VALIDATION_FAILED", str(exc))
 
     @app.exception_handler(BorrowingBaseError)
     async def handle_borrowing_base_error(
@@ -1258,6 +1397,375 @@ def create_app(
         return get_scenario_assessment(snapshot_id, actor)
 
     @app.post(
+        "/api/v1/snapshots/{snapshot_id}/recommendations",
+        status_code=201,
+        operation_id="createRecommendation",
+        response_model=GovernanceResourceResponse,
+        responses=_problem_responses(401, 403, 422),
+    )
+    def create_recommendation(
+        snapshot_id: str,
+        command: RecommendationCreate,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> GovernanceResourceResponse:
+        context = (
+            decision_context_loader(snapshot_id)
+            if decision_context_loader is not None
+            else request_decision_context(snapshot_id, command)
+        )
+        result = govern(
+            lambda service: service.create_recommendation(
+                context=context,
+                recommendation_id=command.recommendation_id,
+                author_id=actor,
+                requested_amount=command.requested_amount.to_money(),
+                recommendation_class=command.recommendation_class,
+                conditions=command.conditions,
+                reason_codes=command.reason_codes,
+                expires_at=command.expires_at,
+            )
+        )
+        return GovernanceResourceResponse(
+            resource_id=result.resource_id, digest=result.digest, kind="recommendation"
+        )
+
+    @app.post(
+        "/api/v1/recommendations/{recommendation_id}/approval-requests",
+        status_code=201,
+        operation_id="createApprovalRequest",
+        response_model=GovernanceResourceResponse,
+        responses=_problem_responses(401, 403, 422),
+    )
+    def create_approval_request(
+        recommendation_id: str,
+        command: ApprovalRequestCreate,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> GovernanceResourceResponse:
+        result = govern(
+            lambda service: service.create_approval_request(
+                approval_request_id=command.approval_request_id,
+                recommendation_id=recommendation_id,
+                requested_by=actor,
+                expires_at=command.expires_at,
+            )
+        )
+        return GovernanceResourceResponse(
+            resource_id=result.resource_id, digest=result.digest, kind="approval_request"
+        )
+
+    @app.post(
+        "/api/v1/approval-requests/{approval_request_id}/approve",
+        status_code=201,
+        operation_id="approveApprovalRequest",
+        response_model=GovernanceResourceResponse,
+        responses=_problem_responses(401, 403, 422),
+    )
+    def approve_approval_request(
+        approval_request_id: str,
+        command: ApprovalActionCreate,
+        actor: Annotated[str, Depends(current_credit_approver)],
+    ) -> GovernanceResourceResponse:
+        result = govern(
+            lambda service: service.approve(
+                approval_action_id=command.approval_action_id,
+                final_decision_id=command.final_decision_id,
+                approval_request_id=approval_request_id,
+                approver_id=actor,
+                reason=command.reason,
+            )
+        )
+        return GovernanceResourceResponse(
+            resource_id=result.resource_id,
+            digest=result.digest,
+            kind="final_decision",
+            status=result.status.value,
+        )
+
+    @app.post(
+        "/api/v1/approval-requests/{approval_request_id}/reject",
+        status_code=201,
+        operation_id="rejectApprovalRequest",
+        response_model=GovernanceResourceResponse,
+        responses=_problem_responses(401, 422),
+    )
+    def reject_approval_request(
+        approval_request_id: str,
+        command: ApprovalActionCreate,
+        actor: Annotated[str, Depends(current_credit_approver)],
+    ) -> GovernanceResourceResponse:
+        result = govern(
+            lambda service: service.reject(
+                approval_action_id=command.approval_action_id,
+                final_decision_id=command.final_decision_id,
+                approval_request_id=approval_request_id,
+                approver_id=actor,
+                reason=command.reason,
+            )
+        )
+        return GovernanceResourceResponse(
+            resource_id=result.resource_id,
+            digest=result.digest,
+            kind="final_decision",
+            status=result.status.value,
+        )
+
+    @app.post(
+        "/api/v1/decisions/{decision_id}/override-requests",
+        status_code=201,
+        operation_id="createDecisionOverride",
+        response_model=GovernanceResourceResponse,
+        responses=_problem_responses(401, 422),
+    )
+    def create_decision_override(
+        decision_id: str,
+        command: OverrideRequestCreate,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> GovernanceResourceResponse:
+        result = govern(
+            lambda service: service.create_override_request(
+                override_id=command.override_id,
+                original_decision_id=decision_id,
+                requester_id=actor,
+                proposed_exposure_cap=command.proposed_exposure_cap.to_money(),
+                reason=command.reason,
+                policy_basis=command.policy_basis,
+                expires_at=command.expires_at,
+                requires_dual_control=True,
+            )
+        )
+        return GovernanceResourceResponse(
+            resource_id=result.resource_id, digest=result.digest, kind="decision_override"
+        )
+
+    @app.post(
+        "/api/v1/recommendations/{recommendation_id}/override-requests",
+        status_code=201,
+        operation_id="createRecommendationOverride",
+        response_model=GovernanceResourceResponse,
+        responses=_problem_responses(401, 422),
+    )
+    def create_recommendation_override(
+        recommendation_id: str,
+        command: OverrideRequestCreate,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> GovernanceResourceResponse:
+        recommendation = governance.get_recommendation(recommendation_id)
+        decision = governance.get_current_decision(recommendation.snapshot_id)
+        if decision is None or decision.recommendation_id != recommendation_id:
+            raise GovernanceError(
+                "recommendation does not have a current final decision to override"
+            )
+        return create_decision_override(decision.resource_id, command, actor)
+
+    @app.post(
+        "/api/v1/override-requests/{override_id}/approve",
+        status_code=201,
+        operation_id="approveDecisionOverride",
+        response_model=GovernanceResourceResponse,
+        responses=_problem_responses(401, 422),
+    )
+    def approve_decision_override(
+        override_id: str,
+        command: OverrideApprovalCreate,
+        actor: Annotated[str, Depends(current_credit_approver)],
+    ) -> GovernanceResourceResponse:
+        result = govern(
+            lambda service: service.approve_override(
+                override_id, actor, command.reason, approval_action_id=command.approval_action_id
+            )
+        )
+        if result is None:
+            return GovernanceResourceResponse(
+                resource_id=override_id,
+                digest="",
+                kind="decision_override",
+                status="AWAITING_SECOND_APPROVAL",
+            )
+        return GovernanceResourceResponse(
+            resource_id=result.resource_id,
+            digest=result.digest,
+            kind="final_decision",
+            status=result.status.value,
+        )
+
+    @app.get(
+        "/api/v1/decisions/{decision_id}",
+        operation_id="getFinalDecision",
+        response_model=GovernanceResourceResponse,
+        responses=_problem_responses(401, 404),
+    )
+    def get_final_decision(
+        decision_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> GovernanceResourceResponse:
+        del actor
+        try:
+            decision = governance.get_decision(decision_id)
+        except GovernanceError as exc:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", str(exc)) from exc
+        return GovernanceResourceResponse(
+            resource_id=decision.resource_id,
+            digest=decision.digest,
+            kind="final_decision",
+            status=decision.status.value,
+            superseded_by=decision.superseded_by,
+        )
+
+    @app.get(
+        "/ui/approval-workspace",
+        include_in_schema=False,
+        responses=_problem_responses(401),
+    )
+    def approval_workspace(
+        actor: Annotated[str, Depends(current_actor)],
+        recommendation_id: str | None = None,
+        decision_id: str | None = None,
+    ) -> HTMLResponse:
+        del actor
+        try:
+            decision = governance.get_decision(decision_id) if decision_id is not None else None
+            recommendation = (
+                governance.get_recommendation(decision.recommendation_id)
+                if decision is not None
+                else (
+                    governance.get_recommendation(recommendation_id)
+                    if recommendation_id is not None
+                    else None
+                )
+            )
+            override = (
+                governance.get_override(decision.override_id)
+                if decision is not None and decision.override_id is not None
+                else None
+            )
+        except GovernanceError as exc:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", str(exc)) from exc
+        context = (
+            decision_context_loader(recommendation.snapshot_id)
+            if recommendation is not None and decision_context_loader is not None
+            else None
+        )
+        hedge = (
+            hedge_output_loader(recommendation.snapshot_id)
+            if recommendation is not None and hedge_output_loader is not None
+            else None
+        )
+        scenario = (
+            scenario_output_loader(recommendation.snapshot_id)
+            if recommendation is not None and scenario_output_loader is not None
+            else None
+        )
+        return HTMLResponse(
+            _approval_workspace_page(
+                recommendation=recommendation,
+                context=context,
+                decision=decision,
+                override=override,
+                blockers=_reason_summary(hedge, scenario),
+            )
+        )
+
+    @app.get("/ui/facility-cockpit", include_in_schema=False, responses=_problem_responses(401))
+    def facility_cockpit(
+        actor: Annotated[str, Depends(current_actor)],
+        snapshot_id: str | None = None,
+    ) -> HTMLResponse:
+        del actor
+        if snapshot_id is None:
+            return HTMLResponse(_facility_cockpit_page())
+        if decision_context_loader is None:
+            return HTMLResponse(_facility_cockpit_page(error="No authoritative snapshot loader"))
+        context = decision_context_loader(snapshot_id)
+        decision = governance.get_current_decision(snapshot_id)
+        recommendation = (
+            governance.get_recommendation(decision.recommendation_id)
+            if decision is not None
+            else None
+        )
+        hedge = hedge_output_loader(snapshot_id) if hedge_output_loader is not None else None
+        scenario = (
+            scenario_output_loader(snapshot_id) if scenario_output_loader is not None else None
+        )
+        return HTMLResponse(
+            _facility_cockpit_page(
+                snapshot_id=snapshot_id,
+                context=context,
+                recommendation=recommendation,
+                decision=decision,
+                hedge=hedge,
+                scenario=scenario,
+            )
+        )
+
+    @app.get("/ui/collateral-workspace", include_in_schema=False, responses=_problem_responses(401))
+    def collateral_workspace(
+        actor: Annotated[str, Depends(current_actor)],
+        snapshot_id: str | None = None,
+    ) -> HTMLResponse:
+        del actor
+        output = (
+            collateral_output_loader(snapshot_id)
+            if (snapshot_id is not None and collateral_output_loader is not None)
+            else None
+        )
+        return HTMLResponse(
+            _analytical_workspace_page(
+                title="Collateral workspace",
+                snapshot_id=snapshot_id,
+                output=output,
+                description=(
+                    "Inventory lots, receivables, eligibility, haircuts, reserves, "
+                    "reconciliation issues, and evidence lineage."
+                ),
+            )
+        )
+
+    @app.get("/ui/hedge-lab", include_in_schema=False, responses=_problem_responses(401))
+    def hedge_lab(
+        actor: Annotated[str, Depends(current_actor)],
+        snapshot_id: str | None = None,
+    ) -> HTMLResponse:
+        del actor
+        output = (
+            hedge_output_loader(snapshot_id)
+            if (snapshot_id is not None and hedge_output_loader is not None)
+            else None
+        )
+        return HTMLResponse(
+            _analytical_workspace_page(
+                title="Hedge Lab",
+                snapshot_id=snapshot_id,
+                output=output,
+                description=(
+                    "Physical exposure, futures/options hedge effects, variation margin, "
+                    "and liquidity coverage."
+                ),
+            )
+        )
+
+    @app.get("/ui/scenario-lab", include_in_schema=False, responses=_problem_responses(401))
+    def scenario_lab(
+        actor: Annotated[str, Depends(current_actor)],
+        snapshot_id: str | None = None,
+    ) -> HTMLResponse:
+        del actor
+        output = (
+            scenario_output_loader(snapshot_id)
+            if (snapshot_id is not None and scenario_output_loader is not None)
+            else None
+        )
+        return HTMLResponse(
+            _analytical_workspace_page(
+                title="Scenario Lab",
+                snapshot_id=snapshot_id,
+                output=output,
+                description=(
+                    "Deterministic stresses, Monte Carlo tail metrics, and Internal Risk Capacity."
+                ),
+            )
+        )
+
+    @app.post(
         "/api/v1/facilities",
         status_code=201,
         operation_id="createFacility",
@@ -1539,6 +2047,7 @@ def create_postgres_app(
     scenario_runner = PostgresScenarioCapacityRunner(
         engine, store, scenario_input_store, clock=clock
     )
+    governance = PostgresGovernanceService(engine, clock=clock)
     return create_app(
         clock=clock,
         integrity_service=integrity,
@@ -1546,6 +2055,9 @@ def create_postgres_app(
         policy_bundle_loader=store.load_bundle,
         hedge_output_loader=hedge_runner.load_published_output,
         scenario_output_loader=scenario_runner.load_published_output,
+        collateral_output_loader=governance.load_collateral_view,
+        governance_service=governance,
+        decision_context_loader=governance.load_authoritative_context,
     )
 
 
@@ -1560,12 +2072,12 @@ def _problem_responses(*statuses: int) -> dict[int | str, dict[str, Any]]:
     return {
         status: {
             "description": "Problem Details",
+            "model": ProblemDetails,
             "content": {
                 "application/problem+json": {
                     "schema": {"$ref": "#/components/schemas/ProblemDetails"}
                 }
             },
-            "model": ProblemDetails,
         }
         for status in statuses
     }
@@ -2002,6 +2514,163 @@ def _critical_fact_requirements(policy: VersionBundle) -> tuple[FactIdentity, ..
             )
         requirements.append(FactIdentity(fact_type=fact_type, subject_id=subject_id, period=period))
     return tuple(requirements)
+
+
+def _approval_workspace_page(
+    *,
+    recommendation: Any | None = None,
+    context: DecisionContext | None = None,
+    decision: Any | None = None,
+    override: Any | None = None,
+    blockers: str = "No recommendation selected",
+) -> str:
+    """Small authenticated UI for creating and recording governed M4B commands."""
+    detail = _approval_workspace_detail(recommendation, context, decision, override, blockers)
+    page = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Approval workspace</title></head>
+<body><main><h1>Approval workspace</h1>
+<p>Recommendations, approvals, overrides, and final decisions remain separate
+immutable resources.</p>
+<p>CBB and IRC are independently calculated; production limits and lineage come
+from the approved snapshot.</p>
+__DECISION_DETAIL__
+<h2>Governed action console</h2>
+<p>Create immutable recommendation · Request approval · Record human decision
+· Request dual-control override</p>
+<form id="governed-command">
+<label>Bearer token <input id="token" type="password" autocomplete="off" required></label>
+<label>POST path <input id="path" required
+placeholder="/api/v1/approval-requests/{id}/approve"></label>
+<label>JSON command <textarea id="payload" required>{}</textarea></label>
+<button>Create recommendation / record approval / request override</button></form>
+<pre id="command-result" aria-live="polite"></pre></main>
+<script>
+const form=document.getElementById('governed-command');
+form.onsubmit=async event=>{
+event.preventDefault();
+const path=document.getElementById('path').value;
+const headers={Authorization:'Bearer '+document.getElementById('token').value,
+'Content-Type':'application/json'};
+const body=document.getElementById('payload').value;
+const response=await fetch(path,{method:'POST',headers:headers,body:body});
+document.getElementById('command-result').textContent=await response.text();
+};
+</script></body></html>"""
+    return page.replace("__DECISION_DETAIL__", detail)
+
+
+def _analytical_workspace_page(
+    *,
+    title: str,
+    snapshot_id: str | None,
+    output: dict[str, object] | None,
+    description: str,
+) -> str:
+    """Render only frozen analytical output; these pages never accept trade entry."""
+    if snapshot_id is None:
+        return f"""<main><h1>{escape(title)}</h1><p>{escape(description)}</p>
+<form method="get"><label>Approved snapshot ID <input name="snapshot_id" required></label>
+<button>Load frozen analysis</button></form></main>"""
+    if output is None:
+        body = "No published analytical output is available for this approved snapshot."
+    else:
+        body = f"<pre>{escape(json.dumps(output, sort_keys=True, default=str, indent=2))}</pre>"
+    return f"""<main><h1>{escape(title)}</h1><p>{escape(description)}</p>
+<p>Approved snapshot: {escape(snapshot_id)}</p>{body}</main>"""
+
+
+def _approval_workspace_detail(
+    recommendation: Any | None,
+    context: DecisionContext | None,
+    decision: Any | None,
+    override: Any | None,
+    blockers: str,
+) -> str:
+    if recommendation is None:
+        return """<p>Provide a <code>recommendation_id</code> or <code>decision_id</code>
+in the page query to review governed decision details.</p>"""
+    context_values = (
+        f"<dt>CBB</dt><dd>{_money_display(context.cbb)}</dd>"
+        f"<dt>IRC</dt><dd>{_money_display(context.internal_risk_capacity)}</dd>"
+        if context is not None
+        else "<dt>CBB / IRC</dt><dd>Authoritative source unavailable</dd>"
+    )
+    decision_status = decision.status.value if decision is not None else "AWAITING_APPROVAL"
+    override_detail = (
+        f"<h3>Override versus original recommendation</h3><dl>"
+        f"<dt>Original recommendation</dt><dd>{escape(recommendation.resource_id)}</dd>"
+        f"<dt>Proposed exposure cap</dt><dd>{_money_display(override.proposed_exposure_cap)}</dd>"
+        f"<dt>Policy basis</dt><dd>{escape(override.policy_basis)}</dd>"
+        f"<dt>Dual-control approvals</dt><dd>{len(override.approval_actions)} of 2</dd></dl>"
+        if override is not None
+        else ""
+    )
+    return f"""<section><h2>Recommendation review</h2><dl>
+<dt>Recommendation</dt><dd>{escape(recommendation.resource_id)}</dd>
+<dt>Requested amount</dt><dd>{_money_display(recommendation.requested_amount)}</dd>
+<dt>Contractual availability</dt><dd>{_money_display(recommendation.contractual_availability)}</dd>
+{context_values}
+<dt>Conditions</dt><dd>{escape(", ".join(recommendation.conditions) or "None")}</dd>
+<dt>Reason codes</dt><dd>{escape(", ".join(recommendation.reason_codes) or "None")}</dd>
+<dt>Evidence/scenario blockers</dt><dd>{escape(blockers)}</dd>
+<dt>Author</dt><dd>{escape(recommendation.author_id)}</dd>
+<dt>Expiry</dt><dd>{escape(recommendation.expires_at.isoformat())}</dd>
+<dt>Final decision</dt><dd>{escape(decision_status)}</dd></dl>{override_detail}</section>"""
+
+
+def _facility_cockpit_page(
+    *,
+    snapshot_id: str | None = None,
+    context: DecisionContext | None = None,
+    recommendation: Any | None = None,
+    decision: Any | None = None,
+    hedge: dict[str, object] | None = None,
+    scenario: dict[str, object] | None = None,
+    error: str | None = None,
+) -> str:
+    """Render the key decision inputs without ever conflating CBB and IRC."""
+    if snapshot_id is None:
+        return """<main><h1>Facility Cockpit</h1>
+<p>Contractual Borrowing Base and Internal Risk Capacity are shown separately.</p>
+<form method="get"><label>Approved snapshot ID <input name="snapshot_id" required></label>
+<button>Load governed facility decision</button></form></main>"""
+    if error is not None:
+        return f"<main><h1>Facility Cockpit</h1><p>{escape(error)}</p></main>"
+    assert context is not None
+    recommended_draw = (
+        _money_display(recommendation.recommended_incremental_draw)
+        if recommendation is not None
+        else "No recommendation"
+    )
+    decision_status = decision.status.value if decision is not None else "No final decision"
+    evidence_blockers = _reason_summary(hedge, scenario)
+    return f"""<main><h1>Facility Cockpit</h1><p>Approved snapshot: {escape(snapshot_id)}</p>
+<section><h2>Contractual Borrowing Base</h2><dl>
+<dt>CBB</dt><dd>{_money_display(context.cbb)}</dd>
+<dt>Contractual availability</dt><dd>{_money_display(context.contractual_availability)}</dd>
+<dt>Commitment</dt><dd>{_money_display(context.facility_commitment)}</dd>
+<dt>Current exposure</dt><dd>{_money_display(context.outstanding_exposure)}</dd></dl></section>
+<section><h2>Internal Risk Capacity</h2><p>{_money_display(context.internal_risk_capacity)}</p>
+<p>IRC is distinct from contractual CBB and is bound to the S6/IRC lineage.</p></section>
+<section><h2>Decision</h2><dl><dt>Recommended draw</dt><dd>{recommended_draw}</dd>
+<dt>Final decision</dt><dd>{escape(decision_status)}</dd></dl></section>
+<section><h2>Hedge, scenario, and evidence blockers</h2><p>{escape(evidence_blockers)}</p></section>
+</main>"""
+
+
+def _money_display(value: Money) -> str:
+    return f"{value.quantized().amount:.2f} {value.currency}"
+
+
+def _reason_summary(hedge: dict[str, object] | None, scenario: dict[str, object] | None) -> str:
+    values: list[str] = []
+    for output in (hedge, scenario):
+        if output is None:
+            continue
+        reasons = output.get("reason_codes", ())
+        if isinstance(reasons, (list, tuple)):
+            values.extend(item for item in reasons if isinstance(item, str))
+    return ", ".join(sorted(set(values))) or "No published blocker reason codes"
 
 
 def _snapshot_representation(snapshot: SnapshotManifest) -> dict[str, object]:
