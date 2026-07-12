@@ -97,11 +97,11 @@ from canopyledger.integrity.snapshot import (
 )
 from canopyledger.market.snapshot import FxRate, MarketSnapshot, PriceObservation
 from canopyledger.persistence.postgres import PostgresEvidenceStore, PostgresIntegrityStore
-
 from canopyledger.scenario.postgres import (
     PostgresScenarioCapacityInputStore,
     PostgresScenarioCapacityRunner,
 )
+
 
 @dataclass(frozen=True)
 class FacilityRecord:
