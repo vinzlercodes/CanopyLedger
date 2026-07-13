@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -67,9 +68,13 @@ class EvidenceStore(Protocol):
 
     def get_document_version(self, document_version_id: str) -> DocumentVersion | None: ...
 
+    def get_document_original_bytes(self, document_version_id: str) -> bytes | None: ...
+
     def insert_candidate_fact(self, candidate: CandidateFact) -> None: ...
 
     def get_candidate_fact(self, candidate_fact_id: str) -> CandidateFact | None: ...
+
+    def list_candidate_facts(self, *, limit: int) -> tuple[CandidateFact, ...]: ...
 
     def get_approved_fact_for_candidate(self, candidate_fact_id: str) -> ApprovedFact | None: ...
 
@@ -103,9 +108,7 @@ class EvidenceStore(Protocol):
         self, lot_id: str
     ) -> tuple[WarehouseReceiptRecord, ...]: ...
 
-    def get_ownership_claim(
-        self, *, lot_id: str, period: str
-    ) -> OwnershipClaimRecord | None: ...
+    def get_ownership_claim(self, *, lot_id: str, period: str) -> OwnershipClaimRecord | None: ...
 
     def insert_ownership_claim(
         self, *, resource_id: str, claim: InventoryOwnershipClaim
@@ -133,9 +136,7 @@ class InMemoryEvidenceStore:
         self._ownership_claims: dict[str, OwnershipClaimRecord] = {}
         self._quantity_issues: dict[str, QuantityReconciliationRecord] = {}
 
-    def insert_document_version(
-        self, document: DocumentVersion, *, original_bytes: bytes
-    ) -> None:
+    def insert_document_version(self, document: DocumentVersion, *, original_bytes: bytes) -> None:
         existing = self._documents.get(document.resource_id)
         if existing is not None and (
             existing != document or self._document_bytes[document.resource_id] != original_bytes
@@ -147,6 +148,9 @@ class InMemoryEvidenceStore:
     def get_document_version(self, document_version_id: str) -> DocumentVersion | None:
         return self._documents.get(document_version_id)
 
+    def get_document_original_bytes(self, document_version_id: str) -> bytes | None:
+        return self._document_bytes.get(document_version_id)
+
     def insert_candidate_fact(self, candidate: CandidateFact) -> None:
         existing = self._candidates.get(candidate.fact_id)
         if existing is not None and existing != candidate:
@@ -155,6 +159,15 @@ class InMemoryEvidenceStore:
 
     def get_candidate_fact(self, candidate_fact_id: str) -> CandidateFact | None:
         return self._candidates.get(candidate_fact_id)
+
+    def list_candidate_facts(self, *, limit: int) -> tuple[CandidateFact, ...]:
+        return tuple(
+            sorted(
+                self._candidates.values(),
+                key=lambda candidate: (candidate.extracted_at, candidate.fact_id),
+                reverse=True,
+            )[:limit]
+        )
 
     def get_approved_fact_for_candidate(self, candidate_fact_id: str) -> ApprovedFact | None:
         for fact in self._approved.values():
@@ -177,16 +190,10 @@ class InMemoryEvidenceStore:
     def get_approved_fact(self, approved_fact_id: str) -> ApprovedFact | None:
         return self._approved.get(approved_fact_id)
 
-    def list_approved_facts_for_identity(
-        self, identity: FactIdentity
-    ) -> tuple[ApprovedFact, ...]:
+    def list_approved_facts_for_identity(self, identity: FactIdentity) -> tuple[ApprovedFact, ...]:
         return tuple(
             sorted(
-                (
-                    fact
-                    for fact in self._approved.values()
-                    if fact.identity == identity
-                ),
+                (fact for fact in self._approved.values() if fact.identity == identity),
                 key=lambda fact: (fact.approved_at, fact.fact_id),
             )
         )
@@ -205,9 +212,7 @@ class InMemoryEvidenceStore:
             raise EvidenceControlError("approved fact changed before supersession")
         if replacement.fact_id in self._approved:
             raise EvidenceControlError("replacement approved fact already exists")
-        self._approved[superseded.fact_id] = _replace_superseded_by(
-            superseded, replacement.fact_id
-        )
+        self._approved[superseded.fact_id] = _replace_superseded_by(superseded, replacement.fact_id)
         self._approved[replacement.fact_id] = replacement
 
     def insert_rejected_fact(self, rejected: RejectedFact) -> None:
@@ -236,26 +241,20 @@ class InMemoryEvidenceStore:
             raise EvidenceControlError("warehouse receipt evidence already exists")
         self._warehouse_receipts[resource_id] = record
 
-    def list_warehouse_receipts_for_lot(
-        self, lot_id: str
-    ) -> tuple[WarehouseReceiptRecord, ...]:
+    def list_warehouse_receipts_for_lot(self, lot_id: str) -> tuple[WarehouseReceiptRecord, ...]:
         return tuple(
             record
             for record in self._warehouse_receipts.values()
             if record.receipt.lot_id == lot_id
         )
 
-    def get_ownership_claim(
-        self, *, lot_id: str, period: str
-    ) -> OwnershipClaimRecord | None:
+    def get_ownership_claim(self, *, lot_id: str, period: str) -> OwnershipClaimRecord | None:
         for record in self._ownership_claims.values():
             if record.claim.lot_id == lot_id and record.claim.period == period:
                 return record
         return None
 
-    def insert_ownership_claim(
-        self, *, resource_id: str, claim: InventoryOwnershipClaim
-    ) -> None:
+    def insert_ownership_claim(self, *, resource_id: str, claim: InventoryOwnershipClaim) -> None:
         existing = self._ownership_claims.get(resource_id)
         record = OwnershipClaimRecord(resource_id=resource_id, claim=claim)
         if existing is not None and existing != record:
@@ -311,6 +310,16 @@ class EvidenceService:
         self._store.insert_document_version(document, original_bytes=content)
         return document
 
+    def original_document(self, document_version_id: str) -> tuple[DocumentVersion, bytes]:
+        """Return immutable source bytes only after verifying their recorded digest."""
+        document = self._document(document_version_id)
+        content = self._store.get_document_original_bytes(document_version_id)
+        if content is None:
+            raise EvidenceControlError("Document bytes not found")
+        if f"sha256:{hashlib.sha256(content).hexdigest()}" != document.byte_digest:
+            raise EvidenceControlError("Document bytes do not match the recorded digest")
+        return document, content
+
     def create_candidate_fact(
         self,
         *,
@@ -359,6 +368,16 @@ class EvidenceService:
             approval_history=history,
             rejection=rejection,
             supersession_chain=_supersession_chain(history),
+        )
+
+    def review_queue(self, *, limit: int) -> tuple[EvidenceReviewPacket, ...]:
+        if limit < 1 or limit > 100:
+            raise EvidenceControlError("review queue limit must be between 1 and 100")
+        return tuple(
+            self.review_packet(candidate.fact_id)
+            for candidate in self._store.list_candidate_facts(limit=limit)
+            if self._store.get_approved_fact_for_candidate(candidate.fact_id) is None
+            and self._store.get_rejected_fact_for_candidate(candidate.fact_id) is None
         )
 
     def approve_candidate_fact(self, candidate_fact_id: str, *, reviewer_id: str) -> ApprovedFact:
@@ -582,9 +601,7 @@ def _review_conflicts(
 def _supersession_chain(approved_facts: tuple[ApprovedFact, ...]) -> tuple[str, ...]:
     by_id = {fact.fact_id: fact for fact in approved_facts}
     replacement_ids = {
-        fact.superseded_by
-        for fact in approved_facts
-        if fact.superseded_by is not None
+        fact.superseded_by for fact in approved_facts if fact.superseded_by is not None
     }
     chains: list[str] = []
     for fact in approved_facts:

@@ -54,11 +54,23 @@ def test_operation_ids_are_explicit_stable_and_unique() -> None:
         "evaluateHedgeLiquidityDemo",
         "freezeFacility",
         "getCandidateFactReview",
+        "getDecisionOverride",
+        "getDecisionOverrideQueue",
+        "getEvidenceDocumentRendition",
+        "getEvidenceReviewQueue",
         "getFacility",
+        "getHedgeLabProjection",
         "getHedgeLiquidityAssessment",
         "getFinalDecision",
+        "getGovernanceTimeline",
         "getInternalRiskCapacityAssessment",
+        "getApprovalQueue",
+        "getApprovalRequest",
+        "getRecommendation",
         "getScenarioAssessment",
+        "getScenarioLabProjection",
+        "getSnapshotCollateral",
+        "getSnapshotDecisionPack",
         "getSnapshotManifest",
         "healthCheck",
         "rejectCandidateFact",
@@ -137,3 +149,9 @@ def test_openapi_artifact_is_valid_json_with_a_trailing_newline() -> None:
     artifact = OPENAPI_ARTIFACT.read_bytes()
     assert artifact.endswith(b"\n")
     assert json.loads(artifact)["info"]["version"] == "1.0.0"
+
+
+def test_typescript_client_preserves_nullable_openapi_fields() -> None:
+    generated = (ROOT / "typescript" / "generated" / "index.ts").read_text()
+    assert "readonly final_decision?: GovernanceResourceResponse | null;" in generated
+    assert "readonly recommendation?: RecommendationDetailResponse | null;" in generated
