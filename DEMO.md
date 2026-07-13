@@ -122,7 +122,23 @@ eligibility_and_reserves
 contractual_borrowing_base
 ```
 
-It also verifies the fixture’s contractual availability is `104034.45` and that the certificate and final stage include immutable output digests. The same test exercises `canopyledger-cbb-demo`, the CLI that writes a canonical CBB certificate JSON file.
+The test supplies this exact synthetic fixture, so these are the values to
+recognize in its assertions and any equivalent API run:
+
+| Pipeline input or result | Value |
+|---|---|
+| Facility / snapshot / certificate | `fac_0198a000-0000-7000-8000-000000000001` / `snp_0198a000-0000-7000-8000-000000000001` / `cbb_0198a000-0000-7000-8000-000000000001` |
+| Facility limit and contractual usage | EUR `500,000.00`; principal EUR `20,000.00`, LC EUR `5,000.00`, other EUR `10,000.00` |
+| Inventory lot | `lot_0198a000-0000-7000-8000-000000000001`, `18.4 metric_tonne` of `KC`, advance rate `0.65` |
+| Market input | `KC` USD `5,871.42` per metric tonne; EUR/USD `0.918` |
+| Receivable | `rec_0198a000-0000-7000-8000-000000000001`; invoice USD `125,000.00`, credit note USD `2,500.00`, advance rate `0.80` |
+| Documentation reserve | EUR `12,485.62` |
+| Expected result | contractual availability EUR `104,034.45` |
+
+Both the certificate and the final `contractual_borrowing_base` stage include
+immutable `sha256:` output digests. The same test exercises
+`canopyledger-cbb-demo`, the CLI that writes a canonical CBB certificate JSON
+file.
 
 ## 5. Backend: inspect hedge/liquidity and scenario/IRC boundaries
 
@@ -138,6 +154,31 @@ They prove two important boundaries:
 2. Snapshot hedge/liquidity and scenario routes return only frozen, published stage outputs. The scenario result preserves the invariant `IRC <= CBB`; it does not overwrite CBB.
 
 For a complete request body and expected hedge result, inspect `tests/test_m3_demo_surface.py`. It intentionally includes both price-risk reduction and a margin-liquidity shortfall, so the demo never equates “more hedged” with “automatically safer.”
+
+The focused tests use the following values; use them to read the results rather
+than treating the preview as an authoritative published output:
+
+| Hedge/liquidity preview | Exact fixture value |
+|---|---|
+| Assessment / snapshot / date | `hdl_0198a000-0000-7000-8000-000000000001` / `snp_0198a000-0000-7000-8000-000000000001` / `2026-06-21` |
+| Physical and futures position | `100 metric_tonne` of `KC` for `2026-09`; `-5` ICE KC contracts |
+| Futures prices | entry `180`, current `200` US cents per pound |
+| Cash and undrawn availability | USD `5,000.00` and USD `3,000.00` |
+| Stress moves | one-day `8`, multi-day `25` for `KC` |
+| Expected preview outcome | `authoritativeness: "preview"`, no `stage` or `output_digest` |
+| Key result | futures P&L USD `-37,500.00`; hedge ratio `0.85048569`; margin-call shortfall USD `38,875.00`; liquidity coverage `0.17066667` |
+| Reason codes | `HEDGE_REDUCES_PRICE_EXPOSURE`, `MARGIN_LIQUIDITY_SHORTFALL` |
+
+The scenario fixture uses the same snapshot ID with CBB USD `100,000.00`,
+facility commitment USD `120,000.00`, outstanding exposure USD `85,000.00`,
+base margin call USD `15,000.00`, and available liquidity USD `12,000.00`.
+It uses scenario version `coffee-scenarios-v1`, PRNG
+`python-mt19937-v1`, seed `41`, `500` paths, `5` time steps, confidence
+`0.95`, and correlation `0.35`. Expect its `price-decline` scenario to have a
+stressed CBB below USD `100,000.00`, its `rally-margin` scenario to have a
+margin-liquidity shortfall of USD `18,000.00`, and the returned IRC to remain
+at or below CBB. These are frozen-output checks; no browser or preview request
+may calculate or replace them.
 
 ## 6. Backend: create and approve a governed decision
 
