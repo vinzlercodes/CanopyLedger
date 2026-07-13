@@ -1900,11 +1900,7 @@ def create_app(
                 "Required published hedge or scenario output is unavailable",
             )
         decision = governance.get_current_decision(snapshot_id)
-        recommendation = (
-            governance.get_recommendation(decision.recommendation_id)
-            if decision is not None
-            else None
-        )
+        recommendation = governance.get_current_recommendation(snapshot_id)
         return DecisionPackResponse(
             snapshot_id=snapshot_id,
             contractual_borrowing_base=_money_response(context.cbb),
@@ -2893,29 +2889,53 @@ def _collateral_workspace_response(
             "Published collateral output is incomplete or has an unsupported schema",
         ) from exc
 
-    selected = {
-        "inventory": inventory,
-        "receivables": receivables,
-        "contributions": contributions,
-        "reserves": reserves,
-    }[section]
-    offset = _collateral_cursor_offset(cursor)
-    if offset > len(selected):
-        raise _Problem(422, "INVALID_CURSOR", "Collateral cursor is outside this frozen section")
-    page_items = selected[offset : offset + limit]
-    next_offset = offset + len(page_items)
-    page = CollateralPageResponse(
-        limit=limit,
-        next_cursor=str(next_offset) if next_offset < len(selected) else None,
-        total_count=len(selected),
-    )
+    if section == "inventory":
+        inventory_page_items, page = _collateral_page(inventory, cursor, limit)
+        return CollateralWorkspaceResponse(
+            snapshot_id=snapshot_id,
+            section=section,
+            inventory_items=inventory_page_items,
+            receivable_items=(),
+            contribution_items=(),
+            reserve_items=(),
+            page=page,
+            lineage=lineage,
+            reason_codes=reason_codes,
+        )
+    if section == "receivables":
+        receivable_page_items, page = _collateral_page(receivables, cursor, limit)
+        return CollateralWorkspaceResponse(
+            snapshot_id=snapshot_id,
+            section=section,
+            inventory_items=(),
+            receivable_items=receivable_page_items,
+            contribution_items=(),
+            reserve_items=(),
+            page=page,
+            lineage=lineage,
+            reason_codes=reason_codes,
+        )
+    if section == "contributions":
+        contribution_page_items, page = _collateral_page(contributions, cursor, limit)
+        return CollateralWorkspaceResponse(
+            snapshot_id=snapshot_id,
+            section=section,
+            inventory_items=(),
+            receivable_items=(),
+            contribution_items=contribution_page_items,
+            reserve_items=(),
+            page=page,
+            lineage=lineage,
+            reason_codes=reason_codes,
+        )
+    reserve_page_items, page = _collateral_page(reserves, cursor, limit)
     return CollateralWorkspaceResponse(
         snapshot_id=snapshot_id,
         section=section,
-        inventory_items=page_items if section == "inventory" else (),
-        receivable_items=page_items if section == "receivables" else (),
-        contribution_items=page_items if section == "contributions" else (),
-        reserve_items=page_items if section == "reserves" else (),
+        inventory_items=(),
+        receivable_items=(),
+        contribution_items=(),
+        reserve_items=reserve_page_items,
         page=page,
         lineage=lineage,
         reason_codes=reason_codes,
@@ -2933,13 +2953,30 @@ def _collateral_stage(output: dict[str, object], stage: str, snapshot_id: str) -
     return value
 
 
-def _collateral_rows(result: object, field: str, model: type[BaseModel]) -> tuple[BaseModel, ...]:
+def _collateral_rows[RowModel: BaseModel](
+    result: object, field: str, model: type[RowModel]
+) -> tuple[RowModel, ...]:
     if not isinstance(result, dict):
         raise ValueError("collateral result is missing")
     raw_rows = result.get(field)
     if not isinstance(raw_rows, list):
         raise ValueError("collateral row collection is missing")
     return tuple(model.model_validate(row) for row in raw_rows)
+
+
+def _collateral_page[RowModel: BaseModel](
+    items: tuple[RowModel, ...], cursor: str | None, limit: int
+) -> tuple[tuple[RowModel, ...], CollateralPageResponse]:
+    offset = _collateral_cursor_offset(cursor)
+    if offset > len(items):
+        raise _Problem(422, "INVALID_CURSOR", "Collateral cursor is outside this frozen section")
+    page_items = items[offset : offset + limit]
+    next_offset = offset + len(page_items)
+    return page_items, CollateralPageResponse(
+        limit=limit,
+        next_cursor=str(next_offset) if next_offset < len(items) else None,
+        total_count=len(items),
+    )
 
 
 def _collateral_reason_codes(stage: dict[str, object]) -> tuple[str, ...]:
@@ -2980,10 +3017,10 @@ def _hedge_lab_projection_response(
         return HedgeLabProjectionResponse(
             stage_output_id=_published_string(stage, "stage_output_id"),
             snapshot_id=_published_string(stage, "snapshot_id"),
-            stage=_published_string(stage, "stage"),
+            stage="hedge_liquidity",
             stage_version=_published_string(stage, "stage_version"),
             output_digest=_published_string(stage, "output_digest"),
-            completed_at=stage["completed_at"],
+            completed_at=_published_datetime(stage, "completed_at"),
             reason_codes=_published_strings(stage, "reason_codes"),
             contract_specifications=tuple(
                 HedgeContractSpecificationResponse.model_validate(item)
@@ -3109,10 +3146,10 @@ def _scenario_lab_projection_response(
         return ScenarioLabProjectionResponse(
             stage_output_id=_published_string(stage, "stage_output_id"),
             snapshot_id=_published_string(stage, "snapshot_id"),
-            stage=_published_string(stage, "stage"),
+            stage="scenario_capacity",
             stage_version=_published_string(stage, "stage_version"),
             output_digest=_published_string(stage, "output_digest"),
-            completed_at=stage["completed_at"],
+            completed_at=_published_datetime(stage, "completed_at"),
             reason_codes=_published_strings(stage, "reason_codes"),
             scenario_version=_published_string(scenario, "scenario_version"),
             monte_carlo=ScenarioMonteCarloResponse(
@@ -3268,11 +3305,27 @@ def _published_integer(value: dict[str, object], field: str) -> int:
     return result
 
 
+def _published_datetime(value: dict[str, object], field: str) -> datetime:
+    result = value.get(field)
+    if isinstance(result, str):
+        try:
+            result = datetime.fromisoformat(result.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError(f"published {field} has an unsupported type") from exc
+    if not isinstance(result, datetime) or result.tzinfo is None:
+        raise ValueError(f"published {field} has an unsupported type")
+    return result.astimezone(UTC)
+
+
 def _published_string_mapping(value: dict[str, object], field: str) -> dict[str, str]:
     result = _published_mapping(value, field)
     if not all(isinstance(key, str) and isinstance(item, str) for key, item in result.items()):
         raise ValueError(f"published {field} has an unsupported type")
-    return result
+    return {
+        key: item
+        for key, item in result.items()
+        if isinstance(key, str) and isinstance(item, str)
+    }
 
 
 def _published_money(value: object, currency: str) -> MoneyResponse:

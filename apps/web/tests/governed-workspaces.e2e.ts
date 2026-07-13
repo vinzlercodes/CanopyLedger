@@ -49,7 +49,7 @@ after(async () => {
 
 test("authorized M4B workspaces render server-issued projections and forward identity", async () => {
   const pages = [
-    ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/cockpit", analystToken, ["Governed capacity, never browser-calculated"]],
+    ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/cockpit", analystToken, ["Governed capacity, never browser-calculated", "Facility commitment", "Current exposure", "Liquidity cap"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/collateral?section=inventory", analystToken, ["Inventory lots"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/evidence", analystToken, ["Candidate facts await human review"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/evidence/cf_1", analystToken, ["Safe text rendition", "Warehouse receipt", "Download original attachment"]],
