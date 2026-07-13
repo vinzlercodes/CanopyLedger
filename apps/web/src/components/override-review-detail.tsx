@@ -1,0 +1,16 @@
+import type { DecisionOverrideDetailResponse } from "../../../../typescript/generated/index";
+
+import { AppShell } from "@/components/app-shell";
+import { AuthorityBadge } from "@/components/authority-badge";
+import { Icon } from "@/components/icon";
+import { OverrideApprovalActions } from "@/components/override-approval-actions";
+import type { LoadedContext } from "@/lib/api/load-context";
+
+const stamp = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(new Date(value)) + " UTC";
+const money = (value: { readonly amount: string; readonly currency: string }) => new Intl.NumberFormat(undefined, { style: "currency", currency: value.currency, maximumFractionDigits: 0 }).format(Number(value.amount));
+
+export function OverrideReviewDetail({ context, override, error, facilityId, snapshotId }: { readonly context: LoadedContext; readonly override?: DecisionOverrideDetailResponse; readonly error?: string; readonly facilityId: string; readonly snapshotId: string }) {
+  const status = context.kind === "snapshot" ? "frozen" : "unavailable";
+  const returnPath = `/facilities/${encodeURIComponent(facilityId)}/snapshots/${encodeURIComponent(snapshotId)}/approvals`;
+  return <AppShell activeWorkspace="approvals" facilityId={facilityId} snapshotId={snapshotId} status={status}>{override ? <div className="workspace-page"><section className="workspace-heading"><div><span className="eyebrow">Decision override · dual control</span><h1>Override review</h1><p>The original decision remains traceable. A separate approver must record each required approval.</p></div><AuthorityBadge kind="recommendation" /></section><section className="decision-grid"><article className="panel projection-panel"><span className="eyebrow">Override request</span><h2>{money(override.proposed_exposure_cap)}</h2><dl className="detail-list"><div><dt>Policy basis</dt><dd>{override.policy_basis}</dd></div><div><dt>Expires</dt><dd>{stamp(override.expires_at)}</dd></div><div><dt>Requester</dt><dd>{override.requester_id}</dd></div><div><dt>Reason</dt><dd>{override.reason}</dd></div></dl></article><article className="panel projection-panel"><span className="eyebrow">Human approval state</span><h2>{override.approval_count} of {override.approvals_required} approvals</h2><p>{override.expired ? "This request is expired; the API will refuse approval." : "The API rejects requester approval and duplicate approvers."}</p><dl className="detail-list"><div><dt>Original decision</dt><dd><code>{override.original_decision_id}</code></dd></div><div><dt>Recommendation</dt><dd><code>{override.recommendation_id}</code></dd></div><div><dt>Override digest</dt><dd><code>{override.digest}</code></dd></div><div><dt>Created</dt><dd>{stamp(override.created_at)}</dd></div></dl>{!override.expired && override.approval_count < override.approvals_required && <OverrideApprovalActions overrideId={override.override_id} returnPath={returnPath} />}</article></section></div> : <section className="unavailable-panel panel" role="alert"><div className="unavailable-icon"><Icon name="lock" /></div><span className="eyebrow">Override unavailable</span><h1>{error ?? "The override request is unavailable"}</h1><a className="secondary-action" href={returnPath}>Return to approval workspace</a></section>}</AppShell>;
+}
