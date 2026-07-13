@@ -1,141 +1,186 @@
 # CanopyLedger
 
-Open-source borrowing-base and decision-governance reference system for coffee trade
-finance.
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
-CanopyLedger models a synthetic green-coffee borrower financed by a secured revolving
-facility. It freezes mutable facility data into immutable snapshots, runs deterministic
-collateral calculations, publishes replayable outputs, and keeps human approval outside
-automated engines.
+CanopyLedger is an open-source reference implementation for governed, coffee-backed trade-finance decisions. It turns synthetic facility, collateral, evidence, market, hedge, and scenario inputs into reproducible calculations and keeps final lending decisions with authorized humans.
 
-## Current Build
+It is deliberately not a core-banking system, a trading platform, a market-data terminal, a legal-compliance service, or an autonomous credit engine. It is a learning and integration reference; do not use it with real borrower, farmer, trading, market, or credential data.
 
-The public reference build includes:
+## Project status
 
-- Canonical JSON, decimal, timestamp, and digest contracts with Python and TypeScript parity.
-- Durable facility and snapshot APIs with idempotency, ETags, Problem Details, and bearer demo auth.
-- PostgreSQL schema for immutable bundles, snapshots, inputs, pipeline runs, stage outputs, outbox,
-  inbox, and audit records.
-- Serializable snapshot freeze and fenced pipeline publication with lease epochs.
-- Replay package verification for published immutable outputs.
-- Initial domain pipeline for inventory, receivables, market snapshots, reserves, CBB, and
-  contractual availability.
-- Deterministic CBB certificate output with duplicate-collateral prevention and reason codes.
-- Demo CLI/API surface plus generated TypeScript API client.
+The implemented reference scope includes:
 
-Current completed milestones: M0 normative foundation, M1A integrity kernel, M1B initial domain
-pipeline. Next implementation area: evidence controls.
+- immutable facility snapshots, versioned bundles, canonical JSON/decimal/timestamp handling, idempotency, audit events, and replay-oriented output digests;
+- deterministic inventory and receivables valuation, eligibility, reserves, contractual borrowing base (CBB), and contractual availability;
+- evidence documents, candidate facts, human approval/rejection, corrections, receipt/ownership controls, and reconciliation;
+- hedge and liquidity assessment, including KC/AC contract separation, futures/options, variation-margin stress, and liquidity coverage;
+- scenario capacity and an Internal Risk Capacity (IRC) that stays distinct from CBB;
+- recommendations, approval requests, final decisions, overrides, separation of duties, expiry, and audit timeline;
+- a Next.js presentation layer with Cockpit, Collateral, Evidence, Hedge Lab, Scenario Lab, and Approval workspaces.
 
-## Install
+Climate/EUDR, credit early warning, document intelligence, analytics copilot, agents, and reporting are planned but not implemented. The repository does not yet provide a one-command seeded demo or an official report package.
+
+For an end-to-end walkthrough of the runnable scope, see [DEMO.md](DEMO.md).
+
+## Design commitments
+
+CanopyLedger is built around a few non-negotiable boundaries:
+
+- Mutable working data becomes an immutable, content-addressed snapshot before authoritative calculation.
+- Every authoritative output retains snapshot, bundle, input/output digest, timestamp, and reason-code lineage.
+- Money and other authoritative decimals are serialized as strings; browser code formats them but never recalculates them.
+- CBB is the contractual collateral result. IRC is a separate internal-risk result. Neither is silently substituted for the other.
+- A recommendation is advisory. A final decision requires an authorized, independent human actor.
+- Corrections and overrides preserve history rather than rewriting immutable records.
+- The web app is a contract consumer: FastAPI authorizes requests and Python owns authoritative calculation.
+
+## Architecture
+
+```text
+Next.js web app
+  Cockpit · Collateral · Evidence · Hedge Lab · Scenario Lab · Approval
+                          |
+                     HTTPS / JSON
+                          |
+FastAPI API ── immutable snapshots, evidence, governance, typed read models
+                          |
+          PostgreSQL adapters / in-memory local adapters
+                          |
+deterministic Python calculations ── CBB · hedge/liquidity · scenario/IRC
+```
+
+The local FastAPI factory uses in-memory adapters for fast experimentation. PostgreSQL-backed adapters, Alembic migrations, and integration tests exercise durable behavior separately.
+
+## Quick start
 
 Prerequisites:
 
-- Python 3.12+
-- `uv`
-- Node.js/npm for TypeScript checks
-- PostgreSQL 17 for integration tests
+- Python 3.12–3.14
+- [uv](https://docs.astral.sh/uv/)
+- Node.js 20+ and npm
+- PostgreSQL 17 only for PostgreSQL integration tests
+
+Install the Python and JavaScript dependencies:
 
 ```bash
 uv sync --extra dev
 npm --prefix typescript install
+npm --prefix apps/web install
 ```
 
-## Useful Commands
-
-Full local non-database gate:
+Run the complete local verification suite:
 
 ```bash
 uv run ruff check .
 uv run mypy
-uv run python scripts/export_openapi.py --check
 uv run pytest -q
-npm --prefix typescript run client:check
+uv run python scripts/export_openapi.py --check
+uv run python scripts/check_typescript_client.py
 npm --prefix typescript run typecheck
 npm --prefix typescript test
-uv build
+npm --prefix apps/web run typecheck
+npm --prefix apps/web test
+npm --prefix apps/web run test:e2e
+CANOPYLEDGER_NEXT_DIST_DIR=.next-e2e npm --prefix apps/web run build
 ```
 
-PostgreSQL gate against a disposable database:
+`pytest` skips PostgreSQL-marked tests when `DATABASE_URL` is unset. That is expected for a local, non-database checkout; it is not equivalent to the durable integration gate.
+
+## Run locally
+
+Start the API in one terminal:
 
 ```bash
-export DATABASE_URL=postgresql+psycopg://postgres:canopyledger-test@localhost:5432/canopyledger
+uv run uvicorn canopyledger.api.app:create_app --factory --host 127.0.0.1 --port 8000
+```
+
+Check it in another terminal:
+
+```bash
+curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/openapi.json > /tmp/canopyledger-openapi.json
+```
+
+Then start the web app:
+
+```bash
+CANOPYLEDGER_API_BASE_URL=http://127.0.0.1:8000 npm --prefix apps/web run dev
+```
+
+Open <http://127.0.0.1:3000>. The root shell is public and explains the governed workflow. Workspace data requires an authenticated request because the web server forwards only a valid incoming bearer header to FastAPI; this reference build intentionally has no browser sign-in screen. [DEMO.md](DEMO.md) shows both the header-authenticated SSR flow and the fixture-backed UI walkthrough.
+
+The local demonstration tokens are intentionally non-secret fixtures:
+
+```text
+analyst-demo-token
+approver-demo-token
+second-approver-demo-token
+```
+
+They exist solely for the synthetic reference application. Never adapt them into a real authentication design.
+
+## API and generated client
+
+The checked-in OpenAPI contract is [docs/api/openapi-v1.json](docs/api/openapi-v1.json). The generated TypeScript client lives in `typescript/generated/`; do not hand-edit it.
+
+After changing a public API model or route, regenerate/check both artifacts:
+
+```bash
+uv run python scripts/export_openapi.py
+uv run python scripts/check_typescript_client.py --write
+uv run python scripts/export_openapi.py --check
+uv run python scripts/check_typescript_client.py
+```
+
+Important runnable endpoints include:
+
+- `GET /health`
+- `POST /api/v1/cbb-certificates/demo`
+- `POST /api/v1/m1b/pipeline/demo`
+- `POST /api/v1/hedge-liquidity/demo` (explicitly non-authoritative preview)
+- `POST /api/v1/evidence/documents` and candidate-fact review actions
+- `POST /api/v1/snapshots/{snapshot_id}/recommendations`
+- `POST /api/v1/recommendations/{recommendation_id}/approval-requests`
+- `POST /api/v1/approval-requests/{approval_request_id}/approve`
+- snapshot-scoped Cockpit, Collateral, Evidence, Hedge Lab, Scenario Lab, and Approval read models
+
+## PostgreSQL integration gate
+
+The repository does not start PostgreSQL for you. With a disposable PostgreSQL 17 database available, set `DATABASE_URL` and run migrations and integration tests:
+
+```bash
+export DATABASE_URL='postgresql+psycopg://postgres:canopyledger-test@localhost:5432/canopyledger'
 bash tests/integration/test_database_roles.sh
 uv run alembic upgrade head
 uv run alembic check
 uv run pytest -m postgres -q
 ```
 
-Generate or check API artifacts:
+Use an empty disposable database. The integration suite verifies immutable persistence, capability-role boundaries, serializable snapshot freeze, durable stage publication, replay, and governance behavior.
 
-```bash
-uv run python scripts/export_openapi.py --check
-npm --prefix typescript run client:check
-```
-
-## API
-
-OpenAPI v1 artifact:
+## Repository layout
 
 ```text
-docs/api/openapi-v1.json
+apps/web/                 Next.js App Router presentation layer
+src/canopyledger/api/     FastAPI routes, typed API models, OpenAPI rendering
+src/canopyledger/domain/  Money, IDs, units, domain value objects
+src/canopyledger/integrity/ canonicalization, snapshots, digests, replay, idempotency
+src/canopyledger/borrowing_base/ CBB calculations and certificate output
+src/canopyledger/evidence/ evidence controls and immutable fact lineage
+src/canopyledger/hedge/   hedge and liquidity engine
+src/canopyledger/scenario/ scenario capacity and IRC engine
+src/canopyledger/governance/ recommendations, approvals, decisions, overrides
+typescript/               canonical vectors and generated TypeScript client
+tests/                    unit, property, API, SSR, and PostgreSQL integration tests
+docs/api/                 checked-in OpenAPI artifact
 ```
 
-Main routes:
+## Contributing and security
 
-- `GET /health`
-- `POST /api/v1/facilities`
-- `GET /api/v1/facilities/{facility_id}`
-- `PATCH /api/v1/facilities/{facility_id}`
-- `POST /api/v1/facilities/{facility_id}/snapshots`
-- `GET /api/v1/snapshots/{snapshot_id}/manifest`
-- `POST /api/v1/cbb-certificates/demo`
-- `POST /api/v1/m1b/pipeline/demo`
+Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md), keep authoritative calculations in Python, preserve snapshot/bundle/approval boundaries, and include executable verification evidence with changes.
 
-Demo auth uses bearer token:
-
-```text
-Authorization: Bearer analyst-demo-token
-```
-
-## CLI
-
-Replay verifier:
-
-```bash
-uv run canopyledger-replay replay-package.json \
-  --environment '{"git_commit":"...","python":"3.12","timezone":"UTC"}'
-```
-
-CBB demo certificate:
-
-```bash
-uv run canopyledger-cbb-demo input.json --output certificate.json
-```
-
-## Repository Layout
-
-```text
-src/canopyledger/
-  api/              FastAPI app and typed response models
-  application/      use-case services and command models
-  borrowing_base/   CBB calculations and certificate builder
-  collateral/       inventory valuation and eligibility
-  domain/           Money, IDs, and unit normalization
-  initial_domain/   M1B pure pipeline and PostgreSQL publication runner
-  integrity/        canonicalization, idempotency, snapshots, replay
-  market/           market snapshot resource
-  persistence/      SQLAlchemy/PostgreSQL adapter and schema
-  receivables/      receivable valuation and eligibility
-```
-
-Internal planning docs and Codex working files are ignored and kept local. Public docs stay limited
-to README, contribution/security files, license, and generated OpenAPI.
-
-## Boundaries
-
-Reference implementation only. Not a production banking system, legal-compliance service, trading
-platform, payment system, market-data terminal, or autonomous credit engine. Synthetic data only.
+Please do not open public issues containing vulnerabilities, real financial data, credentials, or sensitive documents. See [SECURITY.md](SECURITY.md).
 
 ## License
 
-Apache-2.0.
+Copyright © CanopyLedger contributors. Licensed under [Apache-2.0](LICENSE).
