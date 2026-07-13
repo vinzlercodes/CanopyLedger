@@ -27,6 +27,22 @@
         "title": "ApprovalActionCreate",
         "type": "object"
       },
+      "ApprovalQueueResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalRequestDetailResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ApprovalQueueResponse",
+        "type": "object"
+      },
       "ApprovalRequestCreate": {
         "additionalProperties": false,
         "properties": {
@@ -47,6 +63,60 @@
         "title": "ApprovalRequestCreate",
         "type": "object"
       },
+      "ApprovalRequestDetailResponse": {
+        "properties": {
+          "approval_request_id": {
+            "title": "Approval Request Id",
+            "type": "string"
+          },
+          "author_id": {
+            "title": "Author Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "expired": {
+            "title": "Expired",
+            "type": "boolean"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "recommendation": {
+            "$ref": "#/components/schemas/RecommendationDetailResponse"
+          },
+          "requested_by": {
+            "title": "Requested By",
+            "type": "string"
+          },
+          "self_approval_prohibited": {
+            "title": "Self Approval Prohibited",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "approval_request_id",
+          "recommendation",
+          "author_id",
+          "requested_by",
+          "expires_at",
+          "created_at",
+          "digest",
+          "expired",
+          "self_approval_prohibited"
+        ],
+        "title": "ApprovalRequestDetailResponse",
+        "type": "object"
+      },
       "ApprovedFactResponse": {
         "properties": {
           "approval_state": {
@@ -61,6 +131,10 @@
             "title": "Digest",
             "type": "string"
           },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
           "lineage": {
             "$ref": "#/components/schemas/EvidenceLineageResponse"
           }
@@ -68,6 +142,7 @@
         "required": [
           "approved_fact_id",
           "approval_state",
+          "is_active",
           "digest",
           "lineage"
         ],
@@ -431,6 +506,185 @@
         "title": "CbbReserveInput",
         "type": "object"
       },
+      "CollateralContributionRowResponse": {
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          },
+          "source_type": {
+            "title": "Source Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_type",
+          "source_id",
+          "amount"
+        ],
+        "title": "CollateralContributionRowResponse",
+        "type": "object"
+      },
+      "CollateralLineageResponse": {
+        "properties": {
+          "collateral_valuation_output_digest": {
+            "title": "Collateral Valuation Output Digest",
+            "type": "string"
+          },
+          "collateral_valuation_stage_output_id": {
+            "title": "Collateral Valuation Stage Output Id",
+            "type": "string"
+          },
+          "collateral_valuation_stage_version": {
+            "title": "Collateral Valuation Stage Version",
+            "type": "string"
+          },
+          "eligibility_output_digest": {
+            "title": "Eligibility Output Digest",
+            "type": "string"
+          },
+          "eligibility_stage_output_id": {
+            "title": "Eligibility Stage Output Id",
+            "type": "string"
+          },
+          "eligibility_stage_version": {
+            "title": "Eligibility Stage Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "collateral_valuation_stage_output_id",
+          "collateral_valuation_stage_version",
+          "collateral_valuation_output_digest",
+          "eligibility_stage_output_id",
+          "eligibility_stage_version",
+          "eligibility_output_digest"
+        ],
+        "title": "CollateralLineageResponse",
+        "type": "object"
+      },
+      "CollateralPageResponse": {
+        "properties": {
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "total_count": {
+            "title": "Total Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "next_cursor",
+          "total_count"
+        ],
+        "title": "CollateralPageResponse",
+        "type": "object"
+      },
+      "CollateralReserveRowResponse": {
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "reserve_type": {
+            "title": "Reserve Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reserve_type",
+          "amount"
+        ],
+        "title": "CollateralReserveRowResponse",
+        "type": "object"
+      },
+      "CollateralWorkspaceResponse": {
+        "properties": {
+          "contribution_items": {
+            "items": {
+              "$ref": "#/components/schemas/CollateralContributionRowResponse"
+            },
+            "title": "Contribution Items",
+            "type": "array"
+          },
+          "inventory_items": {
+            "items": {
+              "$ref": "#/components/schemas/InventoryCollateralRowResponse"
+            },
+            "title": "Inventory Items",
+            "type": "array"
+          },
+          "lineage": {
+            "$ref": "#/components/schemas/CollateralLineageResponse"
+          },
+          "page": {
+            "$ref": "#/components/schemas/CollateralPageResponse"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "receivable_items": {
+            "items": {
+              "$ref": "#/components/schemas/ReceivableCollateralRowResponse"
+            },
+            "title": "Receivable Items",
+            "type": "array"
+          },
+          "reserve_items": {
+            "items": {
+              "$ref": "#/components/schemas/CollateralReserveRowResponse"
+            },
+            "title": "Reserve Items",
+            "type": "array"
+          },
+          "section": {
+            "enum": [
+              "inventory",
+              "receivables",
+              "contributions",
+              "reserves"
+            ],
+            "title": "Section",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot_id",
+          "section",
+          "inventory_items",
+          "receivable_items",
+          "contribution_items",
+          "reserve_items",
+          "page",
+          "lineage",
+          "reason_codes"
+        ],
+        "title": "CollateralWorkspaceResponse",
+        "type": "object"
+      },
       "ContractualUsageInput": {
         "additionalProperties": false,
         "properties": {
@@ -486,6 +740,244 @@
           "facility_commitment"
         ],
         "title": "CreateFacility",
+        "type": "object"
+      },
+      "DecisionOverrideDetailResponse": {
+        "properties": {
+          "approval_count": {
+            "title": "Approval Count",
+            "type": "integer"
+          },
+          "approvals_required": {
+            "title": "Approvals Required",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "expired": {
+            "title": "Expired",
+            "type": "boolean"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "original_decision_id": {
+            "title": "Original Decision Id",
+            "type": "string"
+          },
+          "override_id": {
+            "title": "Override Id",
+            "type": "string"
+          },
+          "policy_basis": {
+            "title": "Policy Basis",
+            "type": "string"
+          },
+          "proposed_exposure_cap": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "recommendation_id": {
+            "title": "Recommendation Id",
+            "type": "string"
+          },
+          "requester_id": {
+            "title": "Requester Id",
+            "type": "string"
+          },
+          "requires_dual_control": {
+            "title": "Requires Dual Control",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "override_id",
+          "original_decision_id",
+          "recommendation_id",
+          "requester_id",
+          "proposed_exposure_cap",
+          "reason",
+          "policy_basis",
+          "expires_at",
+          "created_at",
+          "digest",
+          "requires_dual_control",
+          "approval_count",
+          "approvals_required",
+          "expired"
+        ],
+        "title": "DecisionOverrideDetailResponse",
+        "type": "object"
+      },
+      "DecisionOverrideQueueResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionOverrideDetailResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "DecisionOverrideQueueResponse",
+        "type": "object"
+      },
+      "DecisionPackResponse": {
+        "properties": {
+          "approved_unfunded_exposure": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "blockers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blockers",
+            "type": "array"
+          },
+          "cbb_output_digest": {
+            "title": "Cbb Output Digest",
+            "type": "string"
+          },
+          "contractual_availability": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "contractual_borrowing_base": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "facility_commitment": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "final_decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GovernanceResourceResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hedge_liquidity": {
+            "additionalProperties": true,
+            "title": "Hedge Liquidity",
+            "type": "object"
+          },
+          "hedge_liquidity_output_digest": {
+            "title": "Hedge Liquidity Output Digest",
+            "type": "string"
+          },
+          "internal_risk_capacity": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "irc_output_digest": {
+            "title": "Irc Output Digest",
+            "type": "string"
+          },
+          "liquidity_cap": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "outstanding_exposure": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "policy_bundle_digest": {
+            "title": "Policy Bundle Digest",
+            "type": "string"
+          },
+          "policy_caps": {
+            "items": {
+              "$ref": "#/components/schemas/MoneyResponse"
+            },
+            "title": "Policy Caps",
+            "type": "array"
+          },
+          "recommendation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecommendationDetailResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scenario": {
+            "additionalProperties": true,
+            "title": "Scenario",
+            "type": "object"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot_id",
+          "contractual_borrowing_base",
+          "contractual_availability",
+          "internal_risk_capacity",
+          "liquidity_cap",
+          "facility_commitment",
+          "outstanding_exposure",
+          "approved_unfunded_exposure",
+          "policy_caps",
+          "cbb_output_digest",
+          "hedge_liquidity_output_digest",
+          "irc_output_digest",
+          "policy_bundle_digest",
+          "hedge_liquidity",
+          "scenario",
+          "blockers"
+        ],
+        "title": "DecisionPackResponse",
+        "type": "object"
+      },
+      "DeterministicScenarioResponse": {
+        "properties": {
+          "cbb_deficiency": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "family": {
+            "title": "Family",
+            "type": "string"
+          },
+          "loss": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "margin_liquidity_shortfall": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "stressed_cbb": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "family",
+          "stressed_cbb",
+          "cbb_deficiency",
+          "margin_liquidity_shortfall",
+          "loss"
+        ],
+        "title": "DeterministicScenarioResponse",
         "type": "object"
       },
       "EvidenceCandidateCreate": {
@@ -601,6 +1093,60 @@
         "title": "EvidenceDocumentCreate",
         "type": "object"
       },
+      "EvidenceDocumentRenditionResponse": {
+        "properties": {
+          "byte_digest": {
+            "title": "Byte Digest",
+            "type": "string"
+          },
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "document_version_id": {
+            "title": "Document Version Id",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "preview_status": {
+            "enum": [
+              "available",
+              "unsupported"
+            ],
+            "title": "Preview Status",
+            "type": "string"
+          },
+          "preview_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Text"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "document_version_id",
+          "filename",
+          "content_type",
+          "byte_digest",
+          "preview_status",
+          "preview_text",
+          "truncated"
+        ],
+        "title": "EvidenceDocumentRenditionResponse",
+        "type": "object"
+      },
       "EvidenceDocumentResponse": {
         "properties": {
           "byte_digest": {
@@ -683,6 +1229,77 @@
         "title": "EvidenceLineageResponse",
         "type": "object"
       },
+      "EvidenceQueueItemResponse": {
+        "properties": {
+          "approval_state": {
+            "title": "Approval State",
+            "type": "string"
+          },
+          "candidate_fact_id": {
+            "title": "Candidate Fact Id",
+            "type": "string"
+          },
+          "conflicts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Conflicts",
+            "type": "array"
+          },
+          "document_byte_digest": {
+            "title": "Document Byte Digest",
+            "type": "string"
+          },
+          "document_version_id": {
+            "title": "Document Version Id",
+            "type": "string"
+          },
+          "extraction_method": {
+            "title": "Extraction Method",
+            "type": "string"
+          },
+          "extractor_version": {
+            "title": "Extractor Version",
+            "type": "string"
+          },
+          "fact_type": {
+            "title": "Fact Type",
+            "type": "string"
+          },
+          "normalized_value": {
+            "title": "Normalized Value",
+            "type": "string"
+          },
+          "page_region": {
+            "title": "Page Region",
+            "type": "string"
+          },
+          "period": {
+            "title": "Period",
+            "type": "string"
+          },
+          "subject_id": {
+            "title": "Subject Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidate_fact_id",
+          "approval_state",
+          "fact_type",
+          "subject_id",
+          "period",
+          "normalized_value",
+          "document_version_id",
+          "document_byte_digest",
+          "page_region",
+          "extraction_method",
+          "extractor_version",
+          "conflicts"
+        ],
+        "title": "EvidenceQueueItemResponse",
+        "type": "object"
+      },
       "EvidenceReviewPacketResponse": {
         "properties": {
           "approval_history": {
@@ -721,6 +1338,22 @@
           "supersession_chain"
         ],
         "title": "EvidenceReviewPacketResponse",
+        "type": "object"
+      },
+      "EvidenceReviewQueueResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceQueueItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "EvidenceReviewQueueResponse",
         "type": "object"
       },
       "ExchangeContractSpecificationInput": {
@@ -1089,6 +1722,88 @@
         "title": "GovernanceResourceResponse",
         "type": "object"
       },
+      "GovernanceTimelineEventResponse": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "actor_id": {
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "resource_id": {
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "resource_type": {
+            "title": "Resource Type",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "resource_id",
+          "resource_type",
+          "action",
+          "actor_id",
+          "occurred_at",
+          "digest"
+        ],
+        "title": "GovernanceTimelineEventResponse",
+        "type": "object"
+      },
+      "GovernanceTimelineResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GovernanceTimelineEventResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot_id",
+          "items"
+        ],
+        "title": "GovernanceTimelineResponse",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1113,6 +1828,396 @@
           "status"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "HedgeConcentrationResponse": {
+        "properties": {
+          "delivery_month": {
+            "title": "Delivery Month",
+            "type": "string"
+          },
+          "physical_concentration": {
+            "title": "Physical Concentration",
+            "type": "string"
+          }
+        },
+        "required": [
+          "delivery_month",
+          "physical_concentration"
+        ],
+        "title": "HedgeConcentrationResponse",
+        "type": "object"
+      },
+      "HedgeContractSpecificationResponse": {
+        "properties": {
+          "calendar_version": {
+            "title": "Calendar Version",
+            "type": "string"
+          },
+          "contract_size": {
+            "title": "Contract Size",
+            "type": "string"
+          },
+          "contract_size_in_exposure_unit": {
+            "title": "Contract Size In Exposure Unit",
+            "type": "string"
+          },
+          "contract_size_unit": {
+            "title": "Contract Size Unit",
+            "type": "string"
+          },
+          "contract_symbol": {
+            "title": "Contract Symbol",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "delivery_months": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Delivery Months",
+            "type": "array"
+          },
+          "effective_from": {
+            "title": "Effective From",
+            "type": "string"
+          },
+          "effective_to": {
+            "title": "Effective To",
+            "type": "string"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "exercise_style": {
+            "title": "Exercise Style",
+            "type": "string"
+          },
+          "exposure_unit": {
+            "title": "Exposure Unit",
+            "type": "string"
+          },
+          "price_unit": {
+            "title": "Price Unit",
+            "type": "string"
+          },
+          "price_unit_factor": {
+            "title": "Price Unit Factor",
+            "type": "string"
+          },
+          "product_code": {
+            "title": "Product Code",
+            "type": "string"
+          },
+          "settlement_rule": {
+            "title": "Settlement Rule",
+            "type": "string"
+          },
+          "source_document_digest": {
+            "title": "Source Document Digest",
+            "type": "string"
+          },
+          "tick_size": {
+            "title": "Tick Size",
+            "type": "string"
+          }
+        },
+        "required": [
+          "exchange",
+          "product_code",
+          "contract_symbol",
+          "contract_size",
+          "contract_size_unit",
+          "contract_size_in_exposure_unit",
+          "exposure_unit",
+          "price_unit",
+          "price_unit_factor",
+          "tick_size",
+          "currency",
+          "exercise_style",
+          "settlement_rule",
+          "calendar_version",
+          "delivery_months",
+          "effective_from",
+          "effective_to",
+          "source_document_digest"
+        ],
+        "title": "HedgeContractSpecificationResponse",
+        "type": "object"
+      },
+      "HedgeDeliveryMonthResponse": {
+        "properties": {
+          "delivery_month": {
+            "title": "Delivery Month",
+            "type": "string"
+          },
+          "hedge_delta_exposure": {
+            "title": "Hedge Delta Exposure",
+            "type": "string"
+          },
+          "net_price_exposure": {
+            "title": "Net Price Exposure",
+            "type": "string"
+          },
+          "physical_exposure": {
+            "title": "Physical Exposure",
+            "type": "string"
+          }
+        },
+        "required": [
+          "delivery_month",
+          "physical_exposure",
+          "hedge_delta_exposure",
+          "net_price_exposure"
+        ],
+        "title": "HedgeDeliveryMonthResponse",
+        "type": "object"
+      },
+      "HedgeEffectivenessDistributionResponse": {
+        "properties": {
+          "maximum": {
+            "title": "Maximum",
+            "type": "string"
+          },
+          "median": {
+            "title": "Median",
+            "type": "string"
+          },
+          "minimum": {
+            "title": "Minimum",
+            "type": "string"
+          },
+          "p95": {
+            "title": "P95",
+            "type": "string"
+          }
+        },
+        "required": [
+          "minimum",
+          "median",
+          "p95",
+          "maximum"
+        ],
+        "title": "HedgeEffectivenessDistributionResponse",
+        "type": "object"
+      },
+      "HedgeExposureResponse": {
+        "properties": {
+          "basis_exposure": {
+            "title": "Basis Exposure",
+            "type": "string"
+          },
+          "concentration_by_month": {
+            "items": {
+              "$ref": "#/components/schemas/HedgeConcentrationResponse"
+            },
+            "title": "Concentration By Month",
+            "type": "array"
+          },
+          "delivery_month_mismatch": {
+            "items": {
+              "$ref": "#/components/schemas/HedgeDeliveryMonthResponse"
+            },
+            "title": "Delivery Month Mismatch",
+            "type": "array"
+          },
+          "exposure_unit": {
+            "title": "Exposure Unit",
+            "type": "string"
+          },
+          "futures_exposure": {
+            "title": "Futures Exposure",
+            "type": "string"
+          },
+          "fx_exposure": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "fx_exposure_source": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "gross_physical_exposure": {
+            "title": "Gross Physical Exposure",
+            "type": "string"
+          },
+          "hedge_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hedge Ratio"
+          },
+          "net_physical_exposure": {
+            "title": "Net Physical Exposure",
+            "type": "string"
+          },
+          "net_price_exposure": {
+            "title": "Net Price Exposure",
+            "type": "string"
+          },
+          "option_delta_equivalent": {
+            "title": "Option Delta Equivalent",
+            "type": "string"
+          },
+          "over_hedge_amount": {
+            "title": "Over Hedge Amount",
+            "type": "string"
+          },
+          "purchase_commitment_exposure": {
+            "title": "Purchase Commitment Exposure",
+            "type": "string"
+          },
+          "sales_commitment_exposure": {
+            "title": "Sales Commitment Exposure",
+            "type": "string"
+          },
+          "under_hedge_amount": {
+            "title": "Under Hedge Amount",
+            "type": "string"
+          }
+        },
+        "required": [
+          "exposure_unit",
+          "gross_physical_exposure",
+          "purchase_commitment_exposure",
+          "sales_commitment_exposure",
+          "net_physical_exposure",
+          "futures_exposure",
+          "option_delta_equivalent",
+          "net_price_exposure",
+          "hedge_ratio",
+          "under_hedge_amount",
+          "over_hedge_amount",
+          "fx_exposure",
+          "fx_exposure_source",
+          "basis_exposure",
+          "delivery_month_mismatch",
+          "concentration_by_month"
+        ],
+        "title": "HedgeExposureResponse",
+        "type": "object"
+      },
+      "HedgeFuturesPositionResponse": {
+        "properties": {
+          "contracts": {
+            "title": "Contracts",
+            "type": "string"
+          },
+          "delivery_month": {
+            "title": "Delivery Month",
+            "type": "string"
+          },
+          "delta_exposure": {
+            "title": "Delta Exposure",
+            "type": "string"
+          },
+          "pnl": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "product_code": {
+            "title": "Product Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_code",
+          "delivery_month",
+          "contracts",
+          "delta_exposure",
+          "pnl"
+        ],
+        "title": "HedgeFuturesPositionResponse",
+        "type": "object"
+      },
+      "HedgeLabProjectionResponse": {
+        "properties": {
+          "completed_at": {
+            "format": "date-time",
+            "title": "Completed At",
+            "type": "string"
+          },
+          "contract_specifications": {
+            "items": {
+              "$ref": "#/components/schemas/HedgeContractSpecificationResponse"
+            },
+            "title": "Contract Specifications",
+            "type": "array"
+          },
+          "exposure": {
+            "$ref": "#/components/schemas/HedgeExposureResponse"
+          },
+          "futures_positions": {
+            "items": {
+              "$ref": "#/components/schemas/HedgeFuturesPositionResponse"
+            },
+            "title": "Futures Positions",
+            "type": "array"
+          },
+          "liquidity": {
+            "$ref": "#/components/schemas/HedgeLiquidityResponse"
+          },
+          "option_positions": {
+            "items": {
+              "$ref": "#/components/schemas/HedgeOptionPositionResponse"
+            },
+            "title": "Option Positions",
+            "type": "array"
+          },
+          "output_digest": {
+            "title": "Output Digest",
+            "type": "string"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          },
+          "stage": {
+            "const": "hedge_liquidity",
+            "title": "Stage",
+            "type": "string"
+          },
+          "stage_output_id": {
+            "title": "Stage Output Id",
+            "type": "string"
+          },
+          "stage_version": {
+            "title": "Stage Version",
+            "type": "string"
+          },
+          "valuation": {
+            "$ref": "#/components/schemas/HedgeValuationResponse"
+          }
+        },
+        "required": [
+          "stage_output_id",
+          "snapshot_id",
+          "stage",
+          "stage_version",
+          "output_digest",
+          "completed_at",
+          "reason_codes",
+          "contract_specifications",
+          "futures_positions",
+          "option_positions",
+          "exposure",
+          "valuation",
+          "liquidity"
+        ],
+        "title": "HedgeLabProjectionResponse",
         "type": "object"
       },
       "HedgeLiquidityDemoRequest": {
@@ -1356,6 +2461,63 @@
         "title": "HedgeLiquidityPreviewResponse",
         "type": "object"
       },
+      "HedgeLiquidityResponse": {
+        "properties": {
+          "available_cash": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "liquidity_coverage_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liquidity Coverage Ratio"
+          },
+          "margin_call_shortfall": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "multi_day_margin_stress": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "one_day_margin_stress": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "required_liquidity_coverage_ratio": {
+            "title": "Required Liquidity Coverage Ratio",
+            "type": "string"
+          },
+          "required_liquidity_reserve": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "timing_mismatch": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "total_liquidity_available": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "undrawn_contractual_availability": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          }
+        },
+        "required": [
+          "available_cash",
+          "undrawn_contractual_availability",
+          "total_liquidity_available",
+          "one_day_margin_stress",
+          "multi_day_margin_stress",
+          "timing_mismatch",
+          "margin_call_shortfall",
+          "liquidity_coverage_ratio",
+          "required_liquidity_reserve",
+          "required_liquidity_coverage_ratio"
+        ],
+        "title": "HedgeLiquidityResponse",
+        "type": "object"
+      },
       "HedgeLiquidityStageOutputResponse": {
         "properties": {
           "completed_at": {
@@ -1441,6 +2603,82 @@
         "title": "HedgeLiquidityStageOutputResponse",
         "type": "object"
       },
+      "HedgeOptionPositionResponse": {
+        "properties": {
+          "authoritative_price": {
+            "title": "Authoritative Price",
+            "type": "string"
+          },
+          "black76_reference_price": {
+            "title": "Black76 Reference Price",
+            "type": "string"
+          },
+          "contracts": {
+            "title": "Contracts",
+            "type": "string"
+          },
+          "delivery_month": {
+            "title": "Delivery Month",
+            "type": "string"
+          },
+          "delta": {
+            "title": "Delta",
+            "type": "string"
+          },
+          "delta_exposure": {
+            "title": "Delta Exposure",
+            "type": "string"
+          },
+          "gamma": {
+            "title": "Gamma",
+            "type": "string"
+          },
+          "option_type": {
+            "title": "Option Type",
+            "type": "string"
+          },
+          "pnl": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "product_code": {
+            "title": "Product Code",
+            "type": "string"
+          },
+          "rho": {
+            "title": "Rho",
+            "type": "string"
+          },
+          "theta": {
+            "title": "Theta",
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "vega": {
+            "title": "Vega",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_code",
+          "delivery_month",
+          "option_type",
+          "contracts",
+          "black76_reference_price",
+          "authoritative_price",
+          "delta_exposure",
+          "value",
+          "pnl",
+          "delta",
+          "gamma",
+          "vega",
+          "theta",
+          "rho"
+        ],
+        "title": "HedgeOptionPositionResponse",
+        "type": "object"
+      },
       "HedgeUnitFactorInput": {
         "additionalProperties": false,
         "properties": {
@@ -1476,6 +2714,128 @@
           "factor"
         ],
         "title": "HedgeUnitFactorInput",
+        "type": "object"
+      },
+      "HedgeValuationResponse": {
+        "properties": {
+          "aggregate_greeks": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Aggregate Greeks",
+            "type": "object"
+          },
+          "futures_pnl": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "option_pnl": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "option_value": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          }
+        },
+        "required": [
+          "futures_pnl",
+          "option_value",
+          "option_pnl",
+          "aggregate_greeks"
+        ],
+        "title": "HedgeValuationResponse",
+        "type": "object"
+      },
+      "InternalRiskCapacityResponse": {
+        "properties": {
+          "cbb": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "climate_evidence_buffer": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "counterparty_buffer": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "facility_commitment": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "irc": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "liquidity_buffer": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "risk_buffer": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "tail_loss_buffer": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "uncapped_irc": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          }
+        },
+        "required": [
+          "risk_buffer",
+          "tail_loss_buffer",
+          "liquidity_buffer",
+          "counterparty_buffer",
+          "climate_evidence_buffer",
+          "uncapped_irc",
+          "irc",
+          "cbb",
+          "facility_commitment"
+        ],
+        "title": "InternalRiskCapacityResponse",
+        "type": "object"
+      },
+      "InventoryCollateralRowResponse": {
+        "properties": {
+          "advanced_value": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "gross_market_value": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "input_quantity": {
+            "title": "Input Quantity",
+            "type": "string"
+          },
+          "input_quantity_unit": {
+            "title": "Input Quantity Unit",
+            "type": "string"
+          },
+          "lot_id": {
+            "title": "Lot Id",
+            "type": "string"
+          },
+          "net_recovery_value": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "string"
+          },
+          "quantity_unit": {
+            "title": "Quantity Unit",
+            "type": "string"
+          },
+          "unit_conversion_table_version": {
+            "title": "Unit Conversion Table Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lot_id",
+          "input_quantity",
+          "input_quantity_unit",
+          "quantity",
+          "quantity_unit",
+          "unit_conversion_table_version",
+          "gross_market_value",
+          "net_recovery_value",
+          "advanced_value"
+        ],
+        "title": "InventoryCollateralRowResponse",
         "type": "object"
       },
       "InventoryLotPipelineInput": {
@@ -1748,6 +3108,24 @@
           "currency"
         ],
         "title": "MoneyInput",
+        "type": "object"
+      },
+      "MoneyResponse": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "title": "MoneyResponse",
         "type": "object"
       },
       "OptionPositionInput": {
@@ -2285,6 +3663,39 @@
         "title": "QuantityReconciliationResponse",
         "type": "object"
       },
+      "ReceivableCollateralRowResponse": {
+        "properties": {
+          "advanced_value": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "facility_value": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "open_amount": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "receivable_id": {
+            "title": "Receivable Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "receivable_id",
+          "open_amount",
+          "facility_value",
+          "advanced_value",
+          "reason_codes"
+        ],
+        "title": "ReceivableCollateralRowResponse",
+        "type": "object"
+      },
       "ReceivablePipelineInput": {
         "additionalProperties": false,
         "properties": {
@@ -2534,6 +3945,113 @@
         "title": "RecommendationCreate",
         "type": "object"
       },
+      "RecommendationDetailResponse": {
+        "properties": {
+          "author_id": {
+            "title": "Author Id",
+            "type": "string"
+          },
+          "binding_constraint": {
+            "title": "Binding Constraint",
+            "type": "string"
+          },
+          "compared_limits": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Compared Limits",
+            "type": "object"
+          },
+          "conditions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Conditions",
+            "type": "array"
+          },
+          "contractual_availability": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "internal_risk_capacity": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "output_digests": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Output Digests",
+            "type": "array"
+          },
+          "policy_bundle_digest": {
+            "title": "Policy Bundle Digest",
+            "type": "string"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "recommendation_class": {
+            "title": "Recommendation Class",
+            "type": "string"
+          },
+          "recommendation_id": {
+            "title": "Recommendation Id",
+            "type": "string"
+          },
+          "recommended_exposure_cap": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "recommended_incremental_draw": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "requested_amount": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recommendation_id",
+          "snapshot_id",
+          "author_id",
+          "requested_amount",
+          "contractual_availability",
+          "internal_risk_capacity",
+          "recommended_exposure_cap",
+          "recommended_incremental_draw",
+          "compared_limits",
+          "binding_constraint",
+          "recommendation_class",
+          "conditions",
+          "reason_codes",
+          "output_digests",
+          "policy_bundle_digest",
+          "expires_at",
+          "created_at",
+          "digest"
+        ],
+        "title": "RecommendationDetailResponse",
+        "type": "object"
+      },
       "RejectCandidateFactRequest": {
         "additionalProperties": false,
         "properties": {
@@ -2659,6 +4177,245 @@
           "output_digest"
         ],
         "title": "ScenarioCapacityStageOutputResponse",
+        "type": "object"
+      },
+      "ScenarioLabProjectionResponse": {
+        "properties": {
+          "completed_at": {
+            "format": "date-time",
+            "title": "Completed At",
+            "type": "string"
+          },
+          "deterministic_scenarios": {
+            "items": {
+              "$ref": "#/components/schemas/DeterministicScenarioResponse"
+            },
+            "title": "Deterministic Scenarios",
+            "type": "array"
+          },
+          "internal_risk_capacity": {
+            "$ref": "#/components/schemas/InternalRiskCapacityResponse"
+          },
+          "monte_carlo": {
+            "$ref": "#/components/schemas/ScenarioMonteCarloResponse"
+          },
+          "output_digest": {
+            "title": "Output Digest",
+            "type": "string"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "scenario_version": {
+            "title": "Scenario Version",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          },
+          "stage": {
+            "const": "scenario_capacity",
+            "title": "Stage",
+            "type": "string"
+          },
+          "stage_output_id": {
+            "title": "Stage Output Id",
+            "type": "string"
+          },
+          "stage_version": {
+            "title": "Stage Version",
+            "type": "string"
+          },
+          "worst_scenario_families": {
+            "items": {
+              "$ref": "#/components/schemas/WorstScenarioFamilyResponse"
+            },
+            "title": "Worst Scenario Families",
+            "type": "array"
+          }
+        },
+        "required": [
+          "stage_output_id",
+          "snapshot_id",
+          "stage",
+          "stage_version",
+          "output_digest",
+          "completed_at",
+          "reason_codes",
+          "scenario_version",
+          "monte_carlo",
+          "deterministic_scenarios",
+          "worst_scenario_families",
+          "internal_risk_capacity"
+        ],
+        "title": "ScenarioLabProjectionResponse",
+        "type": "object"
+      },
+      "ScenarioMonteCarloResponse": {
+        "properties": {
+          "cbb_deficiency_probability": {
+            "title": "Cbb Deficiency Probability",
+            "type": "string"
+          },
+          "confidence_level": {
+            "title": "Confidence Level",
+            "type": "string"
+          },
+          "correlation": {
+            "title": "Correlation",
+            "type": "string"
+          },
+          "correlation_matrix": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Correlation Matrix",
+            "type": "array"
+          },
+          "distribution_assumption": {
+            "title": "Distribution Assumption",
+            "type": "string"
+          },
+          "expected_collateral_shortfall": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "expected_margin_liquidity_shortfall": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "expected_shortfall": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "hedge_effectiveness_distribution": {
+            "$ref": "#/components/schemas/HedgeEffectivenessDistributionResponse"
+          },
+          "margin_liquidity_shortfall_probability": {
+            "title": "Margin Liquidity Shortfall Probability",
+            "type": "string"
+          },
+          "path_count": {
+            "title": "Path Count",
+            "type": "integer"
+          },
+          "prng_family": {
+            "title": "Prng Family",
+            "type": "string"
+          },
+          "regime_mixture": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioRegimeResponse"
+            },
+            "title": "Regime Mixture",
+            "type": "array"
+          },
+          "seed": {
+            "title": "Seed",
+            "type": "integer"
+          },
+          "seed_derivation": {
+            "title": "Seed Derivation",
+            "type": "string"
+          },
+          "tail_contribution_by_factor": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Tail Contribution By Factor",
+            "type": "object"
+          },
+          "thread_count": {
+            "title": "Thread Count",
+            "type": "integer"
+          },
+          "threshold_stability": {
+            "$ref": "#/components/schemas/ScenarioThresholdStabilityResponse"
+          },
+          "time_steps": {
+            "title": "Time Steps",
+            "type": "integer"
+          },
+          "value_at_risk": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          }
+        },
+        "required": [
+          "prng_family",
+          "seed_derivation",
+          "distribution_assumption",
+          "regime_mixture",
+          "seed",
+          "path_count",
+          "time_steps",
+          "thread_count",
+          "confidence_level",
+          "correlation",
+          "correlation_matrix",
+          "value_at_risk",
+          "expected_shortfall",
+          "cbb_deficiency_probability",
+          "margin_liquidity_shortfall_probability",
+          "expected_collateral_shortfall",
+          "expected_margin_liquidity_shortfall",
+          "threshold_stability",
+          "tail_contribution_by_factor",
+          "hedge_effectiveness_distribution"
+        ],
+        "title": "ScenarioMonteCarloResponse",
+        "type": "object"
+      },
+      "ScenarioRegimeResponse": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "weight"
+        ],
+        "title": "ScenarioRegimeResponse",
+        "type": "object"
+      },
+      "ScenarioThresholdStabilityResponse": {
+        "properties": {
+          "band_width": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "lower_confidence_level": {
+            "title": "Lower Confidence Level",
+            "type": "string"
+          },
+          "lower_value_at_risk": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "upper_confidence_level": {
+            "title": "Upper Confidence Level",
+            "type": "string"
+          },
+          "upper_value_at_risk": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          }
+        },
+        "required": [
+          "lower_confidence_level",
+          "upper_confidence_level",
+          "lower_value_at_risk",
+          "upper_value_at_risk",
+          "band_width"
+        ],
+        "title": "ScenarioThresholdStabilityResponse",
         "type": "object"
       },
       "SnapshotInputReference": {
@@ -2994,6 +4751,23 @@
         ],
         "title": "WarehouseReceiptEvidenceResponse",
         "type": "object"
+      },
+      "WorstScenarioFamilyResponse": {
+        "properties": {
+          "family": {
+            "title": "Family",
+            "type": "string"
+          },
+          "loss": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          }
+        },
+        "required": [
+          "family",
+          "loss"
+        ],
+        "title": "WorstScenarioFamilyResponse",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -3009,6 +4783,133 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/approval-requests": {
+      "get": {
+        "operationId": "getApprovalQueue",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalQueueResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Approval Queue"
+      }
+    },
+    "/api/v1/approval-requests/{approval_request_id}": {
+      "get": {
+        "operationId": "getApprovalRequest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "approval_request_id",
+            "required": true,
+            "schema": {
+              "title": "Approval Request Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalRequestDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Approval Request"
+      }
+    },
     "/api/v1/approval-requests/{approval_request_id}/approve": {
       "post": {
         "operationId": "approveApprovalRequest",
@@ -3855,6 +5756,85 @@
         "summary": "Upload Evidence Document"
       }
     },
+    "/api/v1/evidence/documents/{document_version_id}/rendition": {
+      "get": {
+        "operationId": "getEvidenceDocumentRendition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_version_id",
+            "required": true,
+            "schema": {
+              "title": "Document Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceDocumentRenditionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Evidence Document Rendition"
+      }
+    },
     "/api/v1/evidence/ownership-claims": {
       "post": {
         "operationId": "recordOwnershipClaim",
@@ -3994,6 +5974,71 @@
           }
         ],
         "summary": "Reconcile Lot Quantity"
+      }
+    },
+    "/api/v1/evidence/review-queue": {
+      "get": {
+        "operationId": "getEvidenceReviewQueue",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceReviewQueueResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Evidence Review Queue"
       }
     },
     "/api/v1/evidence/warehouse-receipts": {
@@ -4685,6 +6730,80 @@
         "summary": "Run M1B Pipeline Demo"
       }
     },
+    "/api/v1/override-requests/{override_id}": {
+      "get": {
+        "operationId": "getDecisionOverride",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "override_id",
+            "required": true,
+            "schema": {
+              "title": "Override Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionOverrideDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Decision Override"
+      }
+    },
     "/api/v1/override-requests/{override_id}/approve": {
       "post": {
         "operationId": "approveDecisionOverride",
@@ -4757,6 +6876,80 @@
           }
         ],
         "summary": "Approve Decision Override"
+      }
+    },
+    "/api/v1/recommendations/{recommendation_id}": {
+      "get": {
+        "operationId": "getRecommendation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recommendation_id",
+            "required": true,
+            "schema": {
+              "title": "Recommendation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Recommendation"
       }
     },
     "/api/v1/recommendations/{recommendation_id}/approval-requests": {
@@ -4920,6 +7113,391 @@
           }
         ],
         "summary": "Create Recommendation Override"
+      }
+    },
+    "/api/v1/snapshots/{snapshot_id}/collateral": {
+      "get": {
+        "operationId": "getSnapshotCollateral",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "section",
+            "required": false,
+            "schema": {
+              "default": "inventory",
+              "enum": [
+                "inventory",
+                "receivables",
+                "contributions",
+                "reserves"
+              ],
+              "title": "Section",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollateralWorkspaceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Snapshot Collateral"
+      }
+    },
+    "/api/v1/snapshots/{snapshot_id}/decision-pack": {
+      "get": {
+        "operationId": "getSnapshotDecisionPack",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionPackResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Snapshot Decision Pack"
+      }
+    },
+    "/api/v1/snapshots/{snapshot_id}/governance-timeline": {
+      "get": {
+        "operationId": "getGovernanceTimeline",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GovernanceTimelineResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Governance Timeline"
+      }
+    },
+    "/api/v1/snapshots/{snapshot_id}/hedge-lab": {
+      "get": {
+        "operationId": "getHedgeLabProjection",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HedgeLabProjectionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Hedge Lab Projection"
       }
     },
     "/api/v1/snapshots/{snapshot_id}/hedge-liquidity": {
@@ -5149,6 +7727,80 @@
         "summary": "Get Snapshot Manifest"
       }
     },
+    "/api/v1/snapshots/{snapshot_id}/override-requests": {
+      "get": {
+        "operationId": "getDecisionOverrideQueue",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionOverrideQueueResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Decision Override Queue"
+      }
+    },
     "/api/v1/snapshots/{snapshot_id}/recommendations": {
       "post": {
         "operationId": "createRecommendation",
@@ -5236,6 +7888,95 @@
           }
         ],
         "summary": "Create Recommendation"
+      }
+    },
+    "/api/v1/snapshots/{snapshot_id}/scenario-lab": {
+      "get": {
+        "operationId": "getScenarioLabProjection",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioLabProjectionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Scenario Lab Projection"
       }
     },
     "/api/v1/snapshots/{snapshot_id}/scenarios": {

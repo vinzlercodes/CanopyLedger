@@ -63,7 +63,7 @@ def generate_client(document: dict[str, Any]) -> str:
             "  readonly #defaultHeaders: RequestHeaders;",
             "",
             "  constructor(options: ClientOptions) {",
-            "    this.#baseUrl = options.baseUrl.replace(/\\/$/, \"\");",
+            '    this.#baseUrl = options.baseUrl.replace(/\\/$/, "");',
             "    this.#fetchImpl = options.fetchImpl ?? fetch;",
             "    this.#defaultHeaders = options.defaultHeaders ?? {};",
             "  }",
@@ -74,6 +74,10 @@ def generate_client(document: dict[str, Any]) -> str:
     for operation in operations:
         lines.extend(_method(operation))
         lines.append("")
+    if any(operation["query_parameters"] for operation in operations):
+        lines.extend(_private_query_method())
+        lines.append("")
+    lines.extend(_private_request_method())
     lines.extend(["}", ""])
     return "\n".join(lines)
 
@@ -93,17 +97,24 @@ def _ts_type(schema: dict[str, Any]) -> str:
         return schema["$ref"].rsplit("/", 1)[1]
     if "anyOf" in schema:
         return " | ".join(dict.fromkeys(_ts_type(item) for item in schema["anyOf"]))
+    if "enum" in schema:
+        return " | ".join(json.dumps(item) for item in schema["enum"])
     schema_type = schema.get("type")
     if schema_type == "array":
         item_type = _ts_type(schema["items"])
-        if " | " in item_type:
+        if " | " in item_type or item_type.startswith("readonly "):
             item_type = f"({item_type})"
         return f"readonly {item_type}[]"
     if schema_type == "integer" or schema_type == "number":
         return "number"
     if schema_type == "boolean":
         return "boolean"
+    if schema_type == "null":
+        return "null"
     if schema_type == "object":
+        additional_properties = schema.get("additionalProperties")
+        if isinstance(additional_properties, dict):
+            return f"Record<string, {_ts_type(additional_properties)}>"
         return "Record<string, unknown>"
     return "string"
 
@@ -112,9 +123,7 @@ def _operations(paths: dict[str, Any]) -> list[dict[str, Any]]:
     operations = []
     for path, methods in paths.items():
         for method, operation in methods.items():
-            success = sorted(
-                code for code in operation["responses"] if code.startswith("2")
-            )[0]
+            success = sorted(code for code in operation["responses"] if code.startswith("2"))[0]
             response_schema = operation["responses"][success]["content"]["application/json"][
                 "schema"
             ]
@@ -131,6 +140,15 @@ def _operations(paths: dict[str, Any]) -> list[dict[str, Any]]:
                     "path": path,
                     "request_type": _ts_type(request_schema) if request_schema else None,
                     "response_type": _ts_type(response_schema),
+                    "query_parameters": [
+                        {
+                            "name": parameter["name"],
+                            "type": _ts_type(parameter["schema"]),
+                            "required": parameter.get("required", False),
+                        }
+                        for parameter in operation.get("parameters", [])
+                        if parameter.get("in") == "query"
+                    ],
                 }
             )
     return sorted(operations, key=lambda item: item["operation_id"])
@@ -142,16 +160,21 @@ def _method(operation: dict[str, Any]) -> list[str]:
     params = [f"{param}: string" for param in path_params]
     if operation["request_type"] is not None:
         params.append(f"body: {operation['request_type']}")
+    if operation["query_parameters"]:
+        params.append(f"query: {_query_type(operation['query_parameters'])} = {{}}")
     params.append("headers: RequestHeaders = {}")
     signature = (
         f"  async {name}({', '.join(params)}): "
         f"Promise<ApiResponse<{operation['response_type']}>> {{"
     )
+    path = f"`{_template_path(operation['path'])}`"
+    if operation["query_parameters"]:
+        path = f"this.#withQuery({path}, query)"
     lines = [
         signature,
         f"    return this.#request<{operation['response_type']}>(",
-        f"      \"{operation['method']}\",",
-        f"      `{_template_path(operation['path'])}`,",
+        f'      "{operation["method"]}",',
+        f"      {path},",
     ]
     if operation["request_type"] is None:
         lines.append("      undefined,")
@@ -164,13 +187,35 @@ def _method(operation: dict[str, Any]) -> list[str]:
             "  }",
         ]
     )
-    if name == "getSnapshotManifest":
-        lines.extend(_private_request_method())
     return lines
+
+
+def _query_type(parameters: list[dict[str, Any]]) -> str:
+    fields = []
+    for parameter in parameters:
+        optional = "" if parameter["required"] else "?"
+        fields.append(f"readonly {parameter['name']}{optional}: {parameter['type']}")
+    return "{ " + "; ".join(fields) + " }"
 
 
 def _template_path(path: str) -> str:
     return path.replace("{", "${encodeURIComponent(").replace("}", ")}")
+
+
+def _private_query_method() -> list[str]:
+    return [
+        "  #withQuery(",
+        "    path: string,",
+        "    query: object,",
+        "  ): string {",
+        "    const parameters = new URLSearchParams();",
+        "    for (const [name, value] of Object.entries(query)) {",
+        "      if (value !== undefined) parameters.set(name, String(value));",
+        "    }",
+        "    const serialized = parameters.toString();",
+        '    return serialized ? path + "?" + serialized : path;',
+        "  }",
+    ]
 
 
 def _private_request_method() -> list[str]:
@@ -187,7 +232,7 @@ def _private_request_method() -> list[str]:
         "      headers: {",
         "        ...this.#defaultHeaders,",
         "        ...headers,",
-        "        ...(body === undefined ? {} : { \"Content-Type\": \"application/json\" }),",
+        '        ...(body === undefined ? {} : { "Content-Type": "application/json" }),',
         "      },",
         "    };",
         "    if (body !== undefined) {",

@@ -202,6 +202,20 @@ class DecisionOverride:
     digest: str
 
 
+@dataclass(frozen=True)
+class GovernanceTimelineEvent:
+    """A read-only, snapshot-scoped event derived from immutable governance records."""
+
+    resource_id: str
+    resource_type: str
+    action: str
+    actor_id: str
+    occurred_at: datetime
+    digest: str
+    reason: str | None = None
+    status: str | None = None
+
+
 class GovernanceService:
     """In-memory authoritative M4B behavior; persistence adapters mirror this contract."""
 
@@ -487,6 +501,132 @@ class GovernanceService:
             return self._recommendations[resource_id]
         except KeyError as exc:
             raise GovernanceError("recommendation not found") from exc
+
+    def get_approval_request(self, resource_id: str) -> ApprovalRequest:
+        try:
+            return self._approval_requests[resource_id]
+        except KeyError as exc:
+            raise GovernanceError("approval request not found") from exc
+
+    def list_approval_requests(self) -> tuple[ApprovalRequest, ...]:
+        return tuple(
+            sorted(
+                self._approval_requests.values(),
+                key=lambda request: (request.expires_at, request.resource_id),
+            )
+        )
+
+    def list_overrides(self) -> tuple[DecisionOverride, ...]:
+        return tuple(
+            sorted(
+                self._overrides.values(),
+                key=lambda override: (override.expires_at, override.resource_id),
+            )
+        )
+
+    def list_timeline_events(self, snapshot_id: str) -> tuple[GovernanceTimelineEvent, ...]:
+        """Project governance history without mutating or reconstructing decisions in the UI."""
+        recommendations = {
+            item.resource_id: item
+            for item in self._recommendations.values()
+            if item.snapshot_id == snapshot_id
+        }
+        recommendation_ids = set(recommendations)
+        requests = {
+            item.resource_id: item
+            for item in self._approval_requests.values()
+            if item.recommendation_id in recommendation_ids
+        }
+        overrides = {
+            item.resource_id: item
+            for item in self._overrides.values()
+            if item.recommendation_id in recommendation_ids
+        }
+        events: list[GovernanceTimelineEvent] = [
+            GovernanceTimelineEvent(
+                resource_id=item.resource_id,
+                resource_type="recommendation",
+                action="recommendation.created",
+                actor_id=item.author_id,
+                occurred_at=item.created_at,
+                digest=item.digest,
+                status=item.recommendation_class.value,
+            )
+            for item in recommendations.values()
+        ]
+        events.extend(
+            GovernanceTimelineEvent(
+                resource_id=item.resource_id,
+                resource_type="approval_request",
+                action="approval_request.created",
+                actor_id=item.requested_by,
+                occurred_at=item.created_at,
+                digest=item.digest,
+            )
+            for item in requests.values()
+        )
+        events.extend(
+            GovernanceTimelineEvent(
+                resource_id=item.resource_id,
+                resource_type="decision_override",
+                action="override.requested",
+                actor_id=item.requester_id,
+                occurred_at=item.created_at,
+                digest=item.digest,
+                reason=item.reason,
+            )
+            for item in overrides.values()
+        )
+        events.extend(
+            GovernanceTimelineEvent(
+                resource_id=item.resource_id,
+                resource_type="approval_action",
+                action=(
+                    f"approval.{item.action.lower()}"
+                    if item.approval_request_id in requests
+                    else f"override.{item.action.lower()}"
+                ),
+                actor_id=item.actor_id,
+                occurred_at=item.occurred_at,
+                digest=item.digest,
+                reason=item.reason,
+            )
+            for item in self._approval_actions.values()
+            if item.approval_request_id in requests or item.override_id in overrides
+        )
+        events.extend(
+            GovernanceTimelineEvent(
+                resource_id=item.resource_id,
+                resource_type="final_decision",
+                action=f"final_decision.{item.status.value.lower()}",
+                actor_id=item.approver_id,
+                occurred_at=item.approved_at,
+                digest=item.digest,
+                reason=item.reason,
+                status=("SUPERSEDED" if item.superseded_by is not None else item.status.value),
+            )
+            for item in self._final_decisions.values()
+            if item.snapshot_id == snapshot_id and item.recommendation_id in recommendation_ids
+        )
+        return tuple(
+            sorted(
+                events,
+                key=lambda item: (
+                    item.occurred_at,
+                    {
+                        "recommendation.created": 0,
+                        "approval_request.created": 1,
+                        "override.requested": 2,
+                        "approval.approve": 3,
+                        "approval.reject": 3,
+                        "override.override_approve": 3,
+                        "final_decision.approved": 4,
+                        "final_decision.rejected": 4,
+                    }.get(item.action, 99),
+                    item.resource_id,
+                ),
+            )
+        )
 
     def get_decision(self, resource_id: str) -> FinalDecision:
         try:

@@ -22,6 +22,7 @@ from canopyledger.governance.core import (
     FinalDecisionStatus,
     GovernanceError,
     GovernanceService,
+    GovernanceTimelineEvent,
     Recommendation,
     RecommendationClass,
 )
@@ -70,6 +71,22 @@ class PostgresGovernanceService:
     def get_recommendation(self, resource_id: str) -> Recommendation:
         with self._engine.connect() as connection:
             return self._load(connection).get_recommendation(resource_id)
+
+    def get_approval_request(self, resource_id: str) -> ApprovalRequest:
+        with self._engine.connect() as connection:
+            return self._load(connection).get_approval_request(resource_id)
+
+    def list_approval_requests(self) -> tuple[ApprovalRequest, ...]:
+        with self._engine.connect() as connection:
+            return self._load(connection).list_approval_requests()
+
+    def list_overrides(self) -> tuple[DecisionOverride, ...]:
+        with self._engine.connect() as connection:
+            return self._load(connection).list_overrides()
+
+    def list_timeline_events(self, snapshot_id: str) -> tuple[GovernanceTimelineEvent, ...]:
+        with self._engine.connect() as connection:
+            return self._load(connection).list_timeline_events(snapshot_id)
 
     def get_current_decision(self, snapshot_id: str) -> FinalDecision | None:
         with self._engine.connect() as connection:
