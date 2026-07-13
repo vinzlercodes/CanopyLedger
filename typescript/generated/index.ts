@@ -7,15 +7,32 @@ export interface ApprovalActionCreate {
   readonly reason: string;
 }
 
+export interface ApprovalQueueResponse {
+  readonly items: readonly ApprovalRequestDetailResponse[];
+}
+
 export interface ApprovalRequestCreate {
   readonly approval_request_id: string;
   readonly expires_at: string;
+}
+
+export interface ApprovalRequestDetailResponse {
+  readonly approval_request_id: string;
+  readonly author_id: string;
+  readonly created_at: string;
+  readonly digest: string;
+  readonly expired: boolean;
+  readonly expires_at: string;
+  readonly recommendation: RecommendationDetailResponse;
+  readonly requested_by: string;
+  readonly self_approval_prohibited: boolean;
 }
 
 export interface ApprovedFactResponse {
   readonly approval_state: string;
   readonly approved_fact_id: string;
   readonly digest: string;
+  readonly is_active: boolean;
   readonly lineage: EvidenceLineageResponse;
 }
 
@@ -97,6 +114,44 @@ export interface CbbReserveInput {
   readonly reserve_type: string;
 }
 
+export interface CollateralContributionRowResponse {
+  readonly amount: MoneyResponse;
+  readonly source_id: string;
+  readonly source_type: string;
+}
+
+export interface CollateralLineageResponse {
+  readonly collateral_valuation_output_digest: string;
+  readonly collateral_valuation_stage_output_id: string;
+  readonly collateral_valuation_stage_version: string;
+  readonly eligibility_output_digest: string;
+  readonly eligibility_stage_output_id: string;
+  readonly eligibility_stage_version: string;
+}
+
+export interface CollateralPageResponse {
+  readonly limit: number;
+  readonly next_cursor: string | null;
+  readonly total_count: number;
+}
+
+export interface CollateralReserveRowResponse {
+  readonly amount: MoneyResponse;
+  readonly reserve_type: string;
+}
+
+export interface CollateralWorkspaceResponse {
+  readonly contribution_items: readonly CollateralContributionRowResponse[];
+  readonly inventory_items: readonly InventoryCollateralRowResponse[];
+  readonly lineage: CollateralLineageResponse;
+  readonly page: CollateralPageResponse;
+  readonly reason_codes: readonly string[];
+  readonly receivable_items: readonly ReceivableCollateralRowResponse[];
+  readonly reserve_items: readonly CollateralReserveRowResponse[];
+  readonly section: "inventory" | "receivables" | "contributions" | "reserves";
+  readonly snapshot_id: string;
+}
+
 export interface ContractualUsageInput {
   readonly current_principal: MoneyInput;
   readonly lc_exposure: MoneyInput;
@@ -107,6 +162,57 @@ export interface CreateFacility {
   readonly currency: string;
   readonly facility_commitment: number | string;
   readonly legal_name: string;
+}
+
+export interface DecisionOverrideDetailResponse {
+  readonly approval_count: number;
+  readonly approvals_required: number;
+  readonly created_at: string;
+  readonly digest: string;
+  readonly expired: boolean;
+  readonly expires_at: string;
+  readonly original_decision_id: string;
+  readonly override_id: string;
+  readonly policy_basis: string;
+  readonly proposed_exposure_cap: MoneyResponse;
+  readonly reason: string;
+  readonly recommendation_id: string;
+  readonly requester_id: string;
+  readonly requires_dual_control: boolean;
+}
+
+export interface DecisionOverrideQueueResponse {
+  readonly items: readonly DecisionOverrideDetailResponse[];
+}
+
+export interface DecisionPackResponse {
+  readonly approved_unfunded_exposure: MoneyResponse;
+  readonly blockers: readonly string[];
+  readonly cbb_output_digest: string;
+  readonly contractual_availability: MoneyResponse;
+  readonly contractual_borrowing_base: MoneyResponse;
+  readonly facility_commitment: MoneyResponse;
+  readonly final_decision?: GovernanceResourceResponse | null;
+  readonly hedge_liquidity: Record<string, unknown>;
+  readonly hedge_liquidity_output_digest: string;
+  readonly internal_risk_capacity: MoneyResponse;
+  readonly irc_output_digest: string;
+  readonly liquidity_cap: MoneyResponse;
+  readonly outstanding_exposure: MoneyResponse;
+  readonly policy_bundle_digest: string;
+  readonly policy_caps: readonly MoneyResponse[];
+  readonly recommendation?: RecommendationDetailResponse | null;
+  readonly scenario: Record<string, unknown>;
+  readonly snapshot_id: string;
+}
+
+export interface DeterministicScenarioResponse {
+  readonly cbb_deficiency: MoneyResponse;
+  readonly family: string;
+  readonly loss: MoneyResponse;
+  readonly margin_liquidity_shortfall: MoneyResponse;
+  readonly scenario_id: string;
+  readonly stressed_cbb: MoneyResponse;
 }
 
 export interface EvidenceCandidateCreate {
@@ -129,6 +235,16 @@ export interface EvidenceDocumentCreate {
   readonly filename: string;
 }
 
+export interface EvidenceDocumentRenditionResponse {
+  readonly byte_digest: string;
+  readonly content_type: string;
+  readonly document_version_id: string;
+  readonly filename: string;
+  readonly preview_status: "available" | "unsupported";
+  readonly preview_text: string | null;
+  readonly truncated: boolean;
+}
+
 export interface EvidenceDocumentResponse {
   readonly byte_digest: string;
   readonly content_type: string;
@@ -142,9 +258,24 @@ export interface EvidenceDocumentResponse {
 }
 
 export interface EvidenceLineageResponse {
-  readonly candidate_fact_id?: string;
+  readonly candidate_fact_id?: string | null;
   readonly document_byte_digest: string;
   readonly document_version_id: string;
+}
+
+export interface EvidenceQueueItemResponse {
+  readonly approval_state: string;
+  readonly candidate_fact_id: string;
+  readonly conflicts: readonly string[];
+  readonly document_byte_digest: string;
+  readonly document_version_id: string;
+  readonly extraction_method: string;
+  readonly extractor_version: string;
+  readonly fact_type: string;
+  readonly normalized_value: string;
+  readonly page_region: string;
+  readonly period: string;
+  readonly subject_id: string;
 }
 
 export interface EvidenceReviewPacketResponse {
@@ -153,6 +284,10 @@ export interface EvidenceReviewPacketResponse {
   readonly conflicts: readonly string[];
   readonly document: EvidenceDocumentResponse;
   readonly supersession_chain: readonly string[];
+}
+
+export interface EvidenceReviewQueueResponse {
+  readonly items: readonly EvidenceQueueItemResponse[];
 }
 
 export interface ExchangeContractSpecificationInput {
@@ -213,8 +348,24 @@ export interface GovernanceResourceResponse {
   readonly digest: string;
   readonly kind: string;
   readonly resource_id: string;
-  readonly status?: string;
-  readonly superseded_by?: string;
+  readonly status?: string | null;
+  readonly superseded_by?: string | null;
+}
+
+export interface GovernanceTimelineEventResponse {
+  readonly action: string;
+  readonly actor_id: string;
+  readonly digest: string;
+  readonly occurred_at: string;
+  readonly reason?: string | null;
+  readonly resource_id: string;
+  readonly resource_type: string;
+  readonly status?: string | null;
+}
+
+export interface GovernanceTimelineResponse {
+  readonly items: readonly GovernanceTimelineEventResponse[];
+  readonly snapshot_id: string;
 }
 
 export interface HTTPValidationError {
@@ -223,6 +374,89 @@ export interface HTTPValidationError {
 
 export interface HealthResponse {
   readonly status: string;
+}
+
+export interface HedgeConcentrationResponse {
+  readonly delivery_month: string;
+  readonly physical_concentration: string;
+}
+
+export interface HedgeContractSpecificationResponse {
+  readonly calendar_version: string;
+  readonly contract_size: string;
+  readonly contract_size_in_exposure_unit: string;
+  readonly contract_size_unit: string;
+  readonly contract_symbol: string;
+  readonly currency: string;
+  readonly delivery_months: readonly string[];
+  readonly effective_from: string;
+  readonly effective_to: string;
+  readonly exchange: string;
+  readonly exercise_style: string;
+  readonly exposure_unit: string;
+  readonly price_unit: string;
+  readonly price_unit_factor: string;
+  readonly product_code: string;
+  readonly settlement_rule: string;
+  readonly source_document_digest: string;
+  readonly tick_size: string;
+}
+
+export interface HedgeDeliveryMonthResponse {
+  readonly delivery_month: string;
+  readonly hedge_delta_exposure: string;
+  readonly net_price_exposure: string;
+  readonly physical_exposure: string;
+}
+
+export interface HedgeEffectivenessDistributionResponse {
+  readonly maximum: string;
+  readonly median: string;
+  readonly minimum: string;
+  readonly p95: string;
+}
+
+export interface HedgeExposureResponse {
+  readonly basis_exposure: string;
+  readonly concentration_by_month: readonly HedgeConcentrationResponse[];
+  readonly delivery_month_mismatch: readonly HedgeDeliveryMonthResponse[];
+  readonly exposure_unit: string;
+  readonly futures_exposure: string;
+  readonly fx_exposure: MoneyResponse;
+  readonly fx_exposure_source: MoneyResponse;
+  readonly gross_physical_exposure: string;
+  readonly hedge_ratio: string | null;
+  readonly net_physical_exposure: string;
+  readonly net_price_exposure: string;
+  readonly option_delta_equivalent: string;
+  readonly over_hedge_amount: string;
+  readonly purchase_commitment_exposure: string;
+  readonly sales_commitment_exposure: string;
+  readonly under_hedge_amount: string;
+}
+
+export interface HedgeFuturesPositionResponse {
+  readonly contracts: string;
+  readonly delivery_month: string;
+  readonly delta_exposure: string;
+  readonly pnl: MoneyResponse;
+  readonly product_code: string;
+}
+
+export interface HedgeLabProjectionResponse {
+  readonly completed_at: string;
+  readonly contract_specifications: readonly HedgeContractSpecificationResponse[];
+  readonly exposure: HedgeExposureResponse;
+  readonly futures_positions: readonly HedgeFuturesPositionResponse[];
+  readonly liquidity: HedgeLiquidityResponse;
+  readonly option_positions: readonly HedgeOptionPositionResponse[];
+  readonly output_digest: string;
+  readonly reason_codes: readonly string[];
+  readonly snapshot_id: string;
+  readonly stage: string;
+  readonly stage_output_id: string;
+  readonly stage_version: string;
+  readonly valuation: HedgeValuationResponse;
 }
 
 export interface HedgeLiquidityDemoRequest {
@@ -235,10 +469,10 @@ export interface HedgeLiquidityDemoRequest {
   readonly exposure_unit: string;
   readonly futures_positions?: readonly FuturesPositionInput[];
   readonly fx_exposure: MoneyInput;
-  readonly fx_rates_to_facility?: Record<string, unknown>;
+  readonly fx_rates_to_facility?: Record<string, number | string>;
   readonly market_bundle_digest: string;
-  readonly multi_day_futures_moves: Record<string, unknown>;
-  readonly one_day_futures_moves: Record<string, unknown>;
+  readonly multi_day_futures_moves: Record<string, number | string>;
+  readonly one_day_futures_moves: Record<string, number | string>;
   readonly option_positions?: readonly OptionPositionInput[];
   readonly physical_exposure?: readonly PhysicalExposureInput[];
   readonly policy_bundle_digest: string;
@@ -259,6 +493,19 @@ export interface HedgeLiquidityPreviewResponse {
   readonly warnings: readonly string[];
 }
 
+export interface HedgeLiquidityResponse {
+  readonly available_cash: MoneyResponse;
+  readonly liquidity_coverage_ratio: string | null;
+  readonly margin_call_shortfall: MoneyResponse;
+  readonly multi_day_margin_stress: MoneyResponse;
+  readonly one_day_margin_stress: MoneyResponse;
+  readonly required_liquidity_coverage_ratio: string;
+  readonly required_liquidity_reserve: MoneyResponse;
+  readonly timing_mismatch: MoneyResponse;
+  readonly total_liquidity_available: MoneyResponse;
+  readonly undrawn_contractual_availability: MoneyResponse;
+}
+
 export interface HedgeLiquidityStageOutputResponse {
   readonly completed_at: string;
   readonly computation_bundle_digest: string;
@@ -275,10 +522,58 @@ export interface HedgeLiquidityStageOutputResponse {
   readonly warnings: readonly string[];
 }
 
+export interface HedgeOptionPositionResponse {
+  readonly authoritative_price: string;
+  readonly black76_reference_price: string;
+  readonly contracts: string;
+  readonly delivery_month: string;
+  readonly delta: string;
+  readonly delta_exposure: string;
+  readonly gamma: string;
+  readonly option_type: string;
+  readonly pnl: MoneyResponse;
+  readonly product_code: string;
+  readonly rho: string;
+  readonly theta: string;
+  readonly value: MoneyResponse;
+  readonly vega: string;
+}
+
 export interface HedgeUnitFactorInput {
   readonly factor: number | string;
   readonly input_unit: string;
   readonly output_unit: string;
+}
+
+export interface HedgeValuationResponse {
+  readonly aggregate_greeks: Record<string, string>;
+  readonly futures_pnl: MoneyResponse;
+  readonly option_pnl: MoneyResponse;
+  readonly option_value: MoneyResponse;
+}
+
+export interface InternalRiskCapacityResponse {
+  readonly cbb: MoneyResponse;
+  readonly climate_evidence_buffer: MoneyResponse;
+  readonly counterparty_buffer: MoneyResponse;
+  readonly facility_commitment: MoneyResponse;
+  readonly irc: MoneyResponse;
+  readonly liquidity_buffer: MoneyResponse;
+  readonly risk_buffer: MoneyResponse;
+  readonly tail_loss_buffer: MoneyResponse;
+  readonly uncapped_irc: MoneyResponse;
+}
+
+export interface InventoryCollateralRowResponse {
+  readonly advanced_value: MoneyResponse;
+  readonly gross_market_value: MoneyResponse;
+  readonly input_quantity: string;
+  readonly input_quantity_unit: string;
+  readonly lot_id: string;
+  readonly net_recovery_value: MoneyResponse;
+  readonly quantity: string;
+  readonly quantity_unit: string;
+  readonly unit_conversion_table_version: string;
 }
 
 export interface InventoryLotPipelineInput {
@@ -327,11 +622,16 @@ export interface MoneyInput {
   readonly currency: string;
 }
 
+export interface MoneyResponse {
+  readonly amount: string;
+  readonly currency: string;
+}
+
 export interface OptionPositionInput {
   readonly contract_specification: ExchangeContractSpecificationInput;
   readonly contracts: number | string;
   readonly delivery_month: string;
-  readonly entry_option_price?: number | string;
+  readonly entry_option_price?: number | string | null;
   readonly futures_price: number | string;
   readonly lattice_steps?: number;
   readonly option_type: OptionType;
@@ -393,7 +693,7 @@ export interface PriceObservationInput {
 export interface ProblemDetails {
   readonly code: string;
   readonly detail: string;
-  readonly errors?: readonly ProblemError[] | string;
+  readonly errors?: readonly ProblemError[] | null;
   readonly instance: string;
   readonly status: number;
   readonly title: string;
@@ -418,7 +718,15 @@ export interface QuantityReconciliationResponse {
   readonly issue_state: string;
   readonly lot_id: string;
   readonly receipt_quantity: string;
-  readonly reconciliation_issue_id: string;
+  readonly reconciliation_issue_id: string | null;
+}
+
+export interface ReceivableCollateralRowResponse {
+  readonly advanced_value: MoneyResponse;
+  readonly facility_value: MoneyResponse;
+  readonly open_amount: MoneyResponse;
+  readonly reason_codes: readonly string[];
+  readonly receivable_id: string;
 }
 
 export interface ReceivablePipelineInput {
@@ -437,24 +745,45 @@ export interface RecommendationClass {
 }
 
 export interface RecommendationCreate {
-  readonly approved_unfunded_exposure?: MoneyInput | string;
-  readonly cbb?: MoneyInput | string;
-  readonly cbb_output_digest?: string;
+  readonly approved_unfunded_exposure?: MoneyInput | null;
+  readonly cbb?: MoneyInput | null;
+  readonly cbb_output_digest?: string | null;
   readonly conditions?: readonly string[];
-  readonly contractual_availability?: MoneyInput | string;
+  readonly contractual_availability?: MoneyInput | null;
   readonly expires_at: string;
-  readonly facility_commitment?: MoneyInput | string;
-  readonly hedge_liquidity_output_digest?: string;
-  readonly internal_risk_capacity?: MoneyInput | string;
-  readonly irc_output_digest?: string;
-  readonly liquidity_cap?: MoneyInput | string;
-  readonly outstanding_exposure?: MoneyInput | string;
-  readonly policy_bundle_digest?: string;
+  readonly facility_commitment?: MoneyInput | null;
+  readonly hedge_liquidity_output_digest?: string | null;
+  readonly internal_risk_capacity?: MoneyInput | null;
+  readonly irc_output_digest?: string | null;
+  readonly liquidity_cap?: MoneyInput | null;
+  readonly outstanding_exposure?: MoneyInput | null;
+  readonly policy_bundle_digest?: string | null;
   readonly policy_caps?: readonly MoneyInput[];
   readonly reason_codes?: readonly string[];
   readonly recommendation_class: RecommendationClass;
   readonly recommendation_id: string;
   readonly requested_amount: MoneyInput;
+}
+
+export interface RecommendationDetailResponse {
+  readonly author_id: string;
+  readonly binding_constraint: string;
+  readonly compared_limits: Record<string, string>;
+  readonly conditions: readonly string[];
+  readonly contractual_availability: MoneyResponse;
+  readonly created_at: string;
+  readonly digest: string;
+  readonly expires_at: string;
+  readonly internal_risk_capacity: MoneyResponse;
+  readonly output_digests: readonly string[];
+  readonly policy_bundle_digest: string;
+  readonly reason_codes: readonly string[];
+  readonly recommendation_class: string;
+  readonly recommendation_id: string;
+  readonly recommended_exposure_cap: MoneyResponse;
+  readonly recommended_incremental_draw: MoneyResponse;
+  readonly requested_amount: MoneyResponse;
+  readonly snapshot_id: string;
 }
 
 export interface RejectCandidateFactRequest {
@@ -482,6 +811,57 @@ export interface ScenarioCapacityStageOutputResponse {
   readonly stage_output_id: string;
   readonly stage_version: string;
   readonly started_at: string;
+}
+
+export interface ScenarioLabProjectionResponse {
+  readonly completed_at: string;
+  readonly deterministic_scenarios: readonly DeterministicScenarioResponse[];
+  readonly internal_risk_capacity: InternalRiskCapacityResponse;
+  readonly monte_carlo: ScenarioMonteCarloResponse;
+  readonly output_digest: string;
+  readonly reason_codes: readonly string[];
+  readonly scenario_version: string;
+  readonly snapshot_id: string;
+  readonly stage: string;
+  readonly stage_output_id: string;
+  readonly stage_version: string;
+  readonly worst_scenario_families: readonly WorstScenarioFamilyResponse[];
+}
+
+export interface ScenarioMonteCarloResponse {
+  readonly cbb_deficiency_probability: string;
+  readonly confidence_level: string;
+  readonly correlation: string;
+  readonly correlation_matrix: readonly (readonly string[])[];
+  readonly distribution_assumption: string;
+  readonly expected_collateral_shortfall: MoneyResponse;
+  readonly expected_margin_liquidity_shortfall: MoneyResponse;
+  readonly expected_shortfall: MoneyResponse;
+  readonly hedge_effectiveness_distribution: HedgeEffectivenessDistributionResponse;
+  readonly margin_liquidity_shortfall_probability: string;
+  readonly path_count: number;
+  readonly prng_family: string;
+  readonly regime_mixture: readonly ScenarioRegimeResponse[];
+  readonly seed: number;
+  readonly seed_derivation: string;
+  readonly tail_contribution_by_factor: Record<string, string>;
+  readonly thread_count: number;
+  readonly threshold_stability: ScenarioThresholdStabilityResponse;
+  readonly time_steps: number;
+  readonly value_at_risk: MoneyResponse;
+}
+
+export interface ScenarioRegimeResponse {
+  readonly name: string;
+  readonly weight: string;
+}
+
+export interface ScenarioThresholdStabilityResponse {
+  readonly band_width: MoneyResponse;
+  readonly lower_confidence_level: string;
+  readonly lower_value_at_risk: MoneyResponse;
+  readonly upper_confidence_level: string;
+  readonly upper_value_at_risk: MoneyResponse;
 }
 
 export interface SnapshotInputReference {
@@ -552,6 +932,11 @@ export interface WarehouseReceiptEvidenceResponse {
   readonly receipt_evidence_id: string;
   readonly receipt_number: string;
   readonly warehouse_id: string;
+}
+
+export interface WorstScenarioFamilyResponse {
+  readonly family: string;
+  readonly loss: MoneyResponse;
 }
 
 export type RequestHeaders = Record<string, string>;
@@ -687,10 +1072,64 @@ export class CanopyLedgerClient {
     );
   }
 
+  async getApprovalQueue(headers: RequestHeaders = {}): Promise<ApiResponse<ApprovalQueueResponse>> {
+    return this.#request<ApprovalQueueResponse>(
+      "GET",
+      `/api/v1/approval-requests`,
+      undefined,
+      headers,
+    );
+  }
+
+  async getApprovalRequest(approval_request_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<ApprovalRequestDetailResponse>> {
+    return this.#request<ApprovalRequestDetailResponse>(
+      "GET",
+      `/api/v1/approval-requests/${encodeURIComponent(approval_request_id)}`,
+      undefined,
+      headers,
+    );
+  }
+
   async getCandidateFactReview(candidate_fact_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<EvidenceReviewPacketResponse>> {
     return this.#request<EvidenceReviewPacketResponse>(
       "GET",
       `/api/v1/evidence/candidate-facts/${encodeURIComponent(candidate_fact_id)}/review`,
+      undefined,
+      headers,
+    );
+  }
+
+  async getDecisionOverride(override_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<DecisionOverrideDetailResponse>> {
+    return this.#request<DecisionOverrideDetailResponse>(
+      "GET",
+      `/api/v1/override-requests/${encodeURIComponent(override_id)}`,
+      undefined,
+      headers,
+    );
+  }
+
+  async getDecisionOverrideQueue(snapshot_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<DecisionOverrideQueueResponse>> {
+    return this.#request<DecisionOverrideQueueResponse>(
+      "GET",
+      `/api/v1/snapshots/${encodeURIComponent(snapshot_id)}/override-requests`,
+      undefined,
+      headers,
+    );
+  }
+
+  async getEvidenceDocumentRendition(document_version_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<EvidenceDocumentRenditionResponse>> {
+    return this.#request<EvidenceDocumentRenditionResponse>(
+      "GET",
+      `/api/v1/evidence/documents/${encodeURIComponent(document_version_id)}/rendition`,
+      undefined,
+      headers,
+    );
+  }
+
+  async getEvidenceReviewQueue(query: { readonly limit?: number } = {}, headers: RequestHeaders = {}): Promise<ApiResponse<EvidenceReviewQueueResponse>> {
+    return this.#request<EvidenceReviewQueueResponse>(
+      "GET",
+      this.#withQuery(`/api/v1/evidence/review-queue`, query),
       undefined,
       headers,
     );
@@ -714,6 +1153,24 @@ export class CanopyLedgerClient {
     );
   }
 
+  async getGovernanceTimeline(snapshot_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<GovernanceTimelineResponse>> {
+    return this.#request<GovernanceTimelineResponse>(
+      "GET",
+      `/api/v1/snapshots/${encodeURIComponent(snapshot_id)}/governance-timeline`,
+      undefined,
+      headers,
+    );
+  }
+
+  async getHedgeLabProjection(snapshot_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<HedgeLabProjectionResponse>> {
+    return this.#request<HedgeLabProjectionResponse>(
+      "GET",
+      `/api/v1/snapshots/${encodeURIComponent(snapshot_id)}/hedge-lab`,
+      undefined,
+      headers,
+    );
+  }
+
   async getHedgeLiquidityAssessment(snapshot_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<HedgeLiquidityStageOutputResponse>> {
     return this.#request<HedgeLiquidityStageOutputResponse>(
       "GET",
@@ -732,10 +1189,46 @@ export class CanopyLedgerClient {
     );
   }
 
+  async getRecommendation(recommendation_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<RecommendationDetailResponse>> {
+    return this.#request<RecommendationDetailResponse>(
+      "GET",
+      `/api/v1/recommendations/${encodeURIComponent(recommendation_id)}`,
+      undefined,
+      headers,
+    );
+  }
+
   async getScenarioAssessment(snapshot_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<ScenarioCapacityStageOutputResponse>> {
     return this.#request<ScenarioCapacityStageOutputResponse>(
       "GET",
       `/api/v1/snapshots/${encodeURIComponent(snapshot_id)}/scenarios`,
+      undefined,
+      headers,
+    );
+  }
+
+  async getScenarioLabProjection(snapshot_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<ScenarioLabProjectionResponse>> {
+    return this.#request<ScenarioLabProjectionResponse>(
+      "GET",
+      `/api/v1/snapshots/${encodeURIComponent(snapshot_id)}/scenario-lab`,
+      undefined,
+      headers,
+    );
+  }
+
+  async getSnapshotCollateral(snapshot_id: string, query: { readonly section?: "inventory" | "receivables" | "contributions" | "reserves"; readonly cursor?: string | null; readonly limit?: number } = {}, headers: RequestHeaders = {}): Promise<ApiResponse<CollateralWorkspaceResponse>> {
+    return this.#request<CollateralWorkspaceResponse>(
+      "GET",
+      this.#withQuery(`/api/v1/snapshots/${encodeURIComponent(snapshot_id)}/collateral`, query),
+      undefined,
+      headers,
+    );
+  }
+
+  async getSnapshotDecisionPack(snapshot_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<DecisionPackResponse>> {
+    return this.#request<DecisionPackResponse>(
+      "GET",
+      `/api/v1/snapshots/${encodeURIComponent(snapshot_id)}/decision-pack`,
       undefined,
       headers,
     );
@@ -748,28 +1241,6 @@ export class CanopyLedgerClient {
       undefined,
       headers,
     );
-  }
-
-  async #request<T>(
-    method: string,
-    path: string,
-    body: unknown,
-    headers: RequestHeaders,
-  ): Promise<ApiResponse<T>> {
-    const init: RequestInit = {
-      method,
-      headers: {
-        ...this.#defaultHeaders,
-        ...headers,
-        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-      },
-    };
-    if (body !== undefined) {
-      init.body = JSON.stringify(body);
-    }
-    const response = await this.#fetchImpl(`${this.#baseUrl}${path}`, init);
-    const data = (await response.json()) as T;
-    return { status: response.status, headers: response.headers, data };
   }
 
   async healthCheck(headers: RequestHeaders = {}): Promise<ApiResponse<HealthResponse>> {
@@ -862,4 +1333,38 @@ export class CanopyLedgerClient {
     );
   }
 
+  #withQuery(
+    path: string,
+    query: object,
+  ): string {
+    const parameters = new URLSearchParams();
+    for (const [name, value] of Object.entries(query)) {
+      if (value !== undefined) parameters.set(name, String(value));
+    }
+    const serialized = parameters.toString();
+    return serialized ? path + "?" + serialized : path;
+  }
+
+
+  async #request<T>(
+    method: string,
+    path: string,
+    body: unknown,
+    headers: RequestHeaders,
+  ): Promise<ApiResponse<T>> {
+    const init: RequestInit = {
+      method,
+      headers: {
+        ...this.#defaultHeaders,
+        ...headers,
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      },
+    };
+    if (body !== undefined) {
+      init.body = JSON.stringify(body);
+    }
+    const response = await this.#fetchImpl(`${this.#baseUrl}${path}`, init);
+    const data = (await response.json()) as T;
+    return { status: response.status, headers: response.headers, data };
+  }
 }

@@ -10,7 +10,7 @@ from decimal import ROUND_HALF_EVEN, Decimal
 from html import escape
 from typing import Annotated, Any, Literal
 
-from fastapi import Depends, FastAPI, Header, Request
+from fastapi import Depends, FastAPI, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -61,6 +61,7 @@ from canopyledger.evidence.controls import (
 )
 from canopyledger.governance.core import (
     DecisionContext,
+    DecisionOverride,
     GovernanceError,
     GovernanceService,
     RecommendationClass,
@@ -188,6 +189,16 @@ class EvidenceDocumentResponse(BaseModel):
     created_at: str
 
 
+class EvidenceDocumentRenditionResponse(BaseModel):
+    document_version_id: str
+    filename: str
+    content_type: str
+    byte_digest: str
+    preview_status: Literal["available", "unsupported"]
+    preview_text: str | None
+    truncated: bool
+
+
 class EvidenceCandidateCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -228,6 +239,7 @@ class CandidateFactResponse(BaseModel):
 class ApprovedFactResponse(BaseModel):
     approved_fact_id: str
     approval_state: str
+    is_active: bool
     digest: str
     lineage: EvidenceLineageResponse
 
@@ -783,6 +795,380 @@ class GovernanceResourceResponse(BaseModel):
     superseded_by: str | None = None
 
 
+class MoneyResponse(BaseModel):
+    amount: str
+    currency: str
+
+
+class HedgeContractSpecificationResponse(BaseModel):
+    exchange: str
+    product_code: str
+    contract_symbol: str
+    contract_size: str
+    contract_size_unit: str
+    contract_size_in_exposure_unit: str
+    exposure_unit: str
+    price_unit: str
+    price_unit_factor: str
+    tick_size: str
+    currency: str
+    exercise_style: str
+    settlement_rule: str
+    calendar_version: str
+    delivery_months: tuple[str, ...]
+    effective_from: str
+    effective_to: str
+    source_document_digest: str
+
+
+class HedgeFuturesPositionResponse(BaseModel):
+    product_code: str
+    delivery_month: str
+    contracts: str
+    delta_exposure: str
+    pnl: MoneyResponse
+
+
+class HedgeOptionPositionResponse(BaseModel):
+    product_code: str
+    delivery_month: str
+    option_type: str
+    contracts: str
+    black76_reference_price: str
+    authoritative_price: str
+    delta_exposure: str
+    value: MoneyResponse
+    pnl: MoneyResponse
+    delta: str
+    gamma: str
+    vega: str
+    theta: str
+    rho: str
+
+
+class HedgeDeliveryMonthResponse(BaseModel):
+    delivery_month: str
+    physical_exposure: str
+    hedge_delta_exposure: str
+    net_price_exposure: str
+
+
+class HedgeConcentrationResponse(BaseModel):
+    delivery_month: str
+    physical_concentration: str
+
+
+class HedgeExposureResponse(BaseModel):
+    exposure_unit: str
+    gross_physical_exposure: str
+    purchase_commitment_exposure: str
+    sales_commitment_exposure: str
+    net_physical_exposure: str
+    futures_exposure: str
+    option_delta_equivalent: str
+    net_price_exposure: str
+    hedge_ratio: str | None
+    under_hedge_amount: str
+    over_hedge_amount: str
+    fx_exposure: MoneyResponse
+    fx_exposure_source: MoneyResponse
+    basis_exposure: str
+    delivery_month_mismatch: tuple[HedgeDeliveryMonthResponse, ...]
+    concentration_by_month: tuple[HedgeConcentrationResponse, ...]
+
+
+class HedgeValuationResponse(BaseModel):
+    futures_pnl: MoneyResponse
+    option_value: MoneyResponse
+    option_pnl: MoneyResponse
+    aggregate_greeks: dict[str, str]
+
+
+class HedgeLiquidityResponse(BaseModel):
+    available_cash: MoneyResponse
+    undrawn_contractual_availability: MoneyResponse
+    total_liquidity_available: MoneyResponse
+    one_day_margin_stress: MoneyResponse
+    multi_day_margin_stress: MoneyResponse
+    timing_mismatch: MoneyResponse
+    margin_call_shortfall: MoneyResponse
+    liquidity_coverage_ratio: str | None
+    required_liquidity_reserve: MoneyResponse
+    required_liquidity_coverage_ratio: str
+
+
+class HedgeLabProjectionResponse(BaseModel):
+    stage_output_id: str
+    snapshot_id: str
+    stage: Literal["hedge_liquidity"]
+    stage_version: str
+    output_digest: str
+    completed_at: datetime
+    reason_codes: tuple[str, ...]
+    contract_specifications: tuple[HedgeContractSpecificationResponse, ...]
+    futures_positions: tuple[HedgeFuturesPositionResponse, ...]
+    option_positions: tuple[HedgeOptionPositionResponse, ...]
+    exposure: HedgeExposureResponse
+    valuation: HedgeValuationResponse
+    liquidity: HedgeLiquidityResponse
+
+
+class ScenarioRegimeResponse(BaseModel):
+    name: str
+    weight: str
+
+
+class ScenarioThresholdStabilityResponse(BaseModel):
+    lower_confidence_level: str
+    upper_confidence_level: str
+    lower_value_at_risk: MoneyResponse
+    upper_value_at_risk: MoneyResponse
+    band_width: MoneyResponse
+
+
+class HedgeEffectivenessDistributionResponse(BaseModel):
+    minimum: str
+    median: str
+    p95: str
+    maximum: str
+
+
+class ScenarioMonteCarloResponse(BaseModel):
+    prng_family: str
+    seed_derivation: str
+    distribution_assumption: str
+    regime_mixture: tuple[ScenarioRegimeResponse, ...]
+    seed: int
+    path_count: int
+    time_steps: int
+    thread_count: int
+    confidence_level: str
+    correlation: str
+    correlation_matrix: tuple[tuple[str, ...], ...]
+    value_at_risk: MoneyResponse
+    expected_shortfall: MoneyResponse
+    cbb_deficiency_probability: str
+    margin_liquidity_shortfall_probability: str
+    expected_collateral_shortfall: MoneyResponse
+    expected_margin_liquidity_shortfall: MoneyResponse
+    threshold_stability: ScenarioThresholdStabilityResponse
+    tail_contribution_by_factor: dict[str, str]
+    hedge_effectiveness_distribution: HedgeEffectivenessDistributionResponse
+
+
+class DeterministicScenarioResponse(BaseModel):
+    scenario_id: str
+    family: str
+    stressed_cbb: MoneyResponse
+    cbb_deficiency: MoneyResponse
+    margin_liquidity_shortfall: MoneyResponse
+    loss: MoneyResponse
+
+
+class WorstScenarioFamilyResponse(BaseModel):
+    family: str
+    loss: MoneyResponse
+
+
+class InternalRiskCapacityResponse(BaseModel):
+    risk_buffer: MoneyResponse
+    tail_loss_buffer: MoneyResponse
+    liquidity_buffer: MoneyResponse
+    counterparty_buffer: MoneyResponse
+    climate_evidence_buffer: MoneyResponse
+    uncapped_irc: MoneyResponse
+    irc: MoneyResponse
+    cbb: MoneyResponse
+    facility_commitment: MoneyResponse
+
+
+class ScenarioLabProjectionResponse(BaseModel):
+    stage_output_id: str
+    snapshot_id: str
+    stage: Literal["scenario_capacity"]
+    stage_version: str
+    output_digest: str
+    completed_at: datetime
+    reason_codes: tuple[str, ...]
+    scenario_version: str
+    monte_carlo: ScenarioMonteCarloResponse
+    deterministic_scenarios: tuple[DeterministicScenarioResponse, ...]
+    worst_scenario_families: tuple[WorstScenarioFamilyResponse, ...]
+    internal_risk_capacity: InternalRiskCapacityResponse
+
+
+class RecommendationDetailResponse(BaseModel):
+    recommendation_id: str
+    snapshot_id: str
+    author_id: str
+    requested_amount: MoneyResponse
+    contractual_availability: MoneyResponse
+    internal_risk_capacity: MoneyResponse
+    recommended_exposure_cap: MoneyResponse
+    recommended_incremental_draw: MoneyResponse
+    compared_limits: dict[str, str]
+    binding_constraint: str
+    recommendation_class: str
+    conditions: tuple[str, ...]
+    reason_codes: tuple[str, ...]
+    output_digests: tuple[str, ...]
+    policy_bundle_digest: str
+    expires_at: datetime
+    created_at: datetime
+    digest: str
+
+
+class ApprovalRequestDetailResponse(BaseModel):
+    approval_request_id: str
+    recommendation: RecommendationDetailResponse
+    author_id: str
+    requested_by: str
+    expires_at: datetime
+    created_at: datetime
+    digest: str
+    expired: bool
+    self_approval_prohibited: bool
+
+
+class ApprovalQueueResponse(BaseModel):
+    items: tuple[ApprovalRequestDetailResponse, ...]
+
+
+class DecisionOverrideDetailResponse(BaseModel):
+    override_id: str
+    original_decision_id: str
+    recommendation_id: str
+    requester_id: str
+    proposed_exposure_cap: MoneyResponse
+    reason: str
+    policy_basis: str
+    expires_at: datetime
+    created_at: datetime
+    digest: str
+    requires_dual_control: bool
+    approval_count: int
+    approvals_required: int
+    expired: bool
+
+
+class DecisionOverrideQueueResponse(BaseModel):
+    items: tuple[DecisionOverrideDetailResponse, ...]
+
+
+class DecisionPackResponse(BaseModel):
+    snapshot_id: str
+    contractual_borrowing_base: MoneyResponse
+    contractual_availability: MoneyResponse
+    internal_risk_capacity: MoneyResponse
+    liquidity_cap: MoneyResponse
+    facility_commitment: MoneyResponse
+    outstanding_exposure: MoneyResponse
+    approved_unfunded_exposure: MoneyResponse
+    policy_caps: tuple[MoneyResponse, ...]
+    cbb_output_digest: str
+    hedge_liquidity_output_digest: str
+    irc_output_digest: str
+    policy_bundle_digest: str
+    hedge_liquidity: dict[str, Any]
+    scenario: dict[str, Any]
+    blockers: tuple[str, ...]
+    recommendation: RecommendationDetailResponse | None = None
+    final_decision: GovernanceResourceResponse | None = None
+
+
+class CollateralLineageResponse(BaseModel):
+    collateral_valuation_stage_output_id: str
+    collateral_valuation_stage_version: str
+    collateral_valuation_output_digest: str
+    eligibility_stage_output_id: str
+    eligibility_stage_version: str
+    eligibility_output_digest: str
+
+
+class CollateralPageResponse(BaseModel):
+    limit: int
+    next_cursor: str | None
+    total_count: int
+
+
+class InventoryCollateralRowResponse(BaseModel):
+    lot_id: str
+    input_quantity: str
+    input_quantity_unit: str
+    quantity: str
+    quantity_unit: str
+    unit_conversion_table_version: str
+    gross_market_value: MoneyResponse
+    net_recovery_value: MoneyResponse
+    advanced_value: MoneyResponse
+
+
+class ReceivableCollateralRowResponse(BaseModel):
+    receivable_id: str
+    open_amount: MoneyResponse
+    facility_value: MoneyResponse
+    advanced_value: MoneyResponse
+    reason_codes: tuple[str, ...]
+
+
+class CollateralContributionRowResponse(BaseModel):
+    source_type: str
+    source_id: str
+    amount: MoneyResponse
+
+
+class CollateralReserveRowResponse(BaseModel):
+    reserve_type: str
+    amount: MoneyResponse
+
+
+class CollateralWorkspaceResponse(BaseModel):
+    snapshot_id: str
+    section: Literal["inventory", "receivables", "contributions", "reserves"]
+    inventory_items: tuple[InventoryCollateralRowResponse, ...]
+    receivable_items: tuple[ReceivableCollateralRowResponse, ...]
+    contribution_items: tuple[CollateralContributionRowResponse, ...]
+    reserve_items: tuple[CollateralReserveRowResponse, ...]
+    page: CollateralPageResponse
+    lineage: CollateralLineageResponse
+    reason_codes: tuple[str, ...]
+
+
+class GovernanceTimelineEventResponse(BaseModel):
+    resource_id: str
+    resource_type: str
+    action: str
+    actor_id: str
+    occurred_at: datetime
+    digest: str
+    reason: str | None = None
+    status: str | None = None
+
+
+class GovernanceTimelineResponse(BaseModel):
+    snapshot_id: str
+    items: tuple[GovernanceTimelineEventResponse, ...]
+
+
+class EvidenceQueueItemResponse(BaseModel):
+    candidate_fact_id: str
+    approval_state: str
+    fact_type: str
+    subject_id: str
+    period: str
+    normalized_value: str
+    document_version_id: str
+    document_byte_digest: str
+    page_region: str
+    extraction_method: str
+    extractor_version: str
+    conflicts: tuple[str, ...]
+
+
+class EvidenceReviewQueueResponse(BaseModel):
+    items: tuple[EvidenceQueueItemResponse, ...]
+
+
 class FacilityResponse(BaseModel):
     id: str
     legal_name: str
@@ -1040,6 +1426,43 @@ def create_app(
         )
         return _evidence_document_response(document)
 
+    @app.get(
+        "/api/v1/evidence/documents/{document_version_id}/rendition",
+        operation_id="getEvidenceDocumentRendition",
+        response_model=EvidenceDocumentRenditionResponse,
+        responses=_problem_responses(401, 404, 422),
+    )
+    def get_evidence_document_rendition(
+        document_version_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> EvidenceDocumentRenditionResponse:
+        del actor
+        document, content = evidence.original_document(document_version_id)
+        return _evidence_document_rendition_response(document, content)
+
+    @app.get(
+        "/api/v1/evidence/documents/{document_version_id}/download",
+        include_in_schema=False,
+        responses=_problem_responses(401, 404, 422),
+    )
+    def download_evidence_document(
+        document_version_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> Response:
+        del actor
+        document, content = evidence.original_document(document_version_id)
+        return Response(
+            content=content,
+            media_type="application/octet-stream",
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="{_download_filename(document.filename)}"'
+                ),
+                "Content-Security-Policy": "sandbox",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
     @app.post(
         "/api/v1/evidence/candidate-facts",
         status_code=201,
@@ -1087,6 +1510,38 @@ def create_app(
                 _approved_fact_response(fact) for fact in packet.approval_history
             ),
             supersession_chain=packet.supersession_chain,
+        )
+
+    @app.get(
+        "/api/v1/evidence/review-queue",
+        operation_id="getEvidenceReviewQueue",
+        response_model=EvidenceReviewQueueResponse,
+        responses=_problem_responses(401, 422),
+    )
+    def get_evidence_review_queue(
+        actor: Annotated[str, Depends(current_actor)],
+        limit: int = 25,
+    ) -> EvidenceReviewQueueResponse:
+        del actor
+        packets = evidence.review_queue(limit=limit)
+        return EvidenceReviewQueueResponse(
+            items=tuple(
+                EvidenceQueueItemResponse(
+                    candidate_fact_id=packet.candidate.fact_id,
+                    approval_state="candidate",
+                    fact_type=packet.candidate.identity.fact_type,
+                    subject_id=packet.candidate.identity.subject_id,
+                    period=packet.candidate.identity.period,
+                    normalized_value=packet.candidate.normalized_value or "",
+                    document_version_id=packet.candidate.document_version_id,
+                    document_byte_digest=packet.candidate.document_byte_digest,
+                    page_region=packet.candidate.page_region or "",
+                    extraction_method=packet.candidate.extraction_method or "",
+                    extractor_version=packet.candidate.extractor_version or "",
+                    conflicts=packet.conflicts,
+                )
+                for packet in packets
+            )
         )
 
     @app.get(
@@ -1367,6 +1822,24 @@ def create_app(
         return HedgeLiquidityStageOutputResponse.model_validate(output)
 
     @app.get(
+        "/api/v1/snapshots/{snapshot_id}/hedge-lab",
+        operation_id="getHedgeLabProjection",
+        response_model=HedgeLabProjectionResponse,
+        responses=_problem_responses(401, 404, 409),
+    )
+    def get_hedge_lab_projection(
+        snapshot_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> HedgeLabProjectionResponse:
+        del actor
+        if hedge_output_loader is None:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Hedge/liquidity assessment not found")
+        output = hedge_output_loader(snapshot_id)
+        if output is None:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Hedge/liquidity assessment not found")
+        return _hedge_lab_projection_response(snapshot_id=snapshot_id, output=output)
+
+    @app.get(
         "/api/v1/snapshots/{snapshot_id}/scenarios",
         operation_id="getScenarioAssessment",
         response_model=ScenarioCapacityStageOutputResponse,
@@ -1383,6 +1856,112 @@ def create_app(
         if output is None:
             raise _Problem(404, "RESOURCE_NOT_FOUND", "Scenario assessment not found")
         return ScenarioCapacityStageOutputResponse.model_validate(output)
+
+    @app.get(
+        "/api/v1/snapshots/{snapshot_id}/scenario-lab",
+        operation_id="getScenarioLabProjection",
+        response_model=ScenarioLabProjectionResponse,
+        responses=_problem_responses(401, 404, 409),
+    )
+    def get_scenario_lab_projection(
+        snapshot_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> ScenarioLabProjectionResponse:
+        del actor
+        if scenario_output_loader is None:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Scenario assessment not found")
+        output = scenario_output_loader(snapshot_id)
+        if output is None:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Scenario assessment not found")
+        return _scenario_lab_projection_response(snapshot_id=snapshot_id, output=output)
+
+    @app.get(
+        "/api/v1/snapshots/{snapshot_id}/decision-pack",
+        operation_id="getSnapshotDecisionPack",
+        response_model=DecisionPackResponse,
+        responses=_problem_responses(401, 404, 409),
+    )
+    def get_snapshot_decision_pack(
+        snapshot_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> DecisionPackResponse:
+        del actor
+        if decision_context_loader is None:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Published decision context is unavailable")
+        context = decision_context_loader(snapshot_id)
+        hedge = hedge_output_loader(snapshot_id) if hedge_output_loader is not None else None
+        scenario = (
+            scenario_output_loader(snapshot_id) if scenario_output_loader is not None else None
+        )
+        if hedge is None or scenario is None:
+            raise _Problem(
+                409,
+                "STAGE_PUBLICATION_FENCED",
+                "Required published hedge or scenario output is unavailable",
+            )
+        decision = governance.get_current_decision(snapshot_id)
+        recommendation = (
+            governance.get_recommendation(decision.recommendation_id)
+            if decision is not None
+            else None
+        )
+        return DecisionPackResponse(
+            snapshot_id=snapshot_id,
+            contractual_borrowing_base=_money_response(context.cbb),
+            contractual_availability=_money_response(context.contractual_availability),
+            internal_risk_capacity=_money_response(context.internal_risk_capacity),
+            liquidity_cap=_money_response(context.liquidity_cap),
+            facility_commitment=_money_response(context.facility_commitment),
+            outstanding_exposure=_money_response(context.outstanding_exposure),
+            approved_unfunded_exposure=_money_response(context.approved_unfunded_exposure),
+            policy_caps=tuple(_money_response(value) for value in context.policy_caps),
+            cbb_output_digest=context.cbb_output_digest,
+            hedge_liquidity_output_digest=context.hedge_liquidity_output_digest,
+            irc_output_digest=context.irc_output_digest,
+            policy_bundle_digest=context.policy_bundle_digest,
+            hedge_liquidity=hedge,
+            scenario=scenario,
+            blockers=tuple(
+                reason for reason in _reason_summary(hedge, scenario).split(", ") if reason
+            ),
+            recommendation=(
+                _recommendation_detail_response(recommendation)
+                if recommendation is not None
+                else None
+            ),
+            final_decision=(_final_decision_response(decision) if decision is not None else None),
+        )
+
+    @app.get(
+        "/api/v1/snapshots/{snapshot_id}/collateral",
+        operation_id="getSnapshotCollateral",
+        response_model=CollateralWorkspaceResponse,
+        responses=_problem_responses(401, 404, 409),
+    )
+    def get_snapshot_collateral(
+        snapshot_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+        section: Literal["inventory", "receivables", "contributions", "reserves"] = "inventory",
+        cursor: str | None = None,
+        limit: Annotated[int, Query(ge=1, le=100)] = 25,
+    ) -> CollateralWorkspaceResponse:
+        del actor
+        output = (
+            collateral_output_loader(snapshot_id) if collateral_output_loader is not None else None
+        )
+        if output is None:
+            raise _Problem(
+                409,
+                "STAGE_PUBLICATION_FENCED",
+                "Published collateral output is unavailable for this snapshot",
+            )
+        return _collateral_workspace_response(
+            snapshot_id=snapshot_id,
+            output=output,
+            section=section,
+            cursor=cursor,
+            limit=limit,
+        )
 
     @app.get(
         "/api/v1/snapshots/{snapshot_id}/irc",
@@ -1587,6 +2166,123 @@ def create_app(
             kind="final_decision",
             status=result.status.value,
         )
+
+    @app.get(
+        "/api/v1/recommendations/{recommendation_id}",
+        operation_id="getRecommendation",
+        response_model=RecommendationDetailResponse,
+        responses=_problem_responses(401, 404),
+    )
+    def get_recommendation(
+        recommendation_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> RecommendationDetailResponse:
+        del actor
+        try:
+            return _recommendation_detail_response(governance.get_recommendation(recommendation_id))
+        except GovernanceError as exc:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", str(exc)) from exc
+
+    @app.get(
+        "/api/v1/approval-requests/{approval_request_id}",
+        operation_id="getApprovalRequest",
+        response_model=ApprovalRequestDetailResponse,
+        responses=_problem_responses(401, 404),
+    )
+    def get_approval_request(
+        approval_request_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> ApprovalRequestDetailResponse:
+        del actor
+        try:
+            request = governance.get_approval_request(approval_request_id)
+            recommendation = governance.get_recommendation(request.recommendation_id)
+        except GovernanceError as exc:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", str(exc)) from exc
+        return _approval_request_detail_response(request, recommendation, now=clock())
+
+    @app.get(
+        "/api/v1/approval-requests",
+        operation_id="getApprovalQueue",
+        response_model=ApprovalQueueResponse,
+        responses=_problem_responses(401, 403),
+    )
+    def get_approval_queue(
+        actor: Annotated[str, Depends(current_credit_approver)],
+    ) -> ApprovalQueueResponse:
+        del actor
+        items: list[ApprovalRequestDetailResponse] = []
+        for request in governance.list_approval_requests():
+            recommendation = governance.get_recommendation(request.recommendation_id)
+            current = governance.get_current_decision(recommendation.snapshot_id)
+            if current is not None and current.recommendation_id == recommendation.resource_id:
+                continue
+            items.append(_approval_request_detail_response(request, recommendation, now=clock()))
+        return ApprovalQueueResponse(items=tuple(items))
+
+    @app.get(
+        "/api/v1/snapshots/{snapshot_id}/override-requests",
+        operation_id="getDecisionOverrideQueue",
+        response_model=DecisionOverrideQueueResponse,
+        responses=_problem_responses(401, 403),
+    )
+    def get_decision_override_queue(
+        snapshot_id: str,
+        actor: Annotated[str, Depends(current_credit_approver)],
+    ) -> DecisionOverrideQueueResponse:
+        del actor
+        items = []
+        for override in governance.list_overrides():
+            recommendation = governance.get_recommendation(override.recommendation_id)
+            if recommendation.snapshot_id == snapshot_id:
+                items.append(_decision_override_detail_response(override, now=clock()))
+        return DecisionOverrideQueueResponse(items=tuple(items))
+
+    @app.get(
+        "/api/v1/snapshots/{snapshot_id}/governance-timeline",
+        operation_id="getGovernanceTimeline",
+        response_model=GovernanceTimelineResponse,
+        responses=_problem_responses(401, 403),
+    )
+    def get_governance_timeline(
+        snapshot_id: str,
+        actor: Annotated[str, Depends(current_credit_approver)],
+    ) -> GovernanceTimelineResponse:
+        del actor
+        return GovernanceTimelineResponse(
+            snapshot_id=snapshot_id,
+            items=tuple(
+                GovernanceTimelineEventResponse(
+                    resource_id=item.resource_id,
+                    resource_type=item.resource_type,
+                    action=item.action,
+                    actor_id=item.actor_id,
+                    occurred_at=item.occurred_at,
+                    digest=item.digest,
+                    reason=item.reason,
+                    status=item.status,
+                )
+                for item in governance.list_timeline_events(snapshot_id)
+            ),
+        )
+
+    @app.get(
+        "/api/v1/override-requests/{override_id}",
+        operation_id="getDecisionOverride",
+        response_model=DecisionOverrideDetailResponse,
+        responses=_problem_responses(401, 404),
+    )
+    def get_decision_override(
+        override_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> DecisionOverrideDetailResponse:
+        del actor
+        try:
+            return _decision_override_detail_response(
+                governance.get_override(override_id), now=clock()
+            )
+        except GovernanceError as exc:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", str(exc)) from exc
 
     @app.get(
         "/api/v1/decisions/{decision_id}",
@@ -2132,6 +2828,508 @@ def _command_http_response(result: CommandResponse) -> Response:
     )
 
 
+def _money_response(value: Money) -> MoneyResponse:
+    return MoneyResponse(amount=f"{value.quantized().amount:.2f}", currency=value.currency)
+
+
+def _collateral_workspace_response(
+    *,
+    snapshot_id: str,
+    output: dict[str, object],
+    section: Literal["inventory", "receivables", "contributions", "reserves"],
+    cursor: str | None,
+    limit: int,
+) -> CollateralWorkspaceResponse:
+    """Expose frozen M1B stage values as typed, server-paginated UI projections."""
+    try:
+        valuation = _collateral_stage(output, "collateral_valuation", snapshot_id)
+        eligibility = _collateral_stage(output, "eligibility_and_reserves", snapshot_id)
+        inventory = tuple(
+            sorted(
+                _collateral_rows(valuation["result"], "inventory", InventoryCollateralRowResponse),
+                key=lambda item: item.lot_id,
+            )
+        )
+        receivables = tuple(
+            sorted(
+                _collateral_rows(
+                    valuation["result"], "receivables", ReceivableCollateralRowResponse
+                ),
+                key=lambda item: item.receivable_id,
+            )
+        )
+        contributions = tuple(
+            sorted(
+                _collateral_rows(
+                    eligibility["result"], "contributions", CollateralContributionRowResponse
+                ),
+                key=lambda item: (item.source_type, item.source_id),
+            )
+        )
+        reserves = tuple(
+            sorted(
+                _collateral_rows(eligibility["result"], "reserves", CollateralReserveRowResponse),
+                key=lambda item: item.reserve_type,
+            )
+        )
+        reason_codes = tuple(
+            sorted(
+                set(_collateral_reason_codes(valuation))
+                | set(_collateral_reason_codes(eligibility))
+            )
+        )
+        lineage = CollateralLineageResponse(
+            collateral_valuation_stage_output_id=_collateral_string(valuation, "stage_output_id"),
+            collateral_valuation_stage_version=_collateral_string(valuation, "stage_version"),
+            collateral_valuation_output_digest=_collateral_string(valuation, "output_digest"),
+            eligibility_stage_output_id=_collateral_string(eligibility, "stage_output_id"),
+            eligibility_stage_version=_collateral_string(eligibility, "stage_version"),
+            eligibility_output_digest=_collateral_string(eligibility, "output_digest"),
+        )
+    except (KeyError, TypeError, ValidationError, ValueError) as exc:
+        raise _Problem(
+            409,
+            "STAGE_PUBLICATION_FENCED",
+            "Published collateral output is incomplete or has an unsupported schema",
+        ) from exc
+
+    selected = {
+        "inventory": inventory,
+        "receivables": receivables,
+        "contributions": contributions,
+        "reserves": reserves,
+    }[section]
+    offset = _collateral_cursor_offset(cursor)
+    if offset > len(selected):
+        raise _Problem(422, "INVALID_CURSOR", "Collateral cursor is outside this frozen section")
+    page_items = selected[offset : offset + limit]
+    next_offset = offset + len(page_items)
+    page = CollateralPageResponse(
+        limit=limit,
+        next_cursor=str(next_offset) if next_offset < len(selected) else None,
+        total_count=len(selected),
+    )
+    return CollateralWorkspaceResponse(
+        snapshot_id=snapshot_id,
+        section=section,
+        inventory_items=page_items if section == "inventory" else (),
+        receivable_items=page_items if section == "receivables" else (),
+        contribution_items=page_items if section == "contributions" else (),
+        reserve_items=page_items if section == "reserves" else (),
+        page=page,
+        lineage=lineage,
+        reason_codes=reason_codes,
+    )
+
+
+def _collateral_stage(output: dict[str, object], stage: str, snapshot_id: str) -> dict[str, object]:
+    value = output.get(stage)
+    if not isinstance(value, dict) or value.get("stage") != stage:
+        raise ValueError("missing frozen collateral stage")
+    if value.get("snapshot_id") != snapshot_id:
+        raise ValueError("collateral stage is not bound to selected snapshot")
+    if not isinstance(value.get("result"), dict):
+        raise ValueError("collateral stage result is missing")
+    return value
+
+
+def _collateral_rows(result: object, field: str, model: type[BaseModel]) -> tuple[BaseModel, ...]:
+    if not isinstance(result, dict):
+        raise ValueError("collateral result is missing")
+    raw_rows = result.get(field)
+    if not isinstance(raw_rows, list):
+        raise ValueError("collateral row collection is missing")
+    return tuple(model.model_validate(row) for row in raw_rows)
+
+
+def _collateral_reason_codes(stage: dict[str, object]) -> tuple[str, ...]:
+    value = stage.get("reason_codes")
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ValueError("collateral reason codes are missing")
+    return tuple(value)
+
+
+def _collateral_string(stage: dict[str, object], field: str) -> str:
+    value = stage.get(field)
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"collateral {field} is missing")
+    return value
+
+
+def _collateral_cursor_offset(cursor: str | None) -> int:
+    if cursor is None:
+        return 0
+    if not cursor.isdecimal():
+        raise _Problem(422, "INVALID_CURSOR", "Collateral cursor must be a non-negative integer")
+    return int(cursor)
+
+
+def _hedge_lab_projection_response(
+    *, snapshot_id: str, output: dict[str, object]
+) -> HedgeLabProjectionResponse:
+    """Present frozen S5 values in a typed read model without recalculation."""
+    try:
+        stage = _published_stage(output, snapshot_id, "hedge_liquidity")
+        result = _published_mapping(stage, "result")
+        exposure = _published_mapping(result, "exposure")
+        valuation = _published_mapping(result, "valuation")
+        liquidity = _published_mapping(result, "liquidity")
+        valuation_currency = _published_string(valuation, "currency")
+        liquidity_currency = _published_string(liquidity, "currency")
+        source_currency = _published_string(exposure, "fx_exposure_source_currency")
+        return HedgeLabProjectionResponse(
+            stage_output_id=_published_string(stage, "stage_output_id"),
+            snapshot_id=_published_string(stage, "snapshot_id"),
+            stage=_published_string(stage, "stage"),
+            stage_version=_published_string(stage, "stage_version"),
+            output_digest=_published_string(stage, "output_digest"),
+            completed_at=stage["completed_at"],
+            reason_codes=_published_strings(stage, "reason_codes"),
+            contract_specifications=tuple(
+                HedgeContractSpecificationResponse.model_validate(item)
+                for item in _published_rows(result, "contract_specifications")
+            ),
+            futures_positions=tuple(
+                HedgeFuturesPositionResponse(
+                    product_code=_published_string(item, "product_code"),
+                    delivery_month=_published_string(item, "delivery_month"),
+                    contracts=_published_string(item, "contracts"),
+                    delta_exposure=_published_string(item, "delta_exposure"),
+                    pnl=_published_money(item.get("pnl"), valuation_currency),
+                )
+                for item in _published_rows(result, "futures_positions")
+            ),
+            option_positions=tuple(
+                HedgeOptionPositionResponse(
+                    product_code=_published_string(item, "product_code"),
+                    delivery_month=_published_string(item, "delivery_month"),
+                    option_type=_published_string(item, "option_type"),
+                    contracts=_published_string(item, "contracts"),
+                    black76_reference_price=_published_string(item, "black76_reference_price"),
+                    authoritative_price=_published_string(item, "authoritative_price"),
+                    delta_exposure=_published_string(item, "delta_exposure"),
+                    value=_published_money(item.get("value"), valuation_currency),
+                    pnl=_published_money(item.get("pnl"), valuation_currency),
+                    delta=_published_string(item, "delta"),
+                    gamma=_published_string(item, "gamma"),
+                    vega=_published_string(item, "vega"),
+                    theta=_published_string(item, "theta"),
+                    rho=_published_string(item, "rho"),
+                )
+                for item in _published_rows(result, "option_positions")
+            ),
+            exposure=HedgeExposureResponse(
+                exposure_unit=_published_string(exposure, "exposure_unit"),
+                gross_physical_exposure=_published_string(exposure, "gross_physical_exposure"),
+                purchase_commitment_exposure=_published_string(
+                    exposure, "purchase_commitment_exposure"
+                ),
+                sales_commitment_exposure=_published_string(exposure, "sales_commitment_exposure"),
+                net_physical_exposure=_published_string(exposure, "net_physical_exposure"),
+                futures_exposure=_published_string(exposure, "futures_exposure"),
+                option_delta_equivalent=_published_string(exposure, "option_delta_equivalent"),
+                net_price_exposure=_published_string(exposure, "net_price_exposure"),
+                hedge_ratio=_published_optional_string(exposure, "hedge_ratio"),
+                under_hedge_amount=_published_string(exposure, "under_hedge_amount"),
+                over_hedge_amount=_published_string(exposure, "over_hedge_amount"),
+                fx_exposure=_published_money(
+                    exposure.get("fx_exposure"), _published_string(exposure, "fx_exposure_currency")
+                ),
+                fx_exposure_source=_published_money(
+                    exposure.get("fx_exposure_source_amount"), source_currency
+                ),
+                basis_exposure=_published_string(exposure, "basis_exposure"),
+                delivery_month_mismatch=tuple(
+                    HedgeDeliveryMonthResponse.model_validate(item)
+                    for item in _published_rows(exposure, "delivery_month_mismatch")
+                ),
+                concentration_by_month=tuple(
+                    HedgeConcentrationResponse.model_validate(item)
+                    for item in _published_rows(exposure, "concentration_by_month")
+                ),
+            ),
+            valuation=HedgeValuationResponse(
+                futures_pnl=_published_money(valuation.get("futures_pnl"), valuation_currency),
+                option_value=_published_money(valuation.get("option_value"), valuation_currency),
+                option_pnl=_published_money(valuation.get("option_pnl"), valuation_currency),
+                aggregate_greeks=_published_string_mapping(valuation, "aggregate_greeks"),
+            ),
+            liquidity=HedgeLiquidityResponse(
+                available_cash=_published_money(
+                    liquidity.get("available_cash"), liquidity_currency
+                ),
+                undrawn_contractual_availability=_published_money(
+                    liquidity.get("undrawn_contractual_availability"), liquidity_currency
+                ),
+                total_liquidity_available=_published_money(
+                    liquidity.get("total_liquidity_available"), liquidity_currency
+                ),
+                one_day_margin_stress=_published_money(
+                    liquidity.get("one_day_margin_stress"), liquidity_currency
+                ),
+                multi_day_margin_stress=_published_money(
+                    liquidity.get("multi_day_margin_stress"), liquidity_currency
+                ),
+                timing_mismatch=_published_money(
+                    liquidity.get("timing_mismatch"), liquidity_currency
+                ),
+                margin_call_shortfall=_published_money(
+                    liquidity.get("margin_call_shortfall"), liquidity_currency
+                ),
+                liquidity_coverage_ratio=_published_optional_string(
+                    liquidity, "liquidity_coverage_ratio"
+                ),
+                required_liquidity_reserve=_published_money(
+                    liquidity.get("required_liquidity_reserve"), liquidity_currency
+                ),
+                required_liquidity_coverage_ratio=_published_string(
+                    liquidity, "required_liquidity_coverage_ratio"
+                ),
+            ),
+        )
+    except (KeyError, TypeError, ValidationError, ValueError) as exc:
+        raise _Problem(
+            409,
+            "STAGE_PUBLICATION_FENCED",
+            "Published hedge/liquidity output is incomplete or has an unsupported schema",
+        ) from exc
+
+
+def _scenario_lab_projection_response(
+    *, snapshot_id: str, output: dict[str, object]
+) -> ScenarioLabProjectionResponse:
+    """Present frozen S6 values in a typed read model without recalculation."""
+    try:
+        stage = _published_stage(output, snapshot_id, "scenario_capacity")
+        scenario = _published_mapping(stage, "scenario")
+        monte_carlo = _published_mapping(scenario, "monte_carlo")
+        threshold = _published_mapping(monte_carlo, "threshold_stability")
+        irc = _published_mapping(scenario, "internal_risk_capacity")
+        currency = _published_string(scenario, "currency")
+        return ScenarioLabProjectionResponse(
+            stage_output_id=_published_string(stage, "stage_output_id"),
+            snapshot_id=_published_string(stage, "snapshot_id"),
+            stage=_published_string(stage, "stage"),
+            stage_version=_published_string(stage, "stage_version"),
+            output_digest=_published_string(stage, "output_digest"),
+            completed_at=stage["completed_at"],
+            reason_codes=_published_strings(stage, "reason_codes"),
+            scenario_version=_published_string(scenario, "scenario_version"),
+            monte_carlo=ScenarioMonteCarloResponse(
+                prng_family=_published_string(monte_carlo, "prng_family"),
+                seed_derivation=_published_string(monte_carlo, "seed_derivation"),
+                distribution_assumption=_published_string(monte_carlo, "distribution_assumption"),
+                regime_mixture=tuple(
+                    ScenarioRegimeResponse.model_validate(item)
+                    for item in _published_rows(monte_carlo, "regime_mixture")
+                ),
+                seed=_published_integer(monte_carlo, "seed"),
+                path_count=_published_integer(monte_carlo, "path_count"),
+                time_steps=_published_integer(monte_carlo, "time_steps"),
+                thread_count=_published_integer(monte_carlo, "thread_count"),
+                confidence_level=_published_string(monte_carlo, "confidence_level"),
+                correlation=_published_string(monte_carlo, "correlation"),
+                correlation_matrix=tuple(
+                    tuple(item)
+                    for item in _published_string_rows(monte_carlo, "correlation_matrix")
+                ),
+                value_at_risk=_published_money(monte_carlo.get("value_at_risk"), currency),
+                expected_shortfall=_published_money(
+                    monte_carlo.get("expected_shortfall"), currency
+                ),
+                cbb_deficiency_probability=_published_string(
+                    monte_carlo, "cbb_deficiency_probability"
+                ),
+                margin_liquidity_shortfall_probability=_published_string(
+                    monte_carlo, "margin_liquidity_shortfall_probability"
+                ),
+                expected_collateral_shortfall=_published_money(
+                    monte_carlo.get("expected_collateral_shortfall"), currency
+                ),
+                expected_margin_liquidity_shortfall=_published_money(
+                    monte_carlo.get("expected_margin_liquidity_shortfall"), currency
+                ),
+                threshold_stability=ScenarioThresholdStabilityResponse(
+                    lower_confidence_level=_published_string(threshold, "lower_confidence_level"),
+                    upper_confidence_level=_published_string(threshold, "upper_confidence_level"),
+                    lower_value_at_risk=_published_money(
+                        threshold.get("lower_value_at_risk"), currency
+                    ),
+                    upper_value_at_risk=_published_money(
+                        threshold.get("upper_value_at_risk"), currency
+                    ),
+                    band_width=_published_money(threshold.get("band_width"), currency),
+                ),
+                tail_contribution_by_factor=_published_string_mapping(
+                    monte_carlo, "tail_contribution_by_factor"
+                ),
+                hedge_effectiveness_distribution=HedgeEffectivenessDistributionResponse.model_validate(
+                    _published_mapping(monte_carlo, "hedge_effectiveness_distribution")
+                ),
+            ),
+            deterministic_scenarios=tuple(
+                DeterministicScenarioResponse(
+                    scenario_id=_published_string(item, "scenario_id"),
+                    family=_published_string(item, "family"),
+                    stressed_cbb=_published_money(item.get("stressed_cbb"), currency),
+                    cbb_deficiency=_published_money(item.get("cbb_deficiency"), currency),
+                    margin_liquidity_shortfall=_published_money(
+                        item.get("margin_liquidity_shortfall"), currency
+                    ),
+                    loss=_published_money(item.get("loss"), currency),
+                )
+                for item in _published_rows(scenario, "deterministic_scenarios")
+            ),
+            worst_scenario_families=tuple(
+                WorstScenarioFamilyResponse(
+                    family=_published_string(item, "family"),
+                    loss=_published_money(item.get("loss"), currency),
+                )
+                for item in _published_rows(scenario, "worst_scenario_families")
+            ),
+            internal_risk_capacity=InternalRiskCapacityResponse(
+                risk_buffer=_published_money(irc.get("risk_buffer"), currency),
+                tail_loss_buffer=_published_money(irc.get("tail_loss_buffer"), currency),
+                liquidity_buffer=_published_money(irc.get("liquidity_buffer"), currency),
+                counterparty_buffer=_published_money(irc.get("counterparty_buffer"), currency),
+                climate_evidence_buffer=_published_money(
+                    irc.get("climate_evidence_buffer"), currency
+                ),
+                uncapped_irc=_published_money(irc.get("uncapped_irc"), currency),
+                irc=_published_money(irc.get("irc"), currency),
+                cbb=_published_money(irc.get("cbb"), currency),
+                facility_commitment=_published_money(irc.get("facility_commitment"), currency),
+            ),
+        )
+    except (KeyError, TypeError, ValidationError, ValueError) as exc:
+        raise _Problem(
+            409,
+            "STAGE_PUBLICATION_FENCED",
+            "Published scenario-capacity output is incomplete or has an unsupported schema",
+        ) from exc
+
+
+def _published_stage(output: dict[str, object], snapshot_id: str, stage: str) -> dict[str, object]:
+    if output.get("snapshot_id") != snapshot_id or output.get("stage") != stage:
+        raise ValueError("published stage is not bound to the selected snapshot")
+    return output
+
+
+def _published_mapping(value: dict[str, object], field: str) -> dict[str, object]:
+    result = value.get(field)
+    if not isinstance(result, dict):
+        raise ValueError(f"published {field} is missing")
+    return result
+
+
+def _published_rows(value: dict[str, object], field: str) -> tuple[dict[str, object], ...]:
+    rows = value.get(field)
+    if not isinstance(rows, list) or not all(isinstance(item, dict) for item in rows):
+        raise ValueError(f"published {field} rows are missing")
+    return tuple(rows)
+
+
+def _published_string_rows(value: dict[str, object], field: str) -> tuple[tuple[str, ...], ...]:
+    rows = value.get(field)
+    if not isinstance(rows, list) or not all(
+        isinstance(row, list) and all(isinstance(item, str) for item in row) for row in rows
+    ):
+        raise ValueError(f"published {field} rows are missing")
+    return tuple(tuple(row) for row in rows)
+
+
+def _published_strings(value: dict[str, object], field: str) -> tuple[str, ...]:
+    values = value.get(field)
+    if not isinstance(values, list) or not all(isinstance(item, str) for item in values):
+        raise ValueError(f"published {field} is missing")
+    return tuple(values)
+
+
+def _published_string(value: dict[str, object], field: str) -> str:
+    result = value.get(field)
+    if not isinstance(result, str) or not result:
+        raise ValueError(f"published {field} is missing")
+    return result
+
+
+def _published_optional_string(value: dict[str, object], field: str) -> str | None:
+    result = value.get(field)
+    if result is None:
+        return None
+    if not isinstance(result, str):
+        raise ValueError(f"published {field} has an unsupported type")
+    return result
+
+
+def _published_integer(value: dict[str, object], field: str) -> int:
+    result = value.get(field)
+    if not isinstance(result, int):
+        raise ValueError(f"published {field} is missing")
+    return result
+
+
+def _published_string_mapping(value: dict[str, object], field: str) -> dict[str, str]:
+    result = _published_mapping(value, field)
+    if not all(isinstance(key, str) and isinstance(item, str) for key, item in result.items()):
+        raise ValueError(f"published {field} has an unsupported type")
+    return result
+
+
+def _published_money(value: object, currency: str) -> MoneyResponse:
+    if not isinstance(value, str) or not value:
+        raise ValueError("published monetary value is missing")
+    return MoneyResponse(amount=value, currency=currency)
+
+
+def _recommendation_detail_response(recommendation: Any) -> RecommendationDetailResponse:
+    return RecommendationDetailResponse(
+        recommendation_id=recommendation.resource_id,
+        snapshot_id=recommendation.snapshot_id,
+        author_id=recommendation.author_id,
+        requested_amount=_money_response(recommendation.requested_amount),
+        contractual_availability=_money_response(recommendation.contractual_availability),
+        internal_risk_capacity=_money_response(recommendation.internal_risk_capacity),
+        recommended_exposure_cap=_money_response(recommendation.recommended_exposure_cap),
+        recommended_incremental_draw=_money_response(recommendation.recommended_incremental_draw),
+        compared_limits=dict(recommendation.compared_limits),
+        binding_constraint=recommendation.binding_constraint,
+        recommendation_class=recommendation.recommendation_class.value,
+        conditions=tuple(recommendation.conditions),
+        reason_codes=tuple(recommendation.reason_codes),
+        output_digests=tuple(recommendation.output_digests),
+        policy_bundle_digest=recommendation.policy_bundle_digest,
+        expires_at=recommendation.expires_at,
+        created_at=recommendation.created_at,
+        digest=recommendation.digest,
+    )
+
+
+def _final_decision_response(decision: Any) -> GovernanceResourceResponse:
+    return GovernanceResourceResponse(
+        resource_id=decision.resource_id,
+        digest=decision.digest,
+        kind="final_decision",
+        status=decision.status.value,
+        superseded_by=decision.superseded_by,
+    )
+
+
+def _approval_request_detail_response(
+    request: Any, recommendation: Any, *, now: datetime
+) -> ApprovalRequestDetailResponse:
+    return ApprovalRequestDetailResponse(
+        approval_request_id=request.resource_id,
+        recommendation=_recommendation_detail_response(recommendation),
+        author_id=recommendation.author_id,
+        requested_by=request.requested_by,
+        expires_at=request.expires_at,
+        created_at=request.created_at,
+        digest=request.digest,
+        expired=request.expires_at <= now,
+        self_approval_prohibited=True,
+    )
+
+
 def _evidence_document_response(document: DocumentVersion) -> EvidenceDocumentResponse:
     return EvidenceDocumentResponse(
         document_id=document.document_id,
@@ -2143,6 +3341,59 @@ def _evidence_document_response(document: DocumentVersion) -> EvidenceDocumentRe
         size_bytes=document.size_bytes,
         created_by=document.created_by,
         created_at=document.created_at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+    )
+
+
+def _evidence_document_rendition_response(
+    document: DocumentVersion, content: bytes
+) -> EvidenceDocumentRenditionResponse:
+    """Expose only a bounded plain-text rendition; originals remain attachment-only."""
+    if document.content_type.lower() not in {"text/plain", "text/csv", "application/json"}:
+        return EvidenceDocumentRenditionResponse(
+            document_version_id=document.resource_id,
+            filename=document.filename,
+            content_type=document.content_type,
+            byte_digest=document.byte_digest,
+            preview_status="unsupported",
+            preview_text=None,
+            truncated=False,
+        )
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        return EvidenceDocumentRenditionResponse(
+            document_version_id=document.resource_id,
+            filename=document.filename,
+            content_type=document.content_type,
+            byte_digest=document.byte_digest,
+            preview_status="unsupported",
+            preview_text=None,
+            truncated=False,
+        )
+    preview_limit = 12_000
+    preview = "".join(
+        character
+        for character in text[:preview_limit]
+        if character in {"\n", "\r", "\t"} or ord(character) >= 32
+    )
+    return EvidenceDocumentRenditionResponse(
+        document_version_id=document.resource_id,
+        filename=document.filename,
+        content_type=document.content_type,
+        byte_digest=document.byte_digest,
+        preview_status="available",
+        preview_text=preview,
+        truncated=len(text) > preview_limit,
+    )
+
+
+def _download_filename(filename: str) -> str:
+    return (
+        "".join(
+            character if 32 <= ord(character) < 127 and character not in {'"', "\\", "/"} else "_"
+            for character in filename
+        )
+        or "evidence-document"
     )
 
 
@@ -2171,6 +3422,7 @@ def _approved_fact_response(fact: ApprovedFact) -> ApprovedFactResponse:
     return ApprovedFactResponse(
         approved_fact_id=fact.fact_id,
         approval_state="approved",
+        is_active=fact.is_active,
         digest=approved_fact_digest(fact),
         lineage=EvidenceLineageResponse(
             candidate_fact_id=fact.candidate_fact_id,
@@ -2434,6 +3686,30 @@ def _quantity_reconciliation_response(
         expected_quantity=record.issue.expected_quantity,
         receipt_quantity=record.issue.receipt_quantity,
         difference=record.issue.difference,
+    )
+
+
+def _decision_override_detail_response(
+    value: DecisionOverride,
+    *,
+    now: datetime,
+) -> DecisionOverrideDetailResponse:
+    approvals_required = 2 if value.requires_dual_control else 1
+    return DecisionOverrideDetailResponse(
+        override_id=value.resource_id,
+        original_decision_id=value.original_decision_id,
+        recommendation_id=value.recommendation_id,
+        requester_id=value.requester_id,
+        proposed_exposure_cap=_money_response(value.proposed_exposure_cap),
+        reason=value.reason,
+        policy_basis=value.policy_basis,
+        expires_at=value.expires_at,
+        created_at=value.created_at,
+        digest=value.digest,
+        requires_dual_control=value.requires_dual_control,
+        approval_count=len(value.approval_actions),
+        approvals_required=approvals_required,
+        expired=value.expires_at <= now,
     )
 
 
