@@ -18,8 +18,9 @@ import { AuthorityBadge } from "@/components/authority-badge";
 import { Icon } from "@/components/icon";
 import type { ApprovalWorkspaceData, LoadedWorkspace, WorkspaceData } from "@/lib/api/load-workspace";
 import type { WorkspaceSlug } from "@/lib/context";
+import { formatMoney } from "@/lib/money";
 
-const money = (value: MoneyResponse) => new Intl.NumberFormat(undefined, { style: "currency", currency: value.currency, maximumFractionDigits: 0 }).format(Number(value.amount));
+const money = (value: MoneyResponse) => formatMoney(value);
 const stamp = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(new Date(value)) + " UTC";
 
 function Lineage({ snapshotId, digest, stage, timestamp }: { readonly snapshotId: string; readonly digest?: string; readonly stage?: string; readonly timestamp?: string }) {
@@ -37,9 +38,12 @@ function JsonProjection({ value }: { readonly value: Record<string, unknown> }) 
 
 function Cockpit({ data, returnPath }: { readonly data: DecisionPackResponse; readonly returnPath: string }) {
   const metrics = [
+    ["Facility commitment", data.facility_commitment, "availability"],
+    ["Current exposure", data.outstanding_exposure, "approved"],
     ["Contractual borrowing base", data.contractual_borrowing_base, "cbb"],
     ["Contractual availability", data.contractual_availability, "availability"],
     ["Internal risk capacity", data.internal_risk_capacity, "irc"],
+    ["Liquidity cap", data.liquidity_cap, "irc"],
     ["Approved unfunded exposure", data.approved_unfunded_exposure, "approved"],
   ] as const;
   return <div className="workspace-page"><section className="workspace-heading"><div><span className="eyebrow">Facility cockpit · frozen snapshot</span><h1>Governed capacity, never browser-calculated</h1><p>CBB and IRC remain independent authoritative values. Recommendation and final decision are separate records.</p></div><AuthorityBadge kind="frozen" /></section><section className="metric-grid">{metrics.map(([label, value, tone]) => <article className={`metric-card metric-card--${tone}`} key={label}><span>{label}</span><strong>{money(value)}</strong><small>{value.currency} · returned by API</small></article>)}</section><section className="decision-grid"><article className="panel decision-card"><span className="eyebrow">Advisory recommendation</span><h2>{data.recommendation ? money(data.recommendation.recommended_exposure_cap) : "No recommendation published"}</h2><p>{data.recommendation ? `Binding constraint: ${data.recommendation.binding_constraint}` : "A recommendation is optional and never a final credit decision."}</p>{data.recommendation && <Lineage snapshotId={data.snapshot_id} digest={data.recommendation.digest} timestamp={data.recommendation.created_at} />}</article><article className="panel decision-card decision-card--final"><span className="eyebrow">Human final decision</span><h2>{data.final_decision ? "Recorded decision" : "Awaiting independent approval"}</h2><p>{data.final_decision ? "A final decision is retained separately from the recommendation." : "Approval cannot be implied from capacity or evidence."}</p><AuthorityBadge kind={data.final_decision ? "final" : "unavailable"} />{data.final_decision && <OverrideActions currency={data.approved_unfunded_exposure.currency} decisionId={data.final_decision.resource_id} returnPath={returnPath} />}</article></section><Blockers items={data.blockers} /><Lineage snapshotId={data.snapshot_id} digest={data.cbb_output_digest} stage="CBB certificate" /><section className="projection-pair"><article className="panel"><h2>Hedge liquidity projection</h2><JsonProjection value={data.hedge_liquidity} /></article><article className="panel"><h2>Scenario projection</h2><JsonProjection value={data.scenario} /></article></section></div>;

@@ -5,9 +5,10 @@ import { AuthorityBadge } from "@/components/authority-badge";
 import { Icon } from "@/components/icon";
 import { OverrideApprovalActions } from "@/components/override-approval-actions";
 import type { LoadedContext } from "@/lib/api/load-context";
+import { formatMoney } from "@/lib/money";
 
 const stamp = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(new Date(value)) + " UTC";
-const money = (value: { readonly amount: string; readonly currency: string }) => new Intl.NumberFormat(undefined, { style: "currency", currency: value.currency, maximumFractionDigits: 0 }).format(Number(value.amount));
+const money = (value: { readonly amount: string; readonly currency: string }) => formatMoney(value);
 
 export function OverrideReviewDetail({ context, override, error, facilityId, snapshotId }: { readonly context: LoadedContext; readonly override?: DecisionOverrideDetailResponse; readonly error?: string; readonly facilityId: string; readonly snapshotId: string }) {
   const status = context.kind === "snapshot" ? "frozen" : "unavailable";

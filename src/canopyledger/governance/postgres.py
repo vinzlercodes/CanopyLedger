@@ -92,6 +92,10 @@ class PostgresGovernanceService:
         with self._engine.connect() as connection:
             return self._load(connection).get_current_decision(snapshot_id)
 
+    def get_current_recommendation(self, snapshot_id: str) -> Recommendation | None:
+        with self._engine.connect() as connection:
+            return self._load(connection).get_current_recommendation(snapshot_id)
+
     def get_override(self, resource_id: str) -> DecisionOverride:
         with self._engine.connect() as connection:
             return self._load(connection).get_override(resource_id)
