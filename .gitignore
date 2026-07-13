@@ -21,6 +21,7 @@ PROGRESS.md
 docs/contracts/
 docs/research/
 docs/superpowers/
+docs/plans/
 dist/
 build/
 *.egg-info/
