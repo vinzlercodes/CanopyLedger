@@ -296,21 +296,31 @@ The repeatable UI test uses the following complete, internally consistent
 read-only fixture. It is the best set of values to use when comparing the
 screens in this guide with the automated browser contract.
 
+> **Do not expect these IDs alone to open a populated browser workspace.** In a
+> normal navigation there is no incoming `Authorization` header and the
+> fixture API is not running, so the correct result is **Authoritative state
+> unavailable** followed by **Authentication or role access is required**.
+> This is intentional non-disclosure, not a mismatched facility/snapshot pair.
+
 | Field | Value | Expected context detail |
 |---|---|---|
-| Facility ID | `fac_0198a000-0000-7000-8000-000000000801` | `Fixture Coffee Trader`, USD, facility commitment `120,000.00` |
-| Immutable snapshot ID | `snp_0198a000-0000-7000-8000-000000000801` | Belongs to the fixture facility and opens the frozen routes below |
+| Facility ID | `fac_0198a000-0000-7000-8000-000000000801` | Fixture reference: `Fixture Coffee Trader`, USD, facility commitment `120,000.00` |
+| Immutable snapshot ID | `snp_0198a000-0000-7000-8000-000000000801` | Fixture reference: belongs to the fixture facility used by the automated test |
 | Analyst header | `Authorization: Bearer analyst-demo-token` | Cockpit, Collateral, Evidence, Hedge Lab, and Scenario Lab |
 | Approver header | `Authorization: Bearer approver-demo-token` | Approval workspace |
 
-These identifiers and headers exist only in the fixture API launched by
+The identifiers exist only in the fixture API launched internally by
 `npm --prefix apps/web run test:e2e`; the default in-memory FastAPI server is
-deliberately not seeded with them. If you have a proxy that injects the stated
-header into every request and a fixture API compatible with the test, entering
-the two IDs opens the data-bearing UI. Otherwise, use the command in section
-8.12 as the reproducible visual reference.
+deliberately not seeded with them. The test also sends its bearer header
+server-side. Consequently, it is the supported reproducible data-bearing UI
+demonstration. A plain browser at `localhost:3000`, even after entering both
+IDs, is expected to show the protected-access state. Only a separately
+configured fixture API plus a development proxy that injects the stated header
+on every request could make these reference values interactive.
 
-1. Click the **Facility ID** field and enter a permitted facility identifier beginning with `fac_`.
+To use the picker interactively with a real authorized deployment:
+
+1. Click the **Facility ID** field and enter a facility identifier beginning with `fac_` that the deployment exposes to the current principal.
 2. For a working-facility view, leave **Immutable snapshot ID** empty.
 3. Click **Open context**.
 4. Expect the browser URL to become `/facilities/{facilityId}/cockpit`.
@@ -318,11 +328,11 @@ the two IDs opens the data-bearing UI. Otherwise, use the command in section
 
 To open a frozen workspace instead:
 
-1. Enter the same facility identifier.
-2. Click **Immutable snapshot ID** and enter the selected snapshot identifier beginning with `snp_`.
+1. Enter that same authorized facility identifier.
+2. Click **Immutable snapshot ID** and enter a snapshot identifier beginning with `snp_` that the deployment exposes for that facility.
 3. Click **Open context**.
 4. Expect the browser URL to become `/facilities/{facilityId}/snapshots/{snapshotId}/cockpit`.
-5. The authority badge reads `Frozen snapshot` only after FastAPI confirms that the snapshot belongs to the facility.
+5. The authority badge reads `Frozen snapshot` only after FastAPI receives an authenticated request and confirms that the snapshot belongs to the facility.
 
 The snapshot field cannot stand alone. If you enter a snapshot without a facility, the client rejects the context and does not navigate. Supply both IDs rather than trying to infer a facility from a snapshot.
 
