@@ -122,7 +122,23 @@ eligibility_and_reserves
 contractual_borrowing_base
 ```
 
-It also verifies the fixture’s contractual availability is `104034.45` and that the certificate and final stage include immutable output digests. The same test exercises `canopyledger-cbb-demo`, the CLI that writes a canonical CBB certificate JSON file.
+The test supplies this exact synthetic fixture, so these are the values to
+recognize in its assertions and any equivalent API run:
+
+| Pipeline input or result | Value |
+|---|---|
+| Facility / snapshot / certificate | `fac_0198a000-0000-7000-8000-000000000001` / `snp_0198a000-0000-7000-8000-000000000001` / `cbb_0198a000-0000-7000-8000-000000000001` |
+| Facility limit and contractual usage | EUR `500,000.00`; principal EUR `20,000.00`, LC EUR `5,000.00`, other EUR `10,000.00` |
+| Inventory lot | `lot_0198a000-0000-7000-8000-000000000001`, `18.4 metric_tonne` of `KC`, advance rate `0.65` |
+| Market input | `KC` USD `5,871.42` per metric tonne; EUR/USD `0.918` |
+| Receivable | `rec_0198a000-0000-7000-8000-000000000001`; invoice USD `125,000.00`, credit note USD `2,500.00`, advance rate `0.80` |
+| Documentation reserve | EUR `12,485.62` |
+| Expected result | contractual availability EUR `104,034.45` |
+
+Both the certificate and the final `contractual_borrowing_base` stage include
+immutable `sha256:` output digests. The same test exercises
+`canopyledger-cbb-demo`, the CLI that writes a canonical CBB certificate JSON
+file.
 
 ## 5. Backend: inspect hedge/liquidity and scenario/IRC boundaries
 
@@ -138,6 +154,31 @@ They prove two important boundaries:
 2. Snapshot hedge/liquidity and scenario routes return only frozen, published stage outputs. The scenario result preserves the invariant `IRC <= CBB`; it does not overwrite CBB.
 
 For a complete request body and expected hedge result, inspect `tests/test_m3_demo_surface.py`. It intentionally includes both price-risk reduction and a margin-liquidity shortfall, so the demo never equates “more hedged” with “automatically safer.”
+
+The focused tests use the following values; use them to read the results rather
+than treating the preview as an authoritative published output:
+
+| Hedge/liquidity preview | Exact fixture value |
+|---|---|
+| Assessment / snapshot / date | `hdl_0198a000-0000-7000-8000-000000000001` / `snp_0198a000-0000-7000-8000-000000000001` / `2026-06-21` |
+| Physical and futures position | `100 metric_tonne` of `KC` for `2026-09`; `-5` ICE KC contracts |
+| Futures prices | entry `180`, current `200` US cents per pound |
+| Cash and undrawn availability | USD `5,000.00` and USD `3,000.00` |
+| Stress moves | one-day `8`, multi-day `25` for `KC` |
+| Expected preview outcome | `authoritativeness: "preview"`, no `stage` or `output_digest` |
+| Key result | futures P&L USD `-37,500.00`; hedge ratio `0.85048569`; margin-call shortfall USD `38,875.00`; liquidity coverage `0.17066667` |
+| Reason codes | `HEDGE_REDUCES_PRICE_EXPOSURE`, `MARGIN_LIQUIDITY_SHORTFALL` |
+
+The scenario fixture uses the same snapshot ID with CBB USD `100,000.00`,
+facility commitment USD `120,000.00`, outstanding exposure USD `85,000.00`,
+base margin call USD `15,000.00`, and available liquidity USD `12,000.00`.
+It uses scenario version `coffee-scenarios-v1`, PRNG
+`python-mt19937-v1`, seed `41`, `500` paths, `5` time steps, confidence
+`0.95`, and correlation `0.35`. Expect its `price-decline` scenario to have a
+stressed CBB below USD `100,000.00`, its `rally-margin` scenario to have a
+margin-liquidity shortfall of USD `18,000.00`, and the returned IRC to remain
+at or below CBB. These are frozen-output checks; no browser or preview request
+may calculate or replace them.
 
 ## 6. Backend: create and approve a governed decision
 
@@ -249,6 +290,26 @@ Those are functional boundaries, not marketing copy: every number in a populated
 
 The context picker establishes the routes that every workspace uses.
 
+#### Use the checked-in UI fixture values
+
+The repeatable UI test uses the following complete, internally consistent
+read-only fixture. It is the best set of values to use when comparing the
+screens in this guide with the automated browser contract.
+
+| Field | Value | Expected context detail |
+|---|---|---|
+| Facility ID | `fac_0198a000-0000-7000-8000-000000000801` | `Fixture Coffee Trader`, USD, facility commitment `120,000.00` |
+| Immutable snapshot ID | `snp_0198a000-0000-7000-8000-000000000801` | Belongs to the fixture facility and opens the frozen routes below |
+| Analyst header | `Authorization: Bearer analyst-demo-token` | Cockpit, Collateral, Evidence, Hedge Lab, and Scenario Lab |
+| Approver header | `Authorization: Bearer approver-demo-token` | Approval workspace |
+
+These identifiers and headers exist only in the fixture API launched by
+`npm --prefix apps/web run test:e2e`; the default in-memory FastAPI server is
+deliberately not seeded with them. If you have a proxy that injects the stated
+header into every request and a fixture API compatible with the test, entering
+the two IDs opens the data-bearing UI. Otherwise, use the command in section
+8.12 as the reproducible visual reference.
+
 1. Click the **Facility ID** field and enter a permitted facility identifier beginning with `fac_`.
 2. For a working-facility view, leave **Immutable snapshot ID** empty.
 3. Click **Open context**.
@@ -297,6 +358,27 @@ Check the page in this order:
 6. Read **Constraints and blockers**. Reason codes remain visible; do not dismiss a blocker because a high-level capacity number looks acceptable.
 7. Compare the raw server-issued **Hedge liquidity projection** and **Scenario projection** panels. They are presented as projections, not reimplemented browser formulas.
 
+Using the fixture values above, the cards should show the following. These are
+server responses to look for, not numbers to type into the browser:
+
+| Cockpit element | Expected value |
+|---|---|
+| Facility commitment | USD `120,000.00` |
+| Current exposure | USD `20,000.00` |
+| Contractual borrowing base | USD `100,000.00` (`sha256:cbb`) |
+| Contractual availability | USD `75,000.00` |
+| Internal risk capacity | USD `90,000.00` (`sha256:scenario`) |
+| Liquidity cap | USD `95,000.00` (`sha256:hedge`) |
+| Approved unfunded exposure | USD `5,000.00` |
+| Policy cap | USD `85,000.00` (`sha256:policy`) |
+| Hedge-liquidity projection | liquidity coverage ratio `1.12` |
+| Scenario projection | expected shortfall USD `12,000.00` |
+| Constraint | `MARGIN_STRESS` |
+
+This fixture intentionally has no recommendation or final decision. Therefore
+**No recommendation published** and an awaiting-approval state are the correct
+outcome; no override control is expected.
+
 If there is a recorded final decision, the Cockpit also exposes **Request dual-control override**. That action is explained in section 8.11; do not use it to modify the original recommendation.
 
 ### 8.6 Walk through Collateral
@@ -317,6 +399,15 @@ Use the section tabs in this order:
 For every tab, inspect the line above the table: it says **Frozen server page** and identifies the authoritative row count and page size. If **Next authoritative page** appears, click it to request the API cursor for the next page; do not use client-side sorting or pagination to create an authoritative view.
 
 At the bottom, inspect **Constraints and blockers** and expand **Authoritative lineage**. Inventory and receivables are tied to the collateral-valuation stage; contributions and reserves are tied to eligibility/reserves. Record the selected snapshot and output digest if you are discussing a row outside the UI.
+
+With the fixture context, **Inventory** has one authoritative row (`1` total,
+page size `25`): lot `lot-1`, input and normalized quantity `50 metric_tonne`,
+conversion table `m1b-v1`, gross market value USD `100,000.00`, net recovery
+value USD `90,000.00`, and advanced value USD `70,000.00`. Expect reason code
+`MARGIN_STRESS`. The lineage identifies `out_collateral` / `m1b-1` /
+`sha256:collateral` and `out_eligibility` / `m1b-1` / `sha256:eligibility`.
+The other fixture tabs are empty, so their empty state—not invented rows—is the
+expected result.
 
 ### 8.7 Walk through Evidence and its actions
 
@@ -346,6 +437,27 @@ To correct rather than approve/reject:
 
 Supersession preserves the original approved fact and its historical snapshot references. It does not rewrite the earlier fact.
 
+For a concrete read-only review example, open candidate `cf_1`. The queue row
+is a `warehouse_receipt` for subject `lot-1`, period `2026-07`, with normalized
+value `50`, document version `docv_1`, byte digest `sha256:fixture`, page
+region `page 1`, and extractor `human` version `1`. The review packet compares
+candidate value `{ "quantity": "50" }` and raw value `50 bags`. Its safe text
+rendition is `receipt.txt` (`text/plain`) with preview:
+
+```text
+Warehouse receipt
+Lot KC-01
+```
+
+The fixture is intentionally read-only: it demonstrates inspection,
+attachment handling, and lineage but does not expose an evidence mutation
+endpoint. To exercise **Approve fact**, **Reject fact**, or correction fields,
+use an authorized environment that supplies a pending candidate and mutation
+permissions. A useful correction example for a receipt-backed lot is raw value
+`48 bags`, normalized value `48`, and corrected JSON
+`{"quantity":"48"}`; the UI must still show it as a candidate until an
+independent human action approves it.
+
 ### 8.8 Walk through Hedge Lab
 
 Click **Hedge Lab**. Check that the page identifies a published hedge-and-liquidity output and has a `Published output` badge.
@@ -362,6 +474,21 @@ Read the page from top to bottom:
 
 Do not expect trade-entry controls. This is an analysis view of a frozen output, not an execution interface.
 
+The fixture output gives you concrete checks for each panel:
+
+| Hedge Lab element | Expected value |
+|---|---|
+| Net price exposure / hedge ratio | `71,019.428 kilogram` / `0.58` |
+| Gross / net physical | `50,000` / `45,000 kilogram` |
+| Futures / option delta | `34,019.428` / `-8,000 kilogram` |
+| Liquidity coverage / margin shortfall | `2.50` / USD `0.00` |
+| Available cash + undrawn availability | USD `10,000.00` + USD `15,000.00` = USD `25,000.00` |
+| One-day / multi-day margin stress | USD `5,000.00` / USD `10,000.00` |
+| Futures position | `KC`, delivery `2026-09`, `2` contracts, P&L USD `1,200.00` |
+| Option position | `KC` put, delivery `2026-12`, `1` contract, value USD `700.00`, P&L USD `-100.00` |
+| Exchange source | ICE `KC`; `37,500 pound` contract, digest `sha256:spec` |
+| Published lineage / constraint | `out_hedge`, `sha256:hedge`, `MARGIN_STRESS` |
+
 ### 8.9 Walk through Scenario Lab
 
 Click **Scenario Lab**. The page is a published scenario/capacity projection.
@@ -375,6 +502,21 @@ Click **Scenario Lab**. The page is a published scenario/capacity projection.
 7. Inspect reason codes and the final lineage disclosure.
 
 The page shows frozen scenario results. It does not provide a browser control to alter seeds, shocks, or capacity rules.
+
+For the fixture snapshot, expect contractual CBB USD `100,000.00`, uncapped
+and governed IRC each USD `68,500.00`, and expected shortfall USD `18,000.00`.
+The Monte Carlo disclosure shows scenario version `2026.07`, `MT19937`, seed
+`7` derived from the snapshot digest, normal distribution, `1,000` paths,
+`10` time steps, confidence `0.99`, and correlation `0.40`. Its VaR is USD
+`15,000.00`; the stability band is USD `13,000.00`–`17,000.00`.
+
+In the remaining panels, verify risk/tail/liquidity/counterparty/climate buffers
+of USD `10,000.00` / `18,000.00` / `2,000.00` / `1,000.00` / `500.00`;
+CBB-deficiency and margin-shortfall probabilities `0.10` and `0.05`; expected
+collateral and margin shortfalls USD `3,000.00` and `2,000.00`; and the
+`stress-price` row with stressed CBB USD `75,000.00`, margin shortfall USD
+`2,000.00`, and loss USD `27,000.00`. The lineage is `out_scenario` /
+`sha256:scenario`, with reason code `IRC_POLICY_CAP_BINDS`.
 
 ### 8.10 Walk through the Approval workspace
 
@@ -397,6 +539,19 @@ Do not use the analyst identity to approve an analyst-created request. The API r
 
 Below the approval queue, inspect **Override review queue** and **Snapshot audit timeline**. An empty queue or timeline is meaningful: it means no visible request/event has been returned for the selected snapshot.
 
+The checked-in fixture intentionally returns empty approval, override, and
+timeline lists. So, with its IDs, **Independent human approval queue** followed
+by the empty-state guidance is the expected screen. It is not evidence that an
+approval request has been silently approved or rejected.
+
+For a data-bearing approval environment, select an existing request returned by
+that environment—never invent an ID in the URL—and check these example field
+values before deciding: recommended cap USD `85,000.00`, binding constraint
+`MARGIN_STRESS`, a future expiry such as `2030-07-12T00:00:00Z`, and decision
+reason `Reviewed fixture warehouse receipt and margin-stress constraint.` The
+last value is an example explanation to enter, not a substitute for the
+server-issued recommendation, requester, snapshot, or digest.
+
 ### 8.11 Request and approve a dual-control override
 
 This path is visible only after Cockpit shows **Recorded decision**.
@@ -418,6 +573,15 @@ To review it:
 5. Expect **Override approval recorded. The API enforces dual control.**
 
 The request form disappears once the required approval count is reached or the request expires. The original decision and recommendation remain visible and traceable throughout.
+
+If your authorized environment contains a recorded final decision, safe example
+form values are proposed exposure cap `80000.00` (in the displayed decision
+currency, normally USD), policy basis `credit-policy-7.2`, expiry
+`2030-07-12T00:00:00Z`, and reason `Temporary exception while margin-stress
+evidence is independently reviewed.` These values do not make a request valid
+on their own: the server must already return the original final decision and
+recommendation, and it must accept the requesting actor. On the fixture in this
+guide, the form correctly remains absent because there is no final decision.
 
 ### 8.12 Use the fixture-backed walkthrough as the reproducible UI reference
 
