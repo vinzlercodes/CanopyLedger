@@ -157,6 +157,15 @@ class PostgresEvidenceStore:
             )
         return None if row is None else _document_version_from_row(row)
 
+    def get_document_original_bytes(self, document_version_id: str) -> bytes | None:
+        with self._engine.connect() as connection:
+            value = connection.execute(
+                select(evidence_document_version.c.original_bytes).where(
+                    evidence_document_version.c.resource_id == document_version_id
+                )
+            ).scalar_one_or_none()
+        return None if value is None else bytes(value)
+
     def insert_candidate_fact(self, candidate: CandidateFact) -> None:
         try:
             with self._engine.begin() as connection:
@@ -195,6 +204,21 @@ class PostgresEvidenceStore:
                 .one_or_none()
             )
         return None if row is None else _candidate_fact_from_row(row)
+
+    def list_candidate_facts(self, *, limit: int) -> tuple[CandidateFact, ...]:
+        with self._engine.connect() as connection:
+            rows = (
+                connection.execute(
+                    select(candidate_fact)
+                    .order_by(
+                        candidate_fact.c.extracted_at.desc(), candidate_fact.c.resource_id.desc()
+                    )
+                    .limit(limit)
+                )
+                .mappings()
+                .all()
+            )
+        return tuple(_candidate_fact_from_row(row) for row in rows)
 
     def get_approved_fact_for_candidate(self, candidate_fact_id: str) -> ApprovedFact | None:
         with self._engine.connect() as connection:
