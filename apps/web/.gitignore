@@ -1,4 +1,5 @@
 node_modules/
 .next/
 .next-e2e/
+next-env.d.ts
 *.tsbuildinfo

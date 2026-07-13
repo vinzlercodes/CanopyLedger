@@ -342,6 +342,27 @@ def test_decision_pack_keeps_cbb_and_irc_separate_with_frozen_lineage() -> None:
     assert "MARGIN_STRESS" in payload["blockers"]
 
 
+def test_decision_pack_exposes_pending_recommendation_before_human_decision() -> None:
+    governance = GovernanceService(clock=lambda: NOW)
+    _approval_queue(governance)
+
+    response = TestClient(_app(governance)).get(
+        f"/api/v1/snapshots/{SNAPSHOT_ID}/decision-pack", headers=ANALYST
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["final_decision"] is None
+    assert (
+        payload["recommendation"]["recommendation_id"]
+        == "rec_0198a000-0000-7000-8000-000000000801"
+    )
+    assert payload["recommendation"]["recommended_exposure_cap"] == {
+        "amount": "85000.00",
+        "currency": "USD",
+    }
+
+
 def test_collateral_read_projection_is_typed_paginated_and_retains_stage_lineage() -> None:
     response = TestClient(_app()).get(
         f"/api/v1/snapshots/{SNAPSHOT_ID}/collateral?section=inventory&limit=1", headers=ANALYST

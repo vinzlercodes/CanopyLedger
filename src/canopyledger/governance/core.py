@@ -644,6 +644,19 @@ class GovernanceService:
             raise GovernanceError("snapshot has multiple current final decisions")
         return current[0] if current else None
 
+    def get_current_recommendation(self, snapshot_id: str) -> Recommendation | None:
+        """Return current decision's recommendation or latest unexpired pending recommendation."""
+        decision = self.get_current_decision(snapshot_id)
+        if decision is not None:
+            return self.get_recommendation(decision.recommendation_id)
+        candidates = [
+            recommendation
+            for recommendation in self._recommendations.values()
+            if recommendation.snapshot_id == snapshot_id
+            and recommendation.expires_at > self._clock()
+        ]
+        return max(candidates, key=lambda item: (item.created_at, item.resource_id), default=None)
+
     def get_override(self, resource_id: str) -> DecisionOverride:
         try:
             return self._overrides[resource_id]
