@@ -234,6 +234,27 @@ The API accepts the supplied context values in its in-memory demo mode. In a Pos
 
 ## 7. Start and inspect the web application
 
+### 7.1 Choose the API runtime deliberately
+
+The normal command below starts an empty in-memory API. It is useful for command-level API work and safe unavailable-state UI testing, but the fixed IDs in this guide will not load a workspace there.
+
+For the complete populated UI walkthrough, stop any existing API process on port `8000` and start this opt-in seeded FastAPI factory instead:
+
+```bash
+uv run uvicorn canopyledger.demo.workspace:create_demo_app --factory --host 127.0.0.1 --port 8000
+```
+
+It serves one immutable synthetic facility and one frozen snapshot through the real FastAPI handlers. It also creates a pending approval request: analyst reads are allowed, while approval-queue and approval actions remain credit-approver-only. Its projections are deliberately checked-in fixtures, not a substitute for the PostgreSQL-backed pipeline or official report package.
+
+Use these exact values in the context picker after signing in:
+
+```text
+Facility ID: fac_0198a000-0000-7000-8000-000000000801
+Immutable snapshot ID: snp_0198a000-0000-7000-8000-000000000801
+```
+
+### 7.2 Start the web server
+
 In terminal C, while the local API remains running, enable the local synthetic sign-in flow:
 
 ```bash
@@ -248,7 +269,7 @@ Open <http://127.0.0.1:3000/sign-in>. Use the same host consistently—do not sw
 
 On the sign-in page, read the two role cards before selecting one. **Analyst access** can inspect governed workspaces and review evidence or recommendations, but cannot record final approval or approve its own work. **Approver access** can inspect governed workspaces and act on eligible approval requests; FastAPI still enforces separation of duties, expiry, and no-self-approval. The browser stores only a signed, HttpOnly role session. It never receives a bearer token in a URL, page markup, JavaScript storage, or a browser request header. The Next.js server maps the selected synthetic role to its local bearer header and FastAPI remains the authorization authority.
 
-The sign-in link preserves the selected facility, snapshot, and workspace route. After either sign-in or sign-out, the browser returns to that same route rather than discarding the context. Selecting a facility/snapshot uses a normal server redirect, so it continues to work even if browser JavaScript has not yet hydrated. A successful sign-in proves authorization forwarding only; it does not create facility, snapshot, or published workspace data.
+The sign-in link preserves the selected facility, snapshot, and workspace route. After either sign-in or sign-out, the browser returns to that same route rather than discarding the context. Selecting a facility/snapshot uses a normal server redirect, so it continues to work even if browser JavaScript has not yet hydrated. With the normal `create_app` API, sign-in proves authorization forwarding only; it does not create facility, snapshot, or published workspace data. With the explicit seeded factory from section 7.1, it authorizes access to the supplied frozen fixture context.
 
 The default in-memory API does not seed the fully published read models required by every UI workspace. Signing in proves the browser-to-server authorization path; an unknown or unseeded context then correctly changes from access guidance to an unavailable-resource state. The complete authorized, data-bearing UI journey is exercised by the checked-in fixture-backed test below.
 
@@ -256,10 +277,11 @@ The default in-memory API does not seed the fully published read models required
 
 ### 8.1 Know which UI experience you are viewing
 
-There are two valid experiences in this reference build:
+There are three valid experiences in this reference build:
 
 1. **Local signed-in shell and safe resource states.** Start the app with `CANOPYLEDGER_DEMO_AUTH_ENABLED=true`, sign in at `/sign-in`, and inspect navigation, context selection, loading, role display, and non-disclosure behavior. This uses synthetic identities only.
-2. **Authorized, data-bearing workspaces.** The checked-in end-to-end test starts a compatible fixture API and a real Next.js server. It is the reproducible source for every populated workspace described below.
+2. **Seeded FastAPI workspace demonstration.** Start `canopyledger.demo.workspace:create_demo_app` as described in section 7.1. It is the browser-ready path for the fixed values below and exercises real FastAPI auth, context, projections, evidence, and approval routes.
+3. **Automated UI contract.** The checked-in end-to-end test starts a compatible fixture API and a real Next.js server. It remains the isolated regression check for the rendered workspace contract.
 
 Do not try to add an authorization token to a URL. The local browser flow keeps bearer values server-side. Do not use the demo tokens outside this synthetic local reference application.
 
@@ -302,12 +324,11 @@ screens in this guide with the automated browser contract.
 | Local analyst role | Choose **Continue as analyst** at `/sign-in` | Cockpit, Collateral, Evidence, Hedge Lab, and Scenario Lab |
 | Local approver role | Choose **Continue as approver** at `/sign-in` | Approval workspace |
 
-These identifiers exist only in the fixture API launched by
-`npm --prefix apps/web run test:e2e`; the default in-memory FastAPI server is
-deliberately not seeded with them. Local browser sign-in authenticates the
-synthetic role but does not create the missing fixture read models, so the two
-IDs still require that compatible fixture API to open data-bearing workspaces.
-Use the command in section 8.12 as the reproducible visual reference.
+These identifiers work in both the seeded FastAPI factory from section 7.1 and
+the isolated UI fixture launched by `npm --prefix apps/web run test:e2e`. They
+do not exist in the default empty `create_app` API. Local browser sign-in does
+not create missing data; start the seeded factory before entering these values
+in the live browser.
 
 1. Click the **Facility ID** field and enter a permitted facility identifier beginning with `fac_`.
 2. For a working-facility view, leave **Immutable snapshot ID** empty.

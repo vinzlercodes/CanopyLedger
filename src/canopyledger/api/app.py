@@ -1221,11 +1221,19 @@ def create_app(
     collateral_output_loader: Callable[[str], dict[str, object] | None] | None = None,
     governance_service: GovernanceService | PostgresGovernanceService | None = None,
     decision_context_loader: Callable[[str], DecisionContext] | None = None,
+    initial_facilities: tuple[FacilityRecord, ...] = (),
+    initial_snapshots: tuple[SnapshotManifest, ...] = (),
 ) -> FastAPI:
     """Create an isolated application instance with functional in-memory adapters."""
     app = FastAPI(title="CanopyLedger API", version="1.0.0")
-    facilities: dict[str, FacilityRecord] = {}
-    snapshots: dict[str, SnapshotManifest] = {}
+    facilities: dict[str, FacilityRecord] = {
+        facility.resource_id: facility for facility in initial_facilities
+    }
+    snapshots: dict[str, SnapshotManifest] = {
+        snapshot.snapshot_id: snapshot for snapshot in initial_snapshots
+    }
+    if any(snapshot.facility_id not in facilities for snapshot in snapshots.values()):
+        raise ValueError("every seeded snapshot must reference a seeded facility")
     pipeline_start_outbox: list[str] = []
     evidence = evidence_service or EvidenceService(
         store=InMemoryEvidenceStore(),
@@ -1886,6 +1894,8 @@ def create_app(
         actor: Annotated[str, Depends(current_actor)],
     ) -> DecisionPackResponse:
         del actor
+        if initial_snapshots and snapshot_id not in snapshots:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Snapshot not found")
         if decision_context_loader is None:
             raise _Problem(404, "RESOURCE_NOT_FOUND", "Published decision context is unavailable")
         context = decision_context_loader(snapshot_id)
@@ -1942,6 +1952,8 @@ def create_app(
         limit: Annotated[int, Query(ge=1, le=100)] = 25,
     ) -> CollateralWorkspaceResponse:
         del actor
+        if initial_snapshots and snapshot_id not in snapshots:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Snapshot not found")
         output = (
             collateral_output_loader(snapshot_id) if collateral_output_loader is not None else None
         )
@@ -3322,9 +3334,7 @@ def _published_string_mapping(value: dict[str, object], field: str) -> dict[str,
     if not all(isinstance(key, str) and isinstance(item, str) for key, item in result.items()):
         raise ValueError(f"published {field} has an unsupported type")
     return {
-        key: item
-        for key, item in result.items()
-        if isinstance(key, str) and isinstance(item, str)
+        key: item for key, item in result.items() if isinstance(key, str) and isinstance(item, str)
     }
 
 

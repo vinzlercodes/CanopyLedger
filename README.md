@@ -113,6 +113,21 @@ npm --prefix apps/web run dev
 
 Open <http://127.0.0.1:3000/sign-in> and choose the synthetic analyst or approver role. The browser receives only a signed, HttpOnly role cookie; the web server maps it to the synthetic bearer header when calling FastAPI. FastAPI still authorizes every request. This opt-in flow proves identity forwarding only: it does not create facilities, snapshots, or published workspace data. This is a local reference demo, not a production identity provider. [DEMO.md](DEMO.md) has the complete click-by-click walkthrough and fixture limitations.
 
+For a populated local workspace, start the explicit seeded reference factory instead of `create_app`:
+
+```bash
+uv run uvicorn canopyledger.demo.workspace:create_demo_app --factory --host 127.0.0.1 --port 8000
+```
+
+Then start the web application with the local sign-in variables above and open the fixed synthetic context:
+
+```text
+Facility: fac_0198a000-0000-7000-8000-000000000801
+Snapshot: snp_0198a000-0000-7000-8000-000000000801
+```
+
+This developer fixture exercises actual FastAPI authorization and read routes, but its frozen values are checked-in synthetic projections. It is not the canonical database-backed pipeline or an official report demo.
+
 The local demonstration tokens are intentionally non-secret fixtures:
 
 ```text
