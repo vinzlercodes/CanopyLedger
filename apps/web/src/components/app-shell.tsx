@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { AuthorityBadge } from "@/components/authority-badge";
+import { AuthControls } from "@/components/auth-controls";
 import { ContextPicker } from "@/components/context-picker";
 import { Icon } from "@/components/icon";
 import { MobileNavigation } from "@/components/mobile-navigation";
@@ -50,13 +51,7 @@ export function AppShell({ children, facilityId, snapshotId, status, activeWorks
             <span>Authority</span>
             <AuthorityBadge kind={status} />
           </div>
-          <div className="actor">
-            <span className="actor-avatar" aria-hidden="true">CL</span>
-            <span>
-              <strong>Governed session</strong>
-              <small>Identity forwarded server-side</small>
-            </span>
-          </div>
+          <AuthControls />
         </header>
         <main className="main-content" id="main-content">{children}</main>
         <footer className="app-footer">CanopyLedger v1 · all timestamps remain source-bound</footer>
