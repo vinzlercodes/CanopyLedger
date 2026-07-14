@@ -19,6 +19,7 @@ type AppShellProps = {
 
 export function AppShell({ children, facilityId, snapshotId, status, activeWorkspace = "cockpit" }: AppShellProps) {
   const context = { facilityId, snapshotId };
+  const returnTo = buildWorkspaceHref(context, activeWorkspace);
   return (
     <div className="application-frame">
       <a className="skip-link" href="#main-content">Skip to workspace</a>
@@ -51,7 +52,7 @@ export function AppShell({ children, facilityId, snapshotId, status, activeWorks
             <span>Authority</span>
             <AuthorityBadge kind={status} />
           </div>
-          <AuthControls />
+          <AuthControls returnTo={returnTo} />
         </header>
         <main className="main-content" id="main-content">{children}</main>
         <footer className="app-footer">CanopyLedger v1 · all timestamps remain source-bound</footer>

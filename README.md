@@ -111,7 +111,7 @@ CANOPYLEDGER_DEMO_SESSION_SECRET="$CANOPYLEDGER_DEMO_SESSION_SECRET" \
 npm --prefix apps/web run dev
 ```
 
-Open <http://127.0.0.1:3000/sign-in> and choose the synthetic analyst or approver role. The browser receives only a signed, HttpOnly role cookie; the web server maps it to the synthetic bearer header when calling FastAPI. FastAPI still authorizes every request. This opt-in flow is for a local reference demo only, not a production identity provider. [DEMO.md](DEMO.md) has the complete click-by-click walkthrough and fixture limitations.
+Open <http://127.0.0.1:3000/sign-in> and choose the synthetic analyst or approver role. The browser receives only a signed, HttpOnly role cookie; the web server maps it to the synthetic bearer header when calling FastAPI. FastAPI still authorizes every request. This opt-in flow proves identity forwarding only: it does not create facilities, snapshots, or published workspace data. This is a local reference demo, not a production identity provider. [DEMO.md](DEMO.md) has the complete click-by-click walkthrough and fixture limitations.
 
 The local demonstration tokens are intentionally non-secret fixtures:
 

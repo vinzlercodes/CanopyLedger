@@ -25,10 +25,11 @@ export default async function SignInPage({ searchParams }: { readonly searchPara
             {role && <p className="session-notice">Current local session: <strong>{role}</strong>.</p>}
             <form action="/api/session/demo" className="sign-in-actions" method="post">
               <input name="returnTo" type="hidden" value={safeReturnTo} />
-              <button name="role" type="submit" value="analyst">Continue as analyst</button>
-              <button className="secondary-action" name="role" type="submit" value="approver">Continue as approver</button>
+              <button className="role-option" name="role" type="submit" value="analyst"><strong>Analyst access</strong><span>Inspect governed workspaces; review evidence and recommendations. Cannot record a final approval or approve own work.</span><em>Continue as analyst</em></button>
+              <button className="role-option role-option--approver" name="role" type="submit" value="approver"><strong>Approver access</strong><span>Inspect governed workspaces and act on eligible approval requests. Separation, expiry, and no-self-approval checks remain enforced by FastAPI.</span><em>Continue as approver</em></button>
             </form>
-            <p className="muted">This synthetic sign-in is available only when <code>CANOPYLEDGER_DEMO_AUTH_ENABLED=true</code>. It is not a production identity provider.</p>
+            <p className="muted">This synthetic sign-in proves identity forwarding only. It does not seed facility, snapshot, or published workspace data; FastAPI must contain an authorized, published context before a frozen workspace can render.</p>
+            <p className="muted">Available only when <code>CANOPYLEDGER_DEMO_AUTH_ENABLED=true</code>. It is not a production identity provider.</p>
           </>
         ) : (
           <>
