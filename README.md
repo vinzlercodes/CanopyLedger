@@ -101,13 +101,17 @@ curl http://127.0.0.1:8000/health
 curl http://127.0.0.1:8000/openapi.json > /tmp/canopyledger-openapi.json
 ```
 
-Then start the web app:
+Then start the web app with the opt-in local synthetic sign-in:
 
 ```bash
-CANOPYLEDGER_API_BASE_URL=http://127.0.0.1:8000 npm --prefix apps/web run dev
+export CANOPYLEDGER_DEMO_SESSION_SECRET="$(openssl rand -hex 32)"
+CANOPYLEDGER_API_BASE_URL=http://127.0.0.1:8000 \
+CANOPYLEDGER_DEMO_AUTH_ENABLED=true \
+CANOPYLEDGER_DEMO_SESSION_SECRET="$CANOPYLEDGER_DEMO_SESSION_SECRET" \
+npm --prefix apps/web run dev
 ```
 
-Open <http://127.0.0.1:3000>. The root shell is public and explains the governed workflow. Workspace data requires an authenticated request because the web server forwards only a valid incoming bearer header to FastAPI; this reference build intentionally has no browser sign-in screen. [DEMO.md](DEMO.md) shows both the header-authenticated SSR flow and the fixture-backed UI walkthrough.
+Open <http://127.0.0.1:3000/sign-in> and choose the synthetic analyst or approver role. The browser receives only a signed, HttpOnly role cookie; the web server maps it to the synthetic bearer header when calling FastAPI. FastAPI still authorizes every request. This opt-in flow is for a local reference demo only, not a production identity provider. [DEMO.md](DEMO.md) has the complete click-by-click walkthrough and fixture limitations.
 
 The local demonstration tokens are intentionally non-secret fixtures:
 
