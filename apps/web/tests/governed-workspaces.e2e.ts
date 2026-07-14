@@ -81,6 +81,18 @@ test("an unauthenticated snapshot URL keeps resource existence private and gives
   assert.ok(fixture.requests.some((request) => request.path.endsWith("/facilities/" + facilityId) && request.authorization === undefined));
 });
 
+test("approval workspace preserves the FastAPI analyst/approver boundary", async () => {
+  const path = "/facilities/" + facilityId + "/snapshots/" + snapshotId + "/approvals";
+
+  const analyst = await fetch(nextOrigin + path, { headers: { Authorization: analystToken } });
+  assert.equal(analyst.status, 200);
+  assert.match(await analyst.text(), /Role access is required/);
+
+  const approver = await fetch(nextOrigin + path, { headers: { Authorization: approverToken } });
+  assert.equal(approver.status, 200);
+  assert.match(await approver.text(), /Independent human approval queue/);
+});
+
 test("context selection is a server redirect and sign-in explains local role boundaries", async () => {
   const selected = await fetch(nextOrigin + "/open-context?facility=" + facilityId + "&snapshot=" + snapshotId, { redirect: "manual" });
   assert.equal(selected.status, 307);
@@ -135,6 +147,9 @@ async function startFixtureApi(): Promise<FixtureApi> {
 
     if (authorization !== analystToken && authorization !== approverToken) {
       return respond(response, 401, problem("UNAUTHENTICATED", "Valid demo bearer token required"));
+    }
+    if (authorization !== approverToken && isApproverOnlyRoute(url.pathname)) {
+      return respond(response, 403, problem("FORBIDDEN", "Credit-approver authority is required", 403));
     }
     return respond(response, 200, fixtureBody(url.pathname));
   });
@@ -234,8 +249,12 @@ function evidenceReviewPacket(): Record<string, unknown> {
   };
 }
 
-function problem(code: string, detail: string): Record<string, unknown> {
-  return { type: "about:blank", title: "Request rejected", status: 401, detail, instance: "/", code, trace_id: "trace_fixture" };
+function isApproverOnlyRoute(path: string): boolean {
+  return path === "/api/v1/approval-requests" || path.endsWith("/override-requests") || path.endsWith("/governance-timeline");
+}
+
+function problem(code: string, detail: string, status = 401): Record<string, unknown> {
+  return { type: "about:blank", title: "Request rejected", status, detail, instance: "/", code, trace_id: "trace_fixture" };
 }
 
 function respond(response: import("node:http").ServerResponse, status: number, body: Record<string, unknown>): void {
