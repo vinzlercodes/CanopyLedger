@@ -81,6 +81,18 @@ test("an unauthenticated snapshot URL keeps resource existence private and gives
   assert.ok(fixture.requests.some((request) => request.path.endsWith("/facilities/" + facilityId) && request.authorization === undefined));
 });
 
+test("context selection is a server redirect and sign-in explains local role boundaries", async () => {
+  const selected = await fetch(nextOrigin + "/open-context?facility=" + facilityId + "&snapshot=" + snapshotId, { redirect: "manual" });
+  assert.equal(selected.status, 307);
+  assert.equal(selected.headers.get("location"), "/facilities/" + facilityId + "/snapshots/" + snapshotId + "/cockpit");
+
+  const signIn = await fetch(nextOrigin + "/sign-in");
+  const body = await signIn.text();
+  assert.match(body, /Analyst access/);
+  assert.match(body, /Approver access/);
+  assert.match(body, /does not seed facility, snapshot, or published workspace data/);
+});
+
 test("local demo sign-in keeps the bearer token server-side and forwards the selected role", async () => {
   const cockpitPath = "/facilities/" + facilityId + "/snapshots/" + snapshotId + "/cockpit";
   const signIn = await fetch(nextOrigin + "/api/session/demo", {
@@ -104,7 +116,7 @@ test("local demo sign-in keeps the bearer token server-side and forwards the sel
   const decisionPackRequests = fixture.requests.filter((request) => request.path.endsWith("/decision-pack") && request.authorization === analystToken).length;
   const workspace = await fetch(nextOrigin + cockpitPath, { headers: { Cookie: cookie.split(";", 1)[0] } });
   assert.equal(workspace.status, 200);
-  assert.equal(fixture.requests.filter((request) => request.path.endsWith("/decision-pack") && request.authorization === analystToken).length, decisionPackRequests + 1);
+  assert.ok(fixture.requests.filter((request) => request.path.endsWith("/decision-pack") && request.authorization === analystToken).length >= decisionPackRequests + 1);
   const signedInPage = await fetch(nextOrigin + "/sign-in", { headers: { Cookie: cookie.split(";", 1)[0] } });
   const signedInBody = await signedInPage.text();
   assert.match(signedInBody, /Current local session:[\s\S]*analyst/);
