@@ -33,6 +33,8 @@ before(async () => {
       env: {
         ...process.env,
         CANOPYLEDGER_API_BASE_URL: fixture.origin,
+        CANOPYLEDGER_DEMO_AUTH_ENABLED: "true",
+        CANOPYLEDGER_DEMO_SESSION_SECRET: "e2e-demo-session-secret",
         CANOPYLEDGER_NEXT_DIST_DIR: ".next-e2e",
       },
       stdio: ["ignore", "pipe", "pipe"],
@@ -77,6 +79,39 @@ test("an unauthenticated snapshot URL keeps resource existence private and gives
   assert.equal(response.status, 200);
   assert.match(await response.text(), /Authentication or role access is required/);
   assert.ok(fixture.requests.some((request) => request.path.endsWith("/facilities/" + facilityId) && request.authorization === undefined));
+});
+
+test("local demo sign-in keeps the bearer token server-side and forwards the selected role", async () => {
+  const cockpitPath = "/facilities/" + facilityId + "/snapshots/" + snapshotId + "/cockpit";
+  const signIn = await fetch(nextOrigin + "/api/session/demo", {
+    method: "POST",
+    redirect: "manual",
+    headers: {
+      Origin: nextOrigin,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({ role: "analyst", returnTo: cockpitPath }),
+  });
+
+  assert.equal(signIn.status, 303);
+  const returnLocation = new URL(signIn.headers.get("location") ?? "", nextOrigin);
+  assert.equal(returnLocation.pathname, cockpitPath);
+  assert.equal(returnLocation.host, new URL(nextOrigin).host);
+  const cookie = signIn.headers.get("set-cookie");
+  assert.ok(cookie);
+  assert.doesNotMatch(cookie, /demo-token/);
+
+  const decisionPackRequests = fixture.requests.filter((request) => request.path.endsWith("/decision-pack") && request.authorization === analystToken).length;
+  const workspace = await fetch(nextOrigin + cockpitPath, { headers: { Cookie: cookie.split(";", 1)[0] } });
+  assert.equal(workspace.status, 200);
+  assert.equal(fixture.requests.filter((request) => request.path.endsWith("/decision-pack") && request.authorization === analystToken).length, decisionPackRequests + 1);
+  const signedInPage = await fetch(nextOrigin + "/sign-in", { headers: { Cookie: cookie.split(";", 1)[0] } });
+  const signedInBody = await signedInPage.text();
+  assert.match(signedInBody, /Current local session:[\s\S]*analyst/);
+  assert.doesNotMatch(signedInBody, /analyst-demo-token/);
+  const body = await workspace.text();
+  assert.match(body, /Governed capacity, never browser-calculated/);
+  assert.doesNotMatch(body, /analyst-demo-token/);
 });
 
 async function startFixtureApi(): Promise<FixtureApi> {
