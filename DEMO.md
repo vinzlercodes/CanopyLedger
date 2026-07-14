@@ -230,7 +230,7 @@ curl --fail-with-body -sS "$API/api/v1/decisions/$FINAL_DECISION_ID" -H "$APPROV
 
 Expected result: the final response has `status: "APPROVED"`. Try the approval call with `$ANALYST` instead of `$APPROVER` to observe the required `403 FORBIDDEN` separation-of-duties failure. Do not use that failure as a successful approval.
 
-The API accepts the supplied context values in its in-memory demo mode. In a PostgreSQL-backed production-style application, decision context is loaded from the approved snapshot and published CBB, hedge/liquidity, scenario, and IRC resources instead; browser input never calculates or overrides it.
+These governance calls accept the synthetic snapshot ID as a decision reference, but they do **not** create a facility, frozen snapshot manifest, or published workspace projection. Do not paste `SNAPSHOT_ID` from this section into the web context picker: the stock `create_app` server will correctly return an unavailable state. In a PostgreSQL-backed production-style application, decision context is loaded from the approved snapshot and published CBB, hedge/liquidity, scenario, and IRC resources instead; browser input never calculates or overrides it.
 
 ## 7. Start and inspect the web application
 
