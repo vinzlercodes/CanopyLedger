@@ -7,8 +7,9 @@ from typing import cast
 
 from fastapi.testclient import TestClient
 
-from canopyledger.api.app import create_app
+from canopyledger.api.app import FacilityRecord, create_app
 from canopyledger.integrity.bundles import BundleType, VersionBundle
+from canopyledger.integrity.snapshot import BundleReference, SnapshotManifest
 
 
 def client() -> TestClient:
@@ -23,6 +24,46 @@ def test_health_is_public() -> None:
     response = client().get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_in_memory_app_can_expose_explicit_seeded_facility_and_snapshot() -> None:
+    facility_id = "fac_0198a000-0000-7000-8000-000000000801"
+    snapshot_id = "snp_0198a000-0000-7000-8000-000000000801"
+    snapshot = SnapshotManifest(
+        snapshot_id=snapshot_id,
+        facility_id=facility_id,
+        facility_working_version=1,
+        schema_version="1.0",
+        as_of=datetime(2026, 7, 11, tzinfo=UTC),
+        market_bundle=BundleReference(
+            resource_id="mkt_0198a000-0000-7000-8000-000000000801", digest="sha256:" + "a" * 64
+        ),
+        policy_bundle=BundleReference(
+            resource_id="pol_0198a000-0000-7000-8000-000000000801", digest="sha256:" + "b" * 64
+        ),
+        legal_interpretation_bundle=BundleReference(
+            resource_id="leg_0198a000-0000-7000-8000-000000000801", digest="sha256:" + "c" * 64
+        ),
+        computation_bundle=BundleReference(
+            resource_id="cmp_0198a000-0000-7000-8000-000000000801", digest="sha256:" + "d" * 64
+        ),
+        inputs=(),
+        created_by="act_0198a000-0000-7000-8000-000000000001",
+        created_at=datetime(2026, 7, 11, tzinfo=UTC),
+    )
+    api = TestClient(
+        create_app(
+            initial_facilities=(
+                FacilityRecord(facility_id, "Fixture Coffee Trader", "USD", "120000.00", 1),
+            ),
+            initial_snapshots=(snapshot,),
+        )
+    )
+
+    assert api.get(f"/api/v1/facilities/{facility_id}", headers=auth_headers()).status_code == 200
+    manifest = api.get(f"/api/v1/snapshots/{snapshot_id}/manifest", headers=auth_headers())
+    assert manifest.status_code == 200
+    assert manifest.json()["facility_id"] == facility_id
 
 
 def test_create_facility_returns_resource_and_strong_etag() -> None:
@@ -375,9 +416,7 @@ def test_freeze_blocks_policy_required_critical_fact_without_active_approval() -
 
     assert response.status_code == 422
     assert response.json()["code"] == "VALIDATION_FAILED"
-    assert "critical fact requires active approved evidence: ownership" in response.json()[
-        "detail"
-    ]
+    assert "critical fact requires active approved evidence: ownership" in response.json()["detail"]
 
 
 def test_freeze_expands_policy_required_critical_fact_input_from_active_approval() -> None:
@@ -645,9 +684,9 @@ def test_evidence_review_api_surfaces_active_fact_conflict_history() -> None:
     )
 
     assert response.status_code == 200, response.text
-    assert response.json()["approval_history"][0]["approved_fact_id"] == approved[
-        "approved_fact_id"
-    ]
+    assert (
+        response.json()["approval_history"][0]["approved_fact_id"] == approved["approved_fact_id"]
+    )
     assert response.json()["conflicts"] == [
         "active approved fact already exists for identity and period: "
         f"{approved['approved_fact_id']}"
@@ -895,7 +934,8 @@ def _snapshot_body(
             "resource_id": "mkt_0198a000-0000-7000-8000-000000000001",
             "digest": "sha256:" + "a" * 64,
         },
-        "policy_bundle": policy_bundle or {
+        "policy_bundle": policy_bundle
+        or {
             "resource_id": "pol_0198a000-0000-7000-8000-000000000001",
             "digest": "sha256:" + "b" * 64,
         },
