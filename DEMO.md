@@ -32,7 +32,7 @@ npm --prefix apps/web run test:e2e
 CANOPYLEDGER_NEXT_DIST_DIR=.next-e2e npm --prefix apps/web run build
 ```
 
-Expected result: linting and typing pass; the Python suite passes while PostgreSQL-marked tests are skipped if `DATABASE_URL` is absent; TypeScript contracts pass 14 tests; the web suite passes 9 unit tests and 2 SSR end-to-end tests.
+Expected result: linting and typing pass; the Python suite passes while PostgreSQL-marked tests are skipped if `DATABASE_URL` is absent; TypeScript contracts pass 14 tests; the web suite passes 13 unit tests and 3 end-to-end tests.
 
 The web SSR test is the most complete runnable UI demo. It starts a fixture API and a real Next.js server, then verifies bearer forwarding and all six snapshot workspaces:
 
@@ -234,25 +234,21 @@ The API accepts the supplied context values in its in-memory demo mode. In a Pos
 
 ## 7. Start and inspect the web application
 
-In terminal C, while the local API remains running:
+In terminal C, while the local API remains running, enable the local synthetic sign-in flow:
 
 ```bash
-CANOPYLEDGER_API_BASE_URL=http://127.0.0.1:8000 npm --prefix apps/web run dev
+export CANOPYLEDGER_DEMO_SESSION_SECRET="$(openssl rand -hex 32)"
+CANOPYLEDGER_API_BASE_URL=http://127.0.0.1:8000 \
+CANOPYLEDGER_DEMO_AUTH_ENABLED=true \
+CANOPYLEDGER_DEMO_SESSION_SECRET="$CANOPYLEDGER_DEMO_SESSION_SECRET" \
+npm --prefix apps/web run dev
 ```
 
-Open <http://127.0.0.1:3000>. The root page shows the responsive application shell, facility/snapshot context picker, all six governed workspaces, and the authority vocabulary. The next section gives the exact click-by-click walkthrough.
+Open <http://127.0.0.1:3000/sign-in>. Use the same host consistently—do not switch between `127.0.0.1` and `localhost`—because the local browser session is host-only. The root page shows the responsive application shell, facility/snapshot context picker, all six governed workspaces, and the authority vocabulary. The next section gives the exact click-by-click walkthrough.
 
-The reference web app intentionally has no login form or cookie session. It forwards a valid incoming `Authorization: Bearer …` header server-side. A normal browser navigation therefore shows the safe access-guidance state; this prevents resource-existence disclosure without a principal.
+On the sign-in page, click **Continue as analyst** for read-oriented workspaces or **Continue as approver** for the approval workspace. The browser stores only a signed, HttpOnly role session. It never receives a bearer token in a URL, page markup, JavaScript storage, or a browser request header. The Next.js server maps the selected synthetic role to its local bearer header and FastAPI remains the authorization authority.
 
-To confirm the real server-rendered UI path with an authenticated header, use a second terminal. This does not create browser-side calculations; it asks Next.js to forward the header to FastAPI:
-
-```bash
-curl -sS -H "$ANALYST" \
-  "http://127.0.0.1:3000/facilities/not-a-real-facility/snapshots/$SNAPSHOT_ID/cockpit" \
-  | grep -o 'This resource is unavailable\|Authentication or role access is required' | head -n 1
-```
-
-The `not-a-real-facility` example deliberately demonstrates non-disclosure for an unavailable resource. The current in-memory API does not seed the fully published read models required by every UI workspace. The complete authorized, data-bearing UI journey is therefore exercised by the checked-in fixture-backed SSR test below.
+The default in-memory API does not seed the fully published read models required by every UI workspace. Signing in proves the browser-to-server authorization path; an unknown or unseeded context then correctly changes from access guidance to an unavailable-resource state. The complete authorized, data-bearing UI journey is exercised by the checked-in fixture-backed test below.
 
 ## 8. Detailed UI walkthrough
 
@@ -260,10 +256,10 @@ The `not-a-real-facility` example deliberately demonstrates non-disclosure for a
 
 There are two valid experiences in this reference build:
 
-1. **Public shell and safe access states.** Open the Next.js app normally in a browser. This is the correct way to inspect navigation, context selection, loading, and non-disclosure behavior.
-2. **Authorized, data-bearing workspaces.** The web app forwards an incoming bearer header to FastAPI, but intentionally has no browser sign-in or cookie session. To see populated workspace data interactively, place the app behind a local development proxy or header-injection tool that adds one of the synthetic bearer headers to every request. The checked-in SSR test is the reproducible alternative: it starts a fixture API and sends the header itself.
+1. **Local signed-in shell and safe resource states.** Start the app with `CANOPYLEDGER_DEMO_AUTH_ENABLED=true`, sign in at `/sign-in`, and inspect navigation, context selection, loading, role display, and non-disclosure behavior. This uses synthetic identities only.
+2. **Authorized, data-bearing workspaces.** The checked-in end-to-end test starts a compatible fixture API and a real Next.js server. It is the reproducible source for every populated workspace described below.
 
-Do not try to add an authorization token to a URL. Tokens belong only in request headers. Do not use the demo tokens outside this synthetic local reference application.
+Do not try to add an authorization token to a URL. The local browser flow keeps bearer values server-side. Do not use the demo tokens outside this synthetic local reference application.
 
 ### 8.2 Start at the shell and orient yourself
 
@@ -274,6 +270,7 @@ On a desktop viewport, look for these elements before doing anything else:
 - The left **Primary navigation** sidebar with `Cockpit`, `Collateral`, `Evidence`, `Hedge Lab`, `Scenario Lab`, and `Approval`.
 - The top context bar with **Facility ID**, **Immutable snapshot ID**, and **Open context**.
 - The **Authority** badge. With no selected context it says `Unavailable`; that is expected.
+- The session control at the right of the top bar. Before local sign-in it offers **Sign in locally**; after analyst sign-in it reads **Demo analyst**, says **Identity forwarded server-side**, and offers **Sign out**.
 - The main heading **Select a facility to establish context**.
 - The **Governance workflow key**, which defines `Working draft`, `Frozen snapshot`, `Published output`, `Recommendation`, and `Final decision`.
 
@@ -300,15 +297,15 @@ screens in this guide with the automated browser contract.
 |---|---|---|
 | Facility ID | `fac_0198a000-0000-7000-8000-000000000801` | `Fixture Coffee Trader`, USD, facility commitment `120,000.00` |
 | Immutable snapshot ID | `snp_0198a000-0000-7000-8000-000000000801` | Belongs to the fixture facility and opens the frozen routes below |
-| Analyst header | `Authorization: Bearer analyst-demo-token` | Cockpit, Collateral, Evidence, Hedge Lab, and Scenario Lab |
-| Approver header | `Authorization: Bearer approver-demo-token` | Approval workspace |
+| Local analyst role | Choose **Continue as analyst** at `/sign-in` | Cockpit, Collateral, Evidence, Hedge Lab, and Scenario Lab |
+| Local approver role | Choose **Continue as approver** at `/sign-in` | Approval workspace |
 
-These identifiers and headers exist only in the fixture API launched by
+These identifiers exist only in the fixture API launched by
 `npm --prefix apps/web run test:e2e`; the default in-memory FastAPI server is
-deliberately not seeded with them. If you have a proxy that injects the stated
-header into every request and a fixture API compatible with the test, entering
-the two IDs opens the data-bearing UI. Otherwise, use the command in section
-8.12 as the reproducible visual reference.
+deliberately not seeded with them. Local browser sign-in authenticates the
+synthetic role but does not create the missing fixture read models, so the two
+IDs still require that compatible fixture API to open data-bearing workspaces.
+Use the command in section 8.12 as the reproducible visual reference.
 
 1. Click the **Facility ID** field and enter a permitted facility identifier beginning with `fac_`.
 2. For a working-facility view, leave **Immutable snapshot ID** empty.
@@ -334,7 +331,7 @@ These states are intentional. Do not treat them as calculation results.
 |---|---|---|
 | Open a workspace while it is loading | **Retrieving authoritative state** and “CanopyLedger will not infer values…” | The web app is waiting for the API; it does not show a placeholder number. |
 | Stop the API, then open a context | **CanopyLedger could not load this context** | The API connection failed; restart FastAPI and retry. |
-| Open a protected context without an authorization header | **Authentication or role access is required** | The app deliberately does not say whether the facility or snapshot exists. |
+| Open a protected context while signed out or with local sign-in disabled | **Authentication or role access is required** | The app deliberately does not say whether the facility or snapshot exists. |
 | Use an unknown ID with a valid authorized request | **This resource is unavailable** or a workspace-specific unavailable panel | The resource is absent or not visible; no value is inferred. |
 | Open a snapshot before the relevant published output exists | **No published workspace output is available** | The snapshot may exist, but that stage is not available for presentation. |
 
@@ -599,7 +596,7 @@ The test launches a real Next.js server and a local fixture API, then verifies t
 - Evidence shows safe rendition metadata and attachment-only download;
 - Hedge Lab and Scenario Lab show frozen projections rather than browser calculations;
 - Approval is separately authorized; and
-- only a valid bearer authorization header is forwarded to the API.
+- local signed-in roles are mapped to a bearer header only on the server before the API call.
 
 It also verifies that unauthenticated snapshot URLs do not disclose resource existence and instead present safe access guidance.
 
@@ -629,7 +626,7 @@ Use this sequence when presenting the system:
 4. Show the scenario/IRC invariant: IRC is separate from and cannot exceed CBB.
 5. Create a recommendation; call out that it is not a final decision.
 6. Approve it with a different actor; demonstrate that an analyst cannot self-approve.
-7. Walk the UI using sections 8.2–8.11, then run the SSR UI test to prove the six authorized workspace contracts and header forwarding.
+7. Walk the UI using sections 8.2–8.11, then run the end-to-end UI test to prove the six authorized workspace contracts and server-side identity forwarding.
 8. State remaining scope honestly: climate/EUDR, credit, document intelligence, copilot/agents, reporting, and the seeded one-command demo remain future milestones.
 
 ## Troubleshooting
@@ -639,6 +636,6 @@ Use this sequence when presenting the system:
 | `401 UNAUTHENTICATED` | Send one of the synthetic bearer tokens exactly as shown; the demo API accepts no anonymous protected request. |
 | `403 FORBIDDEN` while approving | Use `approver-demo-token`; the analyst token cannot approve its own recommendation. |
 | `422` on a demo request | Check the OpenAPI schema and preserve decimal values as strings with the required resource prefixes. |
-| UI shows access guidance | Expected without an incoming bearer header. Use `npm --prefix apps/web run test:e2e` for the fully authorized fixture-backed browser journey. |
+| UI shows access guidance | Expected while signed out or when `CANOPYLEDGER_DEMO_AUTH_ENABLED` is disabled. Open `/sign-in`, choose a local role, then retry. Use `npm --prefix apps/web run test:e2e` for the fully populated fixture-backed browser journey. |
 | PostgreSQL tests skip | Set a disposable `DATABASE_URL`; never point integration tests at valuable data. |
 | Web build changes `next-env.d.ts` | Ensure the tracked checkout includes the current `apps/web/.gitignore`; generated declarations are intentionally ignored. |
