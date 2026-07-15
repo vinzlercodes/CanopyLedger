@@ -51,12 +51,13 @@ after(async () => {
 
 test("authorized M4B workspaces render server-issued projections and forward identity", async () => {
   const pages = [
-    ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/cockpit", analystToken, ["Governed capacity, never browser-calculated", "Facility commitment", "Current exposure", "Liquidity cap"]],
+    ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/cockpit", analystToken, ["Governed capacity, never browser-calculated", "Facility commitment", "Current exposure", "Liquidity cap", "Climate &amp; Traceability evidence", "review required"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/collateral?section=inventory", analystToken, ["Inventory lots"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/evidence", analystToken, ["Candidate facts await human review"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/evidence/cf_1", analystToken, ["Safe text rendition", "Warehouse receipt", "Download original attachment"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/risk/hedge", analystToken, ["Hedge Lab", "Variation margin protection", "Futures and option exposure"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/risk/scenarios", analystToken, ["Scenario Lab", "Uncapped IRC", "Stressed CBB and shortfalls"]],
+    ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/climate", analystToken, ["Climate &amp; Traceability", "Origin map", "Map-equivalent traceability table", "Evidence readiness"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/approvals", approverToken, ["Independent human approval queue"]],
   ] as const;
 
@@ -174,6 +175,7 @@ function fixtureBody(path: string): Record<string, unknown> {
   if (path === "/api/v1/evidence/documents/docv_1/rendition") return { document_version_id: "docv_1", filename: "receipt.txt", content_type: "text/plain", byte_digest: "sha256:fixture", preview_status: "available", preview_text: "Warehouse receipt\nLot KC-01", truncated: false };
   if (path.endsWith("/hedge-lab")) return hedgeLab();
   if (path.endsWith("/scenario-lab")) return scenarioLab();
+  if (path.endsWith("/climate-traceability")) return climateTraceability();
   if (path === "/api/v1/approval-requests") return { items: [] };
   if (path.endsWith("/override-requests")) return { items: [] };
   if (path.endsWith("/governance-timeline")) return { snapshot_id: snapshotId, items: [] };
@@ -198,6 +200,14 @@ function decisionPack(): Record<string, unknown> {
     policy_bundle_digest: "sha256:policy",
     hedge_liquidity: { liquidity_coverage_ratio: "1.12" },
     scenario: { expected_shortfall: "12000.00" },
+    climate_traceability: {
+      stage_output_id: "out_climate",
+      output_digest: "sha256:climate",
+      completed_at: "2026-07-15T00:00:00Z",
+      eudr_evidence_state: "review_required",
+      reason_codes: ["TRACEABILITY_MISSING_LINK"],
+      legal_interpretation_bundle_digest: "sha256:legal",
+    },
     blockers: ["MARGIN_STRESS"],
   };
 }
@@ -238,6 +248,16 @@ function scenarioLab(): Record<string, unknown> {
     deterministic_scenarios: [{ scenario_id: "stress-price", family: "price", stressed_cbb: money("75000.00"), cbb_deficiency: money("0.00"), margin_liquidity_shortfall: money("2000.00"), loss: money("27000.00") }],
     worst_scenario_families: [{ family: "price", loss: money("27000.00") }],
     internal_risk_capacity: { risk_buffer: money("10000.00"), tail_loss_buffer: money("18000.00"), liquidity_buffer: money("2000.00"), counterparty_buffer: money("1000.00"), climate_evidence_buffer: money("500.00"), uncapped_irc: money("68500.00"), irc: money("68500.00"), cbb: money("100000.00"), facility_commitment: money("120000.00") },
+  };
+}
+
+function climateTraceability(): Record<string, unknown> {
+  return {
+    stage_output_id: "out_climate", snapshot_id: snapshotId, stage: "climate_eudr", stage_version: "1.0.0", input_digests: ["sha256:input"], legal_interpretation_bundle_digest: "sha256:legal", policy_bundle_digest: "sha256:policy", computation_bundle_digest: "sha256:computation", output_digest: "sha256:climate", completed_at: "2026-07-15T00:00:00Z", eudr_evidence_state: "review_required", reason_codes: ["TRACEABILITY_MISSING_LINK"],
+    result: {
+      traceability: { lots: [{ lot_id: "lot-1", origin_country: "BR", geometry: { type: "Point", coordinates: ["-47.8825", "-15.7942"] }, production_date_class: "on_or_after_cutoff", freshness_state: "current", missing_links: ["warehouse_receipt"], reason_codes: ["TRACEABILITY_MISSING_LINK"] }], origin_concentration: [{ origin_country: "BR", concentration: "1.000000" }] },
+      financed_emissions: { total_available: "125.000000", data_quality_score: 2, methodology_version: "pcaf-fixture-v1", restatement_lineage: "restatement-1", missing_data_warnings: [] },
+    },
   };
 }
 
