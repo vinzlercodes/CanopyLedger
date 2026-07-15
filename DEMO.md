@@ -1,8 +1,8 @@
 # CanopyLedger demo guide
 
-This guide demonstrates the currently implemented reference scope: deterministic collateral calculations, evidence review, hedge/liquidity, scenario/IRC projections, human governance, and the six Next.js workspaces.
+This guide demonstrates the currently implemented reference scope: deterministic collateral calculations, evidence review, hedge/liquidity, scenario/IRC projections, climate/EUDR evidence readiness, financed-emissions lineage, human governance, and the seven Next.js workspaces.
 
-It does not claim to demonstrate planned capabilities. In particular, there is no one-command seed/report demo, no climate/EUDR workflow, no credit model, no copilot/agent runtime, and no official report renderer yet.
+It does not claim to demonstrate planned capabilities. In particular, there is no one-command seed/report demo, no credit model, no copilot/agent runtime, and no official report renderer yet. The Climate & Traceability workspace reports evidence state only; it never certifies legal compliance or deforestation-free status.
 
 All examples use synthetic fixture data and intentionally non-secret demo tokens.
 
@@ -32,15 +32,16 @@ npm --prefix apps/web run test:e2e
 CANOPYLEDGER_NEXT_DIST_DIR=.next-e2e npm --prefix apps/web run build
 ```
 
-Expected result: linting and typing pass; the Python suite passes while PostgreSQL-marked tests are skipped if `DATABASE_URL` is absent; TypeScript contracts pass 14 tests; the web suite passes 13 unit tests and 3 end-to-end tests.
+Expected result: linting and typing pass; the Python suite passes while PostgreSQL-marked tests are skipped if `DATABASE_URL` is absent; TypeScript contracts pass 14 tests; the web suite passes 14 unit tests and 5 end-to-end tests.
 
-The web SSR test is the most complete runnable UI demo. It starts a fixture API and a real Next.js server, then verifies bearer forwarding and all six snapshot workspaces:
+The web SSR test is the most complete runnable UI demo. It starts a fixture API and a real Next.js server, then verifies bearer forwarding and all seven snapshot workspaces:
 
 - Cockpit
 - Collateral
 - Evidence and evidence detail
 - Hedge Lab
 - Scenario Lab
+- Climate & Traceability
 - Approval
 
 ## 2. Start the local API
@@ -265,7 +266,7 @@ CANOPYLEDGER_DEMO_SESSION_SECRET="$CANOPYLEDGER_DEMO_SESSION_SECRET" \
 npm --prefix apps/web run dev
 ```
 
-Open <http://127.0.0.1:3000/sign-in>. Use the same host consistently—do not switch between `127.0.0.1` and `localhost`—because the local browser session is host-only. The root page shows the responsive application shell, facility/snapshot context picker, all six governed workspaces, and the authority vocabulary. The next section gives the exact click-by-click walkthrough.
+Open <http://127.0.0.1:3000/sign-in>. Use the same host consistently—do not switch between `127.0.0.1` and `localhost`—because the local browser session is host-only. The root page shows the responsive application shell, facility/snapshot context picker, all seven governed workspaces, and the authority vocabulary. The next section gives the exact click-by-click walkthrough.
 
 On the sign-in page, read the two role cards before selecting one. **Analyst access** can inspect governed workspaces and review evidence or recommendations, but cannot record final approval or approve its own work. **Approver access** can inspect governed workspaces and act on eligible approval requests; FastAPI still enforces separation of duties, expiry, and no-self-approval. The browser stores only a signed, HttpOnly role session. It never receives a bearer token in a URL, page markup, JavaScript storage, or a browser request header. The Next.js server maps the selected synthetic role to its local bearer header and FastAPI remains the authorization authority.
 
@@ -613,7 +614,7 @@ npm --prefix apps/web run test:e2e
 
 The test launches a real Next.js server and a local fixture API, then verifies that:
 
-- all six workspace routes render authoritative server-issued values;
+- all seven workspace routes render authoritative server-issued values;
 - Cockpit keeps commitment, exposure, CBB, liquidity cap, and recommendation/decision concepts distinct;
 - Collateral is server-paginated and retains stage lineage;
 - Evidence shows safe rendition metadata and attachment-only download;
@@ -649,8 +650,8 @@ Use this sequence when presenting the system:
 4. Show the scenario/IRC invariant: IRC is separate from and cannot exceed CBB.
 5. Create a recommendation; call out that it is not a final decision.
 6. Approve it with a different actor; demonstrate that an analyst cannot self-approve.
-7. Walk the UI using sections 8.2–8.11, then run the end-to-end UI test to prove the six authorized workspace contracts and server-side identity forwarding.
-8. State remaining scope honestly: climate/EUDR, credit, document intelligence, copilot/agents, reporting, and the seeded one-command demo remain future milestones.
+7. Walk the UI using sections 8.2–8.11, then run the end-to-end UI test to prove the seven authorized workspace contracts and server-side identity forwarding.
+8. State remaining scope honestly: credit, document intelligence, copilot/agents, reporting, and the seeded one-command demo remain future milestones. Climate/EUDR output remains evidence readiness, never a legal-compliance conclusion.
 
 ## Troubleshooting
 

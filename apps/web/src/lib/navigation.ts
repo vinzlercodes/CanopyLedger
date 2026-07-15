@@ -4,7 +4,7 @@ export const MOBILE_NAVIGATION_ID = "workspace-navigation";
 
 export const workspaceNavigation: readonly {
   readonly workspace: WorkspaceSlug;
-  readonly icon: "activity" | "book" | "document" | "home" | "shield";
+  readonly icon: "activity" | "book" | "document" | "home" | "shield" | "spark";
   readonly label: string;
 }[] = [
   { workspace: "cockpit", icon: "home", label: "Cockpit" },
@@ -12,5 +12,6 @@ export const workspaceNavigation: readonly {
   { workspace: "evidence", icon: "document", label: "Evidence" },
   { workspace: "risk/hedge", icon: "activity", label: "Hedge Lab" },
   { workspace: "risk/scenarios", icon: "activity", label: "Scenario Lab" },
+  { workspace: "climate", icon: "spark", label: "Climate & Traceability" },
   { workspace: "approvals", icon: "shield", label: "Approval" },
 ];

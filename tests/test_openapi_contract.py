@@ -53,8 +53,9 @@ def test_operation_ids_are_explicit_stable_and_unique() -> None:
         "createRecommendation",
         "evaluateHedgeLiquidityDemo",
         "freezeFacility",
-        "getCandidateFactReview",
-        "getDecisionOverride",
+            "getCandidateFactReview",
+            "getClimateTraceabilityProjection",
+            "getDecisionOverride",
         "getDecisionOverrideQueue",
         "getEvidenceDocumentRendition",
         "getEvidenceReviewQueue",
@@ -98,6 +99,15 @@ def test_success_and_problem_responses_have_typed_schemas() -> None:
     assert create["responses"]["422"]["content"]["application/problem+json"]["schema"] == {
         "$ref": "#/components/schemas/ProblemDetails"
     }
+
+
+def test_climate_traceability_projection_is_a_typed_contract() -> None:
+    schema = create_app().openapi()["components"]["schemas"]
+
+    assert schema["ClimateTraceabilityProjectionResponse"]["properties"]["result"] == {
+        "$ref": "#/components/schemas/ClimateTraceabilityResultResponse"
+    }
+    assert "TraceabilityLotResponse" in schema
 
 
 def test_request_validation_uses_problem_details() -> None:

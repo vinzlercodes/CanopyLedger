@@ -35,10 +35,28 @@ _IMMUTABLE_TABLES = (
     "inbox_receipt",
 )
 
+# ``metadata`` describes the current application model.  M1A is the bootstrap
+# revision, so it must not create tables introduced by a later revision whose
+# database extension has not yet been installed.
+_LATER_REVISION_TABLES = frozenset(
+    {
+        "climate_eudr_input",
+        "climate_traceability_geometry",
+    }
+)
+
 
 def upgrade() -> None:
     op.execute(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}")
-    metadata.create_all(bind=op.get_bind(), checkfirst=False)
+    metadata.create_all(
+        bind=op.get_bind(),
+        tables=[
+            table
+            for table in metadata.sorted_tables
+            if table.name not in _LATER_REVISION_TABLES
+        ],
+        checkfirst=False,
+    )
     op.execute(
         f"""
         CREATE OR REPLACE FUNCTION {SCHEMA}.reject_immutable_change()

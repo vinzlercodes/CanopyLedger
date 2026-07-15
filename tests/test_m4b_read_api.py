@@ -34,7 +34,9 @@ def _context(snapshot_id: str) -> DecisionContext:
     )
 
 
-def _app(governance: GovernanceService | None = None):
+def _app(
+    governance: GovernanceService | None = None, *, include_climate: bool = True
+):
     return create_app(
         clock=lambda: NOW,
         governance_service=governance or GovernanceService(clock=lambda: NOW),
@@ -233,6 +235,7 @@ def _app(governance: GovernanceService | None = None):
                 },
             },
         },
+        climate_output_loader=_climate_output if include_climate else None,
         scenario_output_loader=lambda _: {
             "stage_output_id": "out_scenario",
             "snapshot_id": SNAPSHOT_ID,
@@ -340,6 +343,16 @@ def test_decision_pack_keeps_cbb_and_irc_separate_with_frozen_lineage() -> None:
     assert payload["hedge_liquidity"]["stage"] == "hedge_liquidity"
     assert payload["scenario"]["stage"] == "scenario_capacity"
     assert "MARGIN_STRESS" in payload["blockers"]
+    assert payload["climate_traceability"]["eudr_evidence_state"] == "review_required"
+
+
+def test_decision_pack_is_fenced_when_climate_evidence_is_not_published() -> None:
+    response = TestClient(_app(include_climate=False)).get(
+        f"/api/v1/snapshots/{SNAPSHOT_ID}/decision-pack", headers=ANALYST
+    )
+
+    assert response.status_code == 409, response.text
+    assert response.json()["code"] == "STAGE_PUBLICATION_FENCED"
 
 
 def test_decision_pack_exposes_pending_recommendation_before_human_decision() -> None:
@@ -441,6 +454,64 @@ def test_scenario_lab_projection_keeps_stressed_cbb_and_uncapped_irc_distinct() 
     assert payload["worst_scenario_families"] == [
         {"family": "price", "loss": {"amount": "27000.00", "currency": "USD"}}
     ]
+
+
+def _climate_output(_: str) -> dict[str, object]:
+    return {
+            "stage_output_id": "out_climate",
+            "snapshot_id": SNAPSHOT_ID,
+            "stage": "climate_eudr",
+            "stage_version": "1.0.0",
+            "input_digests": ["sha256:" + "e" * 64],
+            "legal_interpretation_bundle_digest": "sha256:" + "l" * 64,
+            "policy_bundle_digest": "sha256:" + "p" * 64,
+            "computation_bundle_digest": "sha256:" + "c" * 64,
+            "reason_codes": ["TRACEABILITY_MISSING_LINK"],
+            "completed_at": NOW.isoformat(),
+            "output_digest": "sha256:" + "o" * 64,
+            "result": {
+                "eudr_evidence_state": "review_required",
+                "legal_interpretation": {
+                    "bundle_version": "legal-eudr-v1",
+                    "production_cutoff": "2020-12-31",
+                    "country_risk_reference_version": "country-risk-2026-q3",
+                    "disclaimer": (
+                        "Evidence readiness is an operational state, not a legal compliance "
+                        "conclusion."
+                    )
+                },
+                "traceability": {"lots": [], "origin_concentration": []},
+                "climate_indicators": [],
+                "climate_scenarios": [],
+                "financed_emissions": {
+                    "attribution_factor": "0.250000",
+                    "scope_1": "0.250000",
+                    "scope_2": "0.250000",
+                    "scope_3": None,
+                    "total_available": "1.0",
+                    "data_quality_score": 2,
+                    "source_period": "2025",
+                    "estimation_method": "reported",
+                    "methodology_version": "pcaf-fixture-v1",
+                    "restatement_lineage": None,
+                    "missing_data_warnings": ["SCOPE_3_UNAVAILABLE"],
+                },
+            },
+    }
+
+
+def test_climate_traceability_projection_preserves_lineage_without_a_legal_claim() -> None:
+    app = create_app(climate_output_loader=_climate_output)
+
+    response = TestClient(app).get(
+        f"/api/v1/snapshots/{SNAPSHOT_ID}/climate-traceability", headers=ANALYST
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["eudr_evidence_state"] == "review_required"
+    assert payload["legal_interpretation_bundle_digest"] == "sha256:" + "l" * 64
+    assert "compliant" not in str(payload).lower()
 
 
 def test_evidence_queue_exposes_candidate_review_context_only() -> None:

@@ -19,6 +19,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.types import UserDefinedType
 
 SCHEMA = "canopyledger"
 
@@ -31,6 +32,15 @@ metadata = MetaData(
         "uq": "uq_%(table_name)s_%(column_0_name)s",
     }
 )
+
+
+class PostGISGeometry(UserDefinedType[object]):
+    """PostGIS geometry type kept in Core metadata without a GeoAlchemy dependency."""
+
+    cache_ok = True
+
+    def get_col_spec(self, **_: object) -> str:
+        return "geometry(Geometry,4326)"
 
 facility_working_state = Table(
     "facility_working_state",
@@ -355,6 +365,42 @@ scenario_capacity_input = Table(
     Column("created_at", DateTime(timezone=True), nullable=False),
     UniqueConstraint("resource_id", "digest", name="scenario_capacity_input_identity_digest"),
     schema=SCHEMA,
+)
+
+climate_eudr_input = Table(
+    "climate_eudr_input",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column("canonical_payload", LargeBinary, nullable=False),
+    Column("digest", String(71), nullable=False, unique=True),
+    Column("created_by", String(40), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("resource_id", "digest", name="climate_eudr_input_identity_digest"),
+    schema=SCHEMA,
+)
+
+climate_traceability_geometry = Table(
+    "climate_traceability_geometry",
+    metadata,
+    Column(
+        "climate_input_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.climate_eudr_input.resource_id", ondelete="RESTRICT"),
+        primary_key=True,
+    ),
+    Column("lot_id", String(40), primary_key=True),
+    Column("geometry", PostGISGeometry(), nullable=False),
+    Column("geometry_digest", String(71), nullable=False),
+    CheckConstraint(
+        "GeometryType(geometry) IN ('POINT', 'POLYGON')",
+        name="climate_geometry_type",
+    ),
+    schema=SCHEMA,
+)
+Index(
+    "ix_climate_traceability_geometry_spatial",
+    climate_traceability_geometry.c.geometry,
+    postgresql_using="gist",
 )
 
 idempotency_record = Table(
