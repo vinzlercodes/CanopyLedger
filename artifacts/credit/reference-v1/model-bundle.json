@@ -1,0 +1,59 @@
+{
+  "bundle": {
+    "bundle_id": "cmb_reference_credit_early_warning_v1",
+    "feature_schema": [
+      {
+        "direction": -1,
+        "mean": "1.502836309523809523809523810",
+        "name": "liquidity_ratio",
+        "reason_code": "LIQUIDITY_COVERAGE_DECLINE",
+        "required": true,
+        "scale": "0.2713357653363560912438270171"
+      },
+      {
+        "direction": 1,
+        "mean": "42.19570654761904761904761905",
+        "name": "receivable_days",
+        "reason_code": "RECEIVABLE_DAYS_RISING",
+        "required": true,
+        "scale": "9.931121021291627680541158454"
+      },
+      {
+        "direction": -1,
+        "mean": "1.476088690476190476190476190",
+        "name": "margin_coverage_ratio",
+        "reason_code": "MARGIN_STRESS_INCREASE",
+        "required": true,
+        "scale": "0.2241830585506904227039608963"
+      },
+      {
+        "direction": 1,
+        "mean": "5.887969642857142857142857143",
+        "name": "payment_delay_days",
+        "reason_code": "PAYMENT_DELAYS_RISING",
+        "required": true,
+        "scale": "4.593853082597996030977562701"
+      }
+    ],
+    "horizon_days": 90,
+    "intercept": "-2.301629771294889",
+    "model_version": "reference-v1",
+    "policy_thresholds": [
+      [
+        "moderate",
+        "0.2500"
+      ],
+      [
+        "high",
+        "0.5500"
+      ]
+    ],
+    "weights": {
+      "liquidity_ratio": "0.5639089631554934",
+      "margin_coverage_ratio": "0.8082237360333533",
+      "payment_delay_days": "0.7681125264976957",
+      "receivable_days": "0.8766441893038528"
+    }
+  },
+  "digest": "sha256:4d32ef7fe12f98a388269812fcef615f0ad9e3589ce951d4aa683efe676127e0"
+}

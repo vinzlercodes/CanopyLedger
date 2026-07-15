@@ -35,6 +35,7 @@ def create_demo_app() -> FastAPI:
         hedge_output_loader=_hedge_output,
         scenario_output_loader=_scenario_output,
         climate_output_loader=_climate_output,
+        credit_early_warning_output_loader=_credit_early_warning_output,
         initial_facilities=(
             FacilityRecord(
                 resource_id=FACILITY_ID,
@@ -383,6 +384,34 @@ def _climate_output(snapshot_id: str) -> dict[str, object] | None:
                 "restatement_lineage": "fixture-restatement-v1",
                 "missing_data_warnings": ["SCOPE_3_UNAVAILABLE"],
             },
+        },
+    }
+
+
+def _credit_early_warning_output(snapshot_id: str) -> dict[str, object] | None:
+    if snapshot_id != SNAPSHOT_ID:
+        return None
+    return {
+        "stage_output_id": "out_credit_early_warning",
+        "snapshot_id": SNAPSHOT_ID,
+        "stage": "credit_early_warning",
+        "stage_version": "1.0.0",
+        "input_digests": ["sha256:" + "f" * 64, "sha256:" + "a" * 64],
+        "policy_bundle_digest": "sha256:" + "b" * 64,
+        "computation_bundle_digest": "sha256:" + "d" * 64,
+        "output_digest": "sha256:" + "6" * 64,
+        "completed_at": NOW.isoformat(),
+        "result": {
+            "signal_type": "synthetic_deterioration_likelihood",
+            "horizon_days": 90,
+            "probability": "0.4182",
+            "band": "moderate",
+            "top_reason_codes": ["RECEIVABLE_DAYS_RISING", "MARGIN_STRESS_INCREASE"],
+            "missing_feature_codes": ["MISSING_CASH_FLOW_VOLATILITY"],
+            "hard_rule_codes": [],
+            "model_bundle_digest": "sha256:" + "a" * 64,
+            "advisory_only": True,
+            "as_of": NOW.isoformat(),
         },
     }
 

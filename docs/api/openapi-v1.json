@@ -1019,6 +1019,133 @@
         "title": "CreateFacility",
         "type": "object"
       },
+      "CreditEarlyWarningProjectionResponse": {
+        "description": "Published M6 advisory signal; this schema intentionally contains no capacity values.",
+        "properties": {
+          "advisory_only": {
+            "const": true,
+            "title": "Advisory Only",
+            "type": "boolean"
+          },
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "band": {
+            "enum": [
+              "low",
+              "moderate",
+              "high"
+            ],
+            "title": "Band",
+            "type": "string"
+          },
+          "completed_at": {
+            "format": "date-time",
+            "title": "Completed At",
+            "type": "string"
+          },
+          "computation_bundle_digest": {
+            "title": "Computation Bundle Digest",
+            "type": "string"
+          },
+          "hard_rule_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Hard Rule Codes",
+            "type": "array"
+          },
+          "horizon_days": {
+            "const": 90,
+            "title": "Horizon Days",
+            "type": "integer"
+          },
+          "input_digests": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Input Digests",
+            "type": "array"
+          },
+          "missing_feature_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Feature Codes",
+            "type": "array"
+          },
+          "model_bundle_digest": {
+            "title": "Model Bundle Digest",
+            "type": "string"
+          },
+          "output_digest": {
+            "title": "Output Digest",
+            "type": "string"
+          },
+          "policy_bundle_digest": {
+            "title": "Policy Bundle Digest",
+            "type": "string"
+          },
+          "probability": {
+            "title": "Probability",
+            "type": "string"
+          },
+          "signal_type": {
+            "const": "synthetic_deterioration_likelihood",
+            "title": "Signal Type",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          },
+          "stage": {
+            "const": "credit_early_warning",
+            "title": "Stage",
+            "type": "string"
+          },
+          "stage_output_id": {
+            "title": "Stage Output Id",
+            "type": "string"
+          },
+          "stage_version": {
+            "title": "Stage Version",
+            "type": "string"
+          },
+          "top_reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Top Reason Codes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "stage_output_id",
+          "snapshot_id",
+          "stage",
+          "stage_version",
+          "input_digests",
+          "policy_bundle_digest",
+          "computation_bundle_digest",
+          "output_digest",
+          "completed_at",
+          "signal_type",
+          "horizon_days",
+          "probability",
+          "band",
+          "top_reason_codes",
+          "missing_feature_codes",
+          "hard_rule_codes",
+          "model_bundle_digest",
+          "advisory_only",
+          "as_of"
+        ],
+        "title": "CreditEarlyWarningProjectionResponse",
+        "type": "object"
+      },
       "DecisionOverrideDetailResponse": {
         "properties": {
           "approval_count": {
@@ -8047,6 +8174,95 @@
           }
         ],
         "summary": "Get Snapshot Collateral"
+      }
+    },
+    "/api/v1/snapshots/{snapshot_id}/credit-early-warning": {
+      "get": {
+        "operationId": "getCreditEarlyWarningProjection",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditEarlyWarningProjectionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Credit Early Warning Projection"
       }
     },
     "/api/v1/snapshots/{snapshot_id}/decision-pack": {

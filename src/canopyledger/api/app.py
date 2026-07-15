@@ -52,6 +52,10 @@ from canopyledger.climate.postgres import (
     PostgresClimateEudrInputStore,
     PostgresClimateEudrRunner,
 )
+from canopyledger.credit.postgres import (
+    PostgresCreditEarlyWarningInputStore,
+    PostgresCreditEarlyWarningRunner,
+)
 from canopyledger.domain.ids import new_resource_id
 from canopyledger.domain.money import Money
 from canopyledger.evidence.controls import (
@@ -1150,6 +1154,30 @@ class ClimateTraceabilitySummaryResponse(BaseModel):
     legal_interpretation_bundle_digest: str
 
 
+class CreditEarlyWarningProjectionResponse(BaseModel):
+    """Published M6 advisory signal; this schema intentionally contains no capacity values."""
+
+    stage_output_id: str
+    snapshot_id: str
+    stage: Literal["credit_early_warning"]
+    stage_version: str
+    input_digests: tuple[str, ...]
+    policy_bundle_digest: str
+    computation_bundle_digest: str
+    output_digest: str
+    completed_at: datetime
+    signal_type: Literal["synthetic_deterioration_likelihood"]
+    horizon_days: Literal[90]
+    probability: str
+    band: Literal["low", "moderate", "high"]
+    top_reason_codes: tuple[str, ...]
+    missing_feature_codes: tuple[str, ...]
+    hard_rule_codes: tuple[str, ...]
+    model_bundle_digest: str
+    advisory_only: Literal[True]
+    as_of: datetime
+
+
 class RecommendationDetailResponse(BaseModel):
     recommendation_id: str
     snapshot_id: str
@@ -1373,6 +1401,7 @@ def create_app(
     hedge_output_loader: Callable[[str], dict[str, object] | None] | None = None,
     scenario_output_loader: Callable[[str], dict[str, object] | None] | None = None,
     climate_output_loader: Callable[[str], dict[str, object] | None] | None = None,
+    credit_early_warning_output_loader: Callable[[str], dict[str, object] | None] | None = None,
     collateral_output_loader: Callable[[str], dict[str, object] | None] | None = None,
     governance_service: GovernanceService | PostgresGovernanceService | None = None,
     decision_context_loader: Callable[[str], DecisionContext] | None = None,
@@ -2055,6 +2084,24 @@ def create_app(
         if output is None:
             raise _Problem(404, "RESOURCE_NOT_FOUND", "Climate/traceability assessment not found")
         return _climate_traceability_projection_response(snapshot_id=snapshot_id, output=output)
+
+    @app.get(
+        "/api/v1/snapshots/{snapshot_id}/credit-early-warning",
+        operation_id="getCreditEarlyWarningProjection",
+        response_model=CreditEarlyWarningProjectionResponse,
+        responses=_problem_responses(401, 404, 409),
+    )
+    def get_credit_early_warning_projection(
+        snapshot_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> CreditEarlyWarningProjectionResponse:
+        del actor
+        if credit_early_warning_output_loader is None:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Credit early-warning assessment not found")
+        output = credit_early_warning_output_loader(snapshot_id)
+        if output is None:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Credit early-warning assessment not found")
+        return _credit_early_warning_projection_response(snapshot_id=snapshot_id, output=output)
 
     @app.get(
         "/api/v1/snapshots/{snapshot_id}/decision-pack",
@@ -2914,6 +2961,7 @@ def create_postgres_app(
     hedge_input_store = PostgresHedgeLiquidityInputStore(engine)
     scenario_input_store = PostgresScenarioCapacityInputStore(engine)
     climate_input_store = PostgresClimateEudrInputStore(engine)
+    credit_input_store = PostgresCreditEarlyWarningInputStore(engine)
     integrity = IntegrityService(
         store,
         clock=clock,
@@ -2921,6 +2969,7 @@ def create_postgres_app(
             "hedge_liquidity_input": hedge_input_store.validate_snapshot_reference,
             "scenario_capacity_input": scenario_input_store.validate_snapshot_reference,
             "climate_eudr_input": climate_input_store.validate_snapshot_reference,
+            "credit_early_warning_input": credit_input_store.validate_snapshot_reference,
         },
     )
     evidence = EvidenceService(
@@ -2940,6 +2989,9 @@ def create_postgres_app(
     climate_runner = PostgresClimateEudrRunner(
         engine, store, climate_input_store, clock=clock
     )
+    credit_runner = PostgresCreditEarlyWarningRunner(
+        engine, store, credit_input_store, clock=clock
+    )
     governance = PostgresGovernanceService(engine, clock=clock)
     return create_app(
         clock=clock,
@@ -2949,6 +3001,7 @@ def create_postgres_app(
         hedge_output_loader=hedge_runner.load_published_output,
         scenario_output_loader=scenario_runner.load_published_output,
         climate_output_loader=climate_runner.load_published_output,
+        credit_early_warning_output_loader=credit_runner.load_published_output,
         collateral_output_loader=governance.load_collateral_view,
         governance_service=governance,
         decision_context_loader=governance.load_authoritative_context,
@@ -3494,6 +3547,42 @@ def _climate_traceability_summary_response(
         reason_codes=projection.reason_codes,
         legal_interpretation_bundle_digest=projection.legal_interpretation_bundle_digest,
     )
+
+
+def _credit_early_warning_projection_response(
+    *, snapshot_id: str, output: dict[str, object]
+) -> CreditEarlyWarningProjectionResponse:
+    """Fence the UI to an immutable advisory result without deriving lending capacity."""
+    try:
+        stage = _published_stage(output, snapshot_id, "credit_early_warning")
+        result = _published_mapping(stage, "result")
+        return CreditEarlyWarningProjectionResponse(
+            stage_output_id=_published_string(stage, "stage_output_id"),
+            snapshot_id=_published_string(stage, "snapshot_id"),
+            stage="credit_early_warning",
+            stage_version=_published_string(stage, "stage_version"),
+            input_digests=tuple(_published_strings(stage, "input_digests")),
+            policy_bundle_digest=_published_string(stage, "policy_bundle_digest"),
+            computation_bundle_digest=_published_string(stage, "computation_bundle_digest"),
+            output_digest=_published_string(stage, "output_digest"),
+            completed_at=_published_datetime(stage, "completed_at"),
+            signal_type=_published_string(result, "signal_type"),  # type: ignore[arg-type]
+            horizon_days=_published_integer(result, "horizon_days"),  # type: ignore[arg-type]
+            probability=_published_string(result, "probability"),
+            band=_published_string(result, "band"),  # type: ignore[arg-type]
+            top_reason_codes=tuple(_published_strings(result, "top_reason_codes")),
+            missing_feature_codes=tuple(_published_strings(result, "missing_feature_codes")),
+            hard_rule_codes=tuple(_published_strings(result, "hard_rule_codes")),
+            model_bundle_digest=_published_string(result, "model_bundle_digest"),
+            advisory_only=True,
+            as_of=_published_datetime(result, "as_of"),
+        )
+    except (KeyError, TypeError, ValidationError, ValueError) as exc:
+        raise _Problem(
+            409,
+            "STAGE_PUBLICATION_FENCED",
+            "Published credit early-warning output is incomplete or has an unsupported schema",
+        ) from exc
 
 
 def _published_stage(output: dict[str, object], snapshot_id: str, stage: str) -> dict[str, object]:
