@@ -34,6 +34,7 @@ def create_demo_app() -> FastAPI:
         collateral_output_loader=_collateral_output,
         hedge_output_loader=_hedge_output,
         scenario_output_loader=_scenario_output,
+        climate_output_loader=_climate_output,
         initial_facilities=(
             FacilityRecord(
                 resource_id=FACILITY_ID,
@@ -311,6 +312,76 @@ def _hedge_output(snapshot_id: str) -> dict[str, object] | None:
                 "liquidity_coverage_ratio": "2.50",
                 "required_liquidity_reserve": "10000.00",
                 "required_liquidity_coverage_ratio": "1.00",
+            },
+        },
+    }
+
+
+def _climate_output(snapshot_id: str) -> dict[str, object] | None:
+    if snapshot_id != SNAPSHOT_ID:
+        return None
+    return {
+        "stage_output_id": "out_climate",
+        "snapshot_id": SNAPSHOT_ID,
+        "stage": "climate_eudr",
+        "stage_version": "1.0.0",
+        "input_digests": ["sha256:" + "e" * 64],
+        "legal_interpretation_bundle_digest": "sha256:" + "c" * 64,
+        "policy_bundle_digest": "sha256:" + "b" * 64,
+        "computation_bundle_digest": "sha256:" + "d" * 64,
+        "output_digest": "sha256:" + "5" * 64,
+        "completed_at": NOW.isoformat(),
+        "reason_codes": ["TRACEABILITY_MISSING_LINK"],
+        "result": {
+            "eudr_evidence_state": "review_required",
+            "legal_interpretation": {
+                "bundle_version": "fixture-eudr-v1",
+                "production_cutoff": "2020-12-31",
+                "country_risk_reference_version": "fixture-country-risk-v1",
+                "disclaimer": (
+                    "Evidence readiness is an operational state, not a legal compliance conclusion."
+                ),
+            },
+            "traceability": {
+                "lots": [
+                    {
+                        "lot_id": "lot-1",
+                        "origin_country": "BR",
+                        "geometry": {
+                            "type": "Point",
+                            "crs": "EPSG:4326",
+                            "coordinates": ["-47.8825", "-15.7942"],
+                        },
+                        "geometry_state": "valid",
+                        "production_date": "2020-12-31",
+                        "production_date_class": "on_or_after_cutoff",
+                        "country_risk_reference": "fixture-country-risk-v1",
+                        "evidence_document_digest": "sha256:" + "a" * 64,
+                        "evidence_recorded_at": NOW.isoformat(),
+                        "freshness_state": "current",
+                        "missing_links": ["warehouse_receipt"],
+                        "reason_codes": ["TRACEABILITY_MISSING_LINK"],
+                        "evidence_graph": {"nodes": [], "edges": []},
+                    }
+                ],
+                "origin_concentration": [
+                    {"origin_country": "BR", "lot_count": "1", "concentration": "1.000000"}
+                ],
+            },
+            "climate_indicators": [],
+            "climate_scenarios": [],
+            "financed_emissions": {
+                "attribution_factor": "0.250000",
+                "scope_1": "30.000000",
+                "scope_2": "20.000000",
+                "scope_3": None,
+                "total_available": "50.000000",
+                "data_quality_score": 2,
+                "source_period": "2025",
+                "estimation_method": "reported",
+                "methodology_version": "fixture-pcaf-v1",
+                "restatement_lineage": "fixture-restatement-v1",
+                "missing_data_warnings": ["SCOPE_3_UNAVAILABLE"],
             },
         },
     }
