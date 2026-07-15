@@ -52,13 +52,16 @@ def test_operation_ids_are_explicit_stable_and_unique() -> None:
         "createFacility",
         "createRecommendation",
         "evaluateHedgeLiquidityDemo",
+        "extractEvidenceDocument",
         "freezeFacility",
-            "getCandidateFactReview",
+        "getCandidateFactReview",
+        "getCandidateFactExtractionProvenance",
             "getClimateTraceabilityProjection",
             "getCreditEarlyWarningProjection",
             "getDecisionOverride",
         "getDecisionOverrideQueue",
         "getEvidenceDocumentRendition",
+        "getEvidenceDocumentExtraction",
         "getEvidenceReviewQueue",
         "getFacility",
         "getHedgeLabProjection",
@@ -166,3 +169,24 @@ def test_typescript_client_preserves_nullable_openapi_fields() -> None:
     generated = (ROOT / "typescript" / "generated" / "index.ts").read_text()
     assert "readonly final_decision?: GovernanceResourceResponse | null;" in generated
     assert "readonly recommendation?: RecommendationDetailResponse | null;" in generated
+
+
+def test_m7_extraction_contract_exposes_candidate_only_provenance() -> None:
+    schema = create_app().openapi()
+    operation = schema["paths"]["/api/v1/evidence/documents/{document_version_id}/extractions"][
+        "post"
+    ]
+    response = schema["components"]["schemas"]["DocumentExtractionResponse"]
+
+    assert operation["operationId"] == "extractEvidenceDocument"
+    assert operation["responses"]["201"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/DocumentExtractionResponse"
+    }
+    required_provenance = {
+        "document_byte_digest",
+        "classification_method",
+        "extractor_version",
+        "text_digest",
+    }
+    assert required_provenance.issubset(response["properties"])
+    assert "approved_fact_id" not in response["properties"]

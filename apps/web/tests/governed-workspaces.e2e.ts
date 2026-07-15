@@ -53,8 +53,8 @@ test("authorized M4B workspaces render server-issued projections and forward ide
   const pages = [
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/cockpit", analystToken, ["Governed capacity, never browser-calculated", "Facility commitment", "Current exposure", "Liquidity cap", "Climate &amp; Traceability evidence", "review required"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/collateral?section=inventory", analystToken, ["Inventory lots"]],
-    ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/evidence", analystToken, ["Candidate facts await human review"]],
-    ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/evidence/cf_1", analystToken, ["Safe text rendition", "Warehouse receipt", "Download original attachment"]],
+    ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/evidence", analystToken, ["Candidate facts await human review", "Ingest a known document", "Ingest and extract", "Extraction never approves a fact"]],
+    ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/evidence/cf_1", analystToken, ["Safe text rendition", "Warehouse receipt", "Extractor confidence", "Download original attachment"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/risk/hedge", analystToken, ["Hedge Lab", "Variation margin protection", "Futures and option exposure"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/risk/scenarios", analystToken, ["Scenario Lab", "Uncapped IRC", "Stressed CBB and shortfalls"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/climate", analystToken, ["Climate &amp; Traceability", "Origin map", "Map-equivalent traceability table", "Evidence readiness"]],
@@ -172,6 +172,7 @@ function fixtureBody(path: string): Record<string, unknown> {
   if (path.endsWith("/collateral")) return collateral();
   if (path === "/api/v1/evidence/review-queue") return { items: [{ candidate_fact_id: "cf_1", approval_state: "candidate", fact_type: "warehouse_receipt", subject_id: "lot-1", period: "2026-07", normalized_value: "50", document_version_id: "docv_1", document_byte_digest: "sha256:fixture", page_region: "page 1", extraction_method: "human", extractor_version: "1", conflicts: [] }] };
   if (path === "/api/v1/evidence/candidate-facts/cf_1/review") return evidenceReviewPacket();
+  if (path === "/api/v1/evidence/candidate-facts/cf_1/extraction-provenance") return { candidate_fact_id: "cf_1", extraction_id: "exr_1", confidence: "0.9500", approval_state: "candidate" };
   if (path === "/api/v1/evidence/documents/docv_1/rendition") return { document_version_id: "docv_1", filename: "receipt.txt", content_type: "text/plain", byte_digest: "sha256:fixture", preview_status: "available", preview_text: "Warehouse receipt\nLot KC-01", truncated: false };
   if (path.endsWith("/hedge-lab")) return hedgeLab();
   if (path.endsWith("/scenario-lab")) return scenarioLab();

@@ -59,3 +59,19 @@ def test_receipt_and_ownership_controls_have_unique_identity_constraints() -> No
         for constraint in ownership.constraints
         if constraint.name is not None
     } >= {"ownership_claim_identity"}
+
+
+def test_m7_extraction_schema_keeps_candidate_provenance_immutable_and_separate() -> None:
+    extraction = metadata.tables["canopyledger.document_extraction"]
+    provenance = metadata.tables["canopyledger.candidate_fact_extraction"]
+
+    assert {
+        "request_digest",
+        "document_version_id",
+        "document_byte_digest",
+        "classification_method",
+        "extractor_version",
+        "text_digest",
+    }.issubset(extraction.c.keys())
+    assert {"candidate_fact_id", "extraction_id", "confidence"}.issubset(provenance.c.keys())
+    assert provenance.c.candidate_fact_id.primary_key
