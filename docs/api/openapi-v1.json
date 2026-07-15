@@ -239,6 +239,44 @@
         "title": "CandidateFactResponse",
         "type": "object"
       },
+      "CandidateReconciliationIssueResponse": {
+        "properties": {
+          "blocks_freeze": {
+            "title": "Blocks Freeze",
+            "type": "boolean"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "difference": {
+            "title": "Difference",
+            "type": "string"
+          },
+          "expected_quantity": {
+            "title": "Expected Quantity",
+            "type": "string"
+          },
+          "lot_id": {
+            "title": "Lot Id",
+            "type": "string"
+          },
+          "receipt_quantity": {
+            "title": "Receipt Quantity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "lot_id",
+          "expected_quantity",
+          "receipt_quantity",
+          "difference",
+          "blocks_freeze"
+        ],
+        "title": "CandidateReconciliationIssueResponse",
+        "type": "object"
+      },
       "CbbCertificateContributionResponse": {
         "properties": {
           "amount": {
@@ -1388,6 +1426,84 @@
         "title": "DeterministicScenarioResponse",
         "type": "object"
       },
+      "DocumentExtractionResponse": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/ExtractedCandidateProvenanceResponse"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "classification_method": {
+            "title": "Classification Method",
+            "type": "string"
+          },
+          "classifier_version": {
+            "title": "Classifier Version",
+            "type": "string"
+          },
+          "completed_at": {
+            "title": "Completed At",
+            "type": "string"
+          },
+          "document_byte_digest": {
+            "title": "Document Byte Digest",
+            "type": "string"
+          },
+          "document_type": {
+            "title": "Document Type",
+            "type": "string"
+          },
+          "document_version_id": {
+            "title": "Document Version Id",
+            "type": "string"
+          },
+          "extraction_id": {
+            "title": "Extraction Id",
+            "type": "string"
+          },
+          "extractor_version": {
+            "title": "Extractor Version",
+            "type": "string"
+          },
+          "reconciliation_issue": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CandidateReconciliationIssueResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "const": "completed",
+            "title": "Status",
+            "type": "string"
+          },
+          "text_digest": {
+            "title": "Text Digest",
+            "type": "string"
+          }
+        },
+        "required": [
+          "extraction_id",
+          "document_version_id",
+          "document_byte_digest",
+          "status",
+          "document_type",
+          "classification_method",
+          "classifier_version",
+          "extractor_version",
+          "text_digest",
+          "candidates",
+          "reconciliation_issue",
+          "completed_at"
+        ],
+        "title": "DocumentExtractionResponse",
+        "type": "object"
+      },
       "EvidenceCandidateCreate": {
         "additionalProperties": false,
         "properties": {
@@ -1968,6 +2084,35 @@
         ],
         "title": "ExerciseStyle",
         "type": "string"
+      },
+      "ExtractedCandidateProvenanceResponse": {
+        "properties": {
+          "approval_state": {
+            "const": "candidate",
+            "title": "Approval State",
+            "type": "string"
+          },
+          "candidate_fact_id": {
+            "title": "Candidate Fact Id",
+            "type": "string"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "string"
+          },
+          "extraction_id": {
+            "title": "Extraction Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidate_fact_id",
+          "extraction_id",
+          "confidence",
+          "approval_state"
+        ],
+        "title": "ExtractedCandidateProvenanceResponse",
+        "type": "object"
       },
       "FacilityResponse": {
         "properties": {
@@ -6369,6 +6514,80 @@
         "summary": "Approve Candidate Fact"
       }
     },
+    "/api/v1/evidence/candidate-facts/{candidate_fact_id}/extraction-provenance": {
+      "get": {
+        "operationId": "getCandidateFactExtractionProvenance",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "candidate_fact_id",
+            "required": true,
+            "schema": {
+              "title": "Candidate Fact Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractedCandidateProvenanceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Candidate Fact Extraction Provenance"
+      }
+    },
     "/api/v1/evidence/candidate-facts/{candidate_fact_id}/reject": {
       "post": {
         "operationId": "rejectCandidateFact",
@@ -6595,6 +6814,85 @@
         "summary": "Upload Evidence Document"
       }
     },
+    "/api/v1/evidence/documents/{document_version_id}/extractions": {
+      "post": {
+        "operationId": "extractEvidenceDocument",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_version_id",
+            "required": true,
+            "schema": {
+              "title": "Document Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentExtractionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Extract Evidence Document"
+      }
+    },
     "/api/v1/evidence/documents/{document_version_id}/rendition": {
       "get": {
         "operationId": "getEvidenceDocumentRendition",
@@ -6672,6 +6970,80 @@
           }
         ],
         "summary": "Get Evidence Document Rendition"
+      }
+    },
+    "/api/v1/evidence/extractions/{extraction_id}": {
+      "get": {
+        "operationId": "getEvidenceDocumentExtraction",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "extraction_id",
+            "required": true,
+            "schema": {
+              "title": "Extraction Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentExtractionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Evidence Document Extraction"
       }
     },
     "/api/v1/evidence/ownership-claims": {

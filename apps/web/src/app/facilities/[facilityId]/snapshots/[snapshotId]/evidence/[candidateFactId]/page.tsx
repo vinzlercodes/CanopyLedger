@@ -11,13 +11,30 @@ export default async function EvidenceReviewPage({ params }: { readonly params: 
   try {
     const client = createApiClient((await headers()).get("authorization"));
     const packet = requireSuccess(await client.getCandidateFactReview(candidateFactId));
-    try {
-      const rendition = requireSuccess(await client.getEvidenceDocumentRendition(packet.document.document_version_id));
-      return <EvidenceReviewDetail context={context} facilityId={facilityId} packet={packet} rendition={rendition} snapshotId={snapshotId} />;
-    } catch (error) {
-      const renditionError = error instanceof ApiProblem ? error.message : "The secure document rendition could not be loaded.";
-      return <EvidenceReviewDetail context={context} facilityId={facilityId} packet={packet} renditionError={renditionError} snapshotId={snapshotId} />;
+    const [renditionResult, provenanceResult] = await Promise.allSettled([
+      client.getEvidenceDocumentRendition(packet.document.document_version_id),
+      client.getCandidateFactExtractionProvenance(candidateFactId),
+    ]);
+    let rendition;
+    let renditionError: string | undefined;
+    if (renditionResult.status === "fulfilled") {
+      try {
+        rendition = requireSuccess(renditionResult.value);
+      } catch (error) {
+        renditionError = error instanceof ApiProblem ? error.message : "The secure document rendition could not be loaded.";
+      }
+    } else {
+      renditionError = renditionResult.reason instanceof ApiProblem ? renditionResult.reason.message : "The secure document rendition could not be loaded.";
     }
+    let provenance;
+    if (provenanceResult.status === "fulfilled") {
+      try {
+        provenance = requireSuccess(provenanceResult.value);
+      } catch {
+        provenance = undefined;
+      }
+    }
+    return <EvidenceReviewDetail context={context} facilityId={facilityId} packet={packet} provenance={provenance} rendition={rendition} renditionError={renditionError} snapshotId={snapshotId} />;
   } catch (error) {
     const detail = error instanceof ApiProblem ? error.message : "The evidence review packet could not be loaded.";
     return <EvidenceReviewDetail context={context} facilityId={facilityId} snapshotId={snapshotId} error={detail} />;

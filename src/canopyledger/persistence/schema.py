@@ -342,6 +342,56 @@ quantity_reconciliation_issue = Table(
     schema=SCHEMA,
 )
 
+document_extraction = Table(
+    "document_extraction",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column("request_digest", String(71), nullable=False, unique=True),
+    Column(
+        "document_version_id",
+        String(80),
+        nullable=False,
+    ),
+    Column("document_byte_digest", String(71), nullable=False),
+    Column("status", String(32), nullable=False),
+    Column("document_type", String(80), nullable=False),
+    Column("classification_method", String(80), nullable=False),
+    Column("classifier_version", String(120), nullable=False),
+    Column("extractor_version", String(120), nullable=False),
+    Column("text_digest", String(71), nullable=False),
+    Column("reconciliation_issue", JSONB),
+    Column("completed_at", DateTime(timezone=True), nullable=False),
+    ForeignKeyConstraint(
+        ["document_version_id", "document_byte_digest"],
+        [
+            f"{SCHEMA}.evidence_document_version.resource_id",
+            f"{SCHEMA}.evidence_document_version.byte_digest",
+        ],
+        ondelete="RESTRICT",
+        name="document_extraction_document_version",
+    ),
+    schema=SCHEMA,
+)
+
+candidate_fact_extraction = Table(
+    "candidate_fact_extraction",
+    metadata,
+    Column(
+        "candidate_fact_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.candidate_fact.resource_id", ondelete="RESTRICT"),
+        primary_key=True,
+    ),
+    Column(
+        "extraction_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.document_extraction.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column("confidence", String(16), nullable=False),
+    schema=SCHEMA,
+)
+
 
 hedge_liquidity_input = Table(
     "hedge_liquidity_input",

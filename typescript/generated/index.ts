@@ -56,6 +56,15 @@ export interface CandidateFactResponse {
   readonly value: Record<string, unknown>;
 }
 
+export interface CandidateReconciliationIssueResponse {
+  readonly blocks_freeze: boolean;
+  readonly code: string;
+  readonly difference: string;
+  readonly expected_quantity: string;
+  readonly lot_id: string;
+  readonly receipt_quantity: string;
+}
+
 export interface CbbCertificateContributionResponse {
   readonly amount: string;
   readonly source_id: string;
@@ -292,6 +301,21 @@ export interface DeterministicScenarioResponse {
   readonly stressed_cbb: MoneyResponse;
 }
 
+export interface DocumentExtractionResponse {
+  readonly candidates: readonly ExtractedCandidateProvenanceResponse[];
+  readonly classification_method: string;
+  readonly classifier_version: string;
+  readonly completed_at: string;
+  readonly document_byte_digest: string;
+  readonly document_type: string;
+  readonly document_version_id: string;
+  readonly extraction_id: string;
+  readonly extractor_version: string;
+  readonly reconciliation_issue: CandidateReconciliationIssueResponse | null;
+  readonly status: string;
+  readonly text_digest: string;
+}
+
 export interface EvidenceCandidateCreate {
   readonly document_byte_digest: string;
   readonly document_version_id: string;
@@ -401,6 +425,13 @@ export interface ExchangeContractSpecificationInput {
 }
 
 export interface ExerciseStyle {
+}
+
+export interface ExtractedCandidateProvenanceResponse {
+  readonly approval_state: string;
+  readonly candidate_fact_id: string;
+  readonly confidence: string;
+  readonly extraction_id: string;
 }
 
 export interface FacilityResponse {
@@ -1219,6 +1250,15 @@ export class CanopyLedgerClient {
     );
   }
 
+  async extractEvidenceDocument(document_version_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<DocumentExtractionResponse>> {
+    return this.#request<DocumentExtractionResponse>(
+      "POST",
+      `/api/v1/evidence/documents/${encodeURIComponent(document_version_id)}/extractions`,
+      undefined,
+      headers,
+    );
+  }
+
   async freezeFacility(facility_id: string, body: FreezeFacility, headers: RequestHeaders = {}): Promise<ApiResponse<SnapshotManifestResponse>> {
     return this.#request<SnapshotManifestResponse>(
       "POST",
@@ -1241,6 +1281,15 @@ export class CanopyLedgerClient {
     return this.#request<ApprovalRequestDetailResponse>(
       "GET",
       `/api/v1/approval-requests/${encodeURIComponent(approval_request_id)}`,
+      undefined,
+      headers,
+    );
+  }
+
+  async getCandidateFactExtractionProvenance(candidate_fact_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<ExtractedCandidateProvenanceResponse>> {
+    return this.#request<ExtractedCandidateProvenanceResponse>(
+      "GET",
+      `/api/v1/evidence/candidate-facts/${encodeURIComponent(candidate_fact_id)}/extraction-provenance`,
       undefined,
       headers,
     );
@@ -1286,6 +1335,15 @@ export class CanopyLedgerClient {
     return this.#request<DecisionOverrideQueueResponse>(
       "GET",
       `/api/v1/snapshots/${encodeURIComponent(snapshot_id)}/override-requests`,
+      undefined,
+      headers,
+    );
+  }
+
+  async getEvidenceDocumentExtraction(extraction_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<DocumentExtractionResponse>> {
+    return this.#request<DocumentExtractionResponse>(
+      "GET",
+      `/api/v1/evidence/extractions/${encodeURIComponent(extraction_id)}`,
       undefined,
       headers,
     );
