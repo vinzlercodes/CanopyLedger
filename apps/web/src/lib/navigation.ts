@@ -14,5 +14,6 @@ export const workspaceNavigation: readonly {
   { workspace: "risk/scenarios", icon: "activity", label: "Scenario Lab" },
   { workspace: "climate", icon: "spark", label: "Climate & Traceability" },
   { workspace: "credit", icon: "activity", label: "Credit Monitoring" },
+  { workspace: "analytics", icon: "spark", label: "Analytics Copilot" },
   { workspace: "approvals", icon: "shield", label: "Approval" },
 ];

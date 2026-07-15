@@ -59,6 +59,10 @@ ALTER ROLE analytics_reader SET search_path = pg_catalog, analytics;
 ALTER ROLE report_reader SET search_path = pg_catalog, reporting;
 ALTER ROLE audit_reader SET search_path = pg_catalog, audit;
 
+-- M8 sets this transaction-local resource ceiling after switching to the
+-- read-only capability role. PostgreSQL otherwise reserves it to superusers.
+GRANT SET ON PARAMETER temp_file_limit TO analytics_reader;
+
 -- Curated reader schemas are read-only by construction. Operational grants are
 -- deliberately table-specific and arrive with the M1A resource schema.
 ALTER DEFAULT PRIVILEGES FOR ROLE migration_owner

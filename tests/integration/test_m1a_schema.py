@@ -14,6 +14,7 @@ EXPECTED_TABLES = {
     "approved_fact",
     "approval_action",
     "approval_request",
+    "analytics_query_run",
     "audit_event",
     "bundle",
     "candidate_fact",
@@ -70,6 +71,7 @@ def test_immutable_resources_have_database_update_and_delete_guards(
         "audit_event",
         "approval_action",
         "approval_request",
+        "analytics_query_run",
         "bundle",
         "candidate_fact",
         "climate_eudr_input",
@@ -105,6 +107,32 @@ def test_immutable_resources_have_database_update_and_delete_guards(
         )
     )
     assert {row.event_object_table for row in rows} == guarded_tables
+
+
+def test_analytics_reader_can_read_only_curated_m8_views(connection: Connection) -> None:
+    views = connection.execute(
+        text(
+            """
+            SELECT table_name
+            FROM information_schema.views
+            WHERE table_schema = 'analytics'
+            """
+        )
+    )
+    assert {row.table_name for row in views} == {
+        "approved_fact_snapshot",
+        "hedge_ratio_month",
+        "receivable_eligibility",
+        "reserve_contribution",
+        "scenario_result",
+        "snapshot_summary",
+    }
+
+    connection.execute(text("SET ROLE analytics_reader"))
+    connection.execute(text("SELECT * FROM analytics.snapshot_summary"))
+    with pytest.raises(DBAPIError):
+        connection.execute(text("SELECT * FROM canopyledger.facility_snapshot"))
+    connection.rollback()
 
     now = datetime(2026, 6, 21, 12, tzinfo=UTC)
     connection.execute(
