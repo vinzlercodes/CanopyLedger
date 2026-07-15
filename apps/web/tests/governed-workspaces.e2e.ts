@@ -58,6 +58,7 @@ test("authorized M4B workspaces render server-issued projections and forward ide
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/risk/hedge", analystToken, ["Hedge Lab", "Variation margin protection", "Futures and option exposure"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/risk/scenarios", analystToken, ["Scenario Lab", "Uncapped IRC", "Stressed CBB and shortfalls"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/climate", analystToken, ["Climate &amp; Traceability", "Origin map", "Map-equivalent traceability table", "Evidence readiness"]],
+    ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/analytics", analystToken, ["Analytics Copilot", "Approved template question", "Run approved read", "never sends SQL from the browser"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/approvals", approverToken, ["Independent human approval queue"]],
   ] as const;
 

@@ -7,8 +7,11 @@ from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine
+from sqlalchemy import Engine, text
+from sqlalchemy.exc import DBAPIError
 
+from canopyledger.analytics.copilot import CompiledAnalyticsQuery
+from canopyledger.analytics.postgres import PostgresAnalyticsExecutor
 from canopyledger.api.app import create_postgres_app
 from canopyledger.domain.ids import new_resource_id
 from canopyledger.integrity.bundles import BundleType, VersionBundle
@@ -189,11 +192,11 @@ def test_postgres_freeze_expands_policy_required_evidence(
 
     frozen = api.post(
         f"/api/v1/facilities/{created.json()['id']}/snapshots",
-            headers={
-                **auth_headers(),
-                "Idempotency-Key": "policy-freeze-0001",
-                "If-Match": created.headers["etag"],
-            },
+        headers={
+            **auth_headers(),
+            "Idempotency-Key": "policy-freeze-0001",
+            "If-Match": created.headers["etag"],
+        },
         json={
             "as_of": "2026-06-23T12:00:00.000000Z",
             "market_bundle": market,
@@ -212,3 +215,82 @@ def test_postgres_freeze_expands_policy_required_evidence(
             "digest": approved.json()["digest"],
         }
     ]
+
+
+def test_postgres_m8_executes_only_curated_read_and_persists_audit_record(
+    database_url: str,
+    database_engine: Engine,
+) -> None:
+    api = client(database_url)
+    run_key = new_resource_id("key")
+    created = api.post(
+        "/api/v1/facilities",
+        headers={**auth_headers(), "Idempotency-Key": f"m8-create-{run_key}"},
+        json={
+            "legal_name": "M8 Readonly Coffee Trading BV",
+            "currency": "EUR",
+            "facility_commitment": "12000000.00",
+        },
+    )
+    assert created.status_code == 201, created.text
+    market, policy, legal, computation = publish_required_bundles(database_engine)
+    frozen = api.post(
+        f"/api/v1/facilities/{created.json()['id']}/snapshots",
+        headers={
+            **auth_headers(),
+            "Idempotency-Key": f"m8-freeze-{run_key}",
+            "If-Match": created.headers["etag"],
+        },
+        json={
+            "as_of": "2026-06-23T12:00:00.000000Z",
+            "market_bundle": market,
+            "policy_bundle": policy,
+            "legal_interpretation_bundle": legal,
+            "computation_bundle": computation,
+            "inputs": [],
+        },
+    )
+    assert frozen.status_code == 201, frozen.text
+
+    answer = api.post(
+        f"/api/v1/facilities/{created.json()['id']}/analytics/answers",
+        headers=auth_headers(),
+        json={
+            "question": "Show snapshot summary",
+            "snapshot_id": frozen.json()["snapshot_id"],
+        },
+    )
+
+    assert answer.status_code == 200, answer.text
+    payload = answer.json()
+    assert payload["result"][0]["snapshot_id"] == frozen.json()["snapshot_id"]
+    assert payload["referenced_views"] == ["analytics.snapshot_summary"]
+    with database_engine.connect() as connection:
+        assert (
+            connection.execute(
+                text(
+                    "SELECT count(*) FROM canopyledger.analytics_query_run "
+                    "WHERE resource_id = :resource_id"
+                ),
+                {"resource_id": payload["query_run_id"]},
+            ).scalar_one()
+            == 1
+        )
+
+
+def test_postgres_m8_timeout_rolls_back_analytics_role_transaction(
+    database_engine: Engine,
+) -> None:
+    executor = PostgresAnalyticsExecutor(database_engine)
+
+    with pytest.raises(DBAPIError, match="statement timeout"):
+        executor.execute(
+            CompiledAnalyticsQuery(
+                sql="SELECT pg_sleep(3)",
+                parameters={},
+                referenced_views=(),
+            )
+        )
+
+    with database_engine.connect() as connection:
+        assert connection.execute(text("SELECT current_user")).scalar_one() == "postgres"

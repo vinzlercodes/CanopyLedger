@@ -392,6 +392,37 @@ candidate_fact_extraction = Table(
     schema=SCHEMA,
 )
 
+analytics_query_run = Table(
+    "analytics_query_run",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column("request_digest", String(71), nullable=False, unique=True),
+    Column("actor_id", String(40), nullable=False),
+    Column(
+        "facility_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.facility_working_state.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column(
+        "snapshot_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.facility_snapshot.resource_id", ondelete="RESTRICT"),
+        nullable=True,
+    ),
+    Column("question", Text, nullable=False),
+    Column("analytical_plan", JSONB, nullable=False),
+    Column("query_digest", String(71), nullable=False),
+    Column("referenced_views", JSONB, nullable=False),
+    Column("data_cutoff", DateTime(timezone=True), nullable=False),
+    Column("canonical_result", LargeBinary, nullable=False),
+    Column("result_digest", String(71), nullable=False),
+    Column("warnings", JSONB, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("resource_id", "request_digest", name="analytics_query_run_identity_digest"),
+    schema=SCHEMA,
+)
+
 
 hedge_liquidity_input = Table(
     "hedge_liquidity_input",
