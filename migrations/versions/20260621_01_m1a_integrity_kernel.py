@@ -42,6 +42,8 @@ _LATER_REVISION_TABLES = frozenset(
     {
         "climate_eudr_input",
         "climate_traceability_geometry",
+        "document_extraction",
+        "candidate_fact_extraction",
     }
 )
 

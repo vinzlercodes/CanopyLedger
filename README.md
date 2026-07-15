@@ -159,6 +159,8 @@ Important runnable endpoints include:
 - `POST /api/v1/m1b/pipeline/demo`
 - `POST /api/v1/hedge-liquidity/demo` (explicitly non-authoritative preview)
 - `POST /api/v1/evidence/documents` and candidate-fact review actions
+- `POST /api/v1/evidence/documents/{document_version_id}/extractions` (candidate-only M7 parsing)
+- `GET /api/v1/evidence/extractions/{extraction_id}` and candidate extraction provenance
 - `POST /api/v1/snapshots/{snapshot_id}/recommendations`
 - `POST /api/v1/recommendations/{recommendation_id}/approval-requests`
 - `POST /api/v1/approval-requests/{approval_request_id}/approve`
@@ -167,7 +169,20 @@ Important runnable endpoints include:
 
 ## PostgreSQL integration gate
 
-The repository does not start PostgreSQL for you. With a disposable PostgreSQL 17 database available, set `DATABASE_URL` and run migrations and integration tests:
+Run the complete fresh-database acceptance gate locally with Docker installed and running:
+
+```bash
+make test-m1a-postgres
+```
+
+The target starts a uniquely named disposable PostGIS 17 container, bootstraps capability roles,
+runs migrations, Alembic drift detection, and the complete PostgreSQL marker suite, then removes
+the container. It fails if Docker or any gate is unavailable; it never treats skipped PostgreSQL
+tests as acceptance evidence.
+
+To use a separately provisioned disposable PostgreSQL 17/PostGIS database instead, bootstrap its
+capability roles first, set `DATABASE_URL`, and run the same target, or execute the individual
+steps:
 
 ```bash
 export DATABASE_URL='postgresql+psycopg://postgres:canopyledger-test@localhost:5432/canopyledger'
@@ -178,6 +193,12 @@ uv run pytest -m postgres -q
 ```
 
 Use an empty disposable database. The integration suite verifies immutable persistence, capability-role boundaries, serializable snapshot freeze, durable stage publication, replay, and governance behavior.
+
+## Document intelligence benchmark
+
+M7 classification/extraction is deterministic and candidate-only. Run the checked-in benchmark with
+`make document-extraction-benchmark`; its JSON reports classification accuracy and candidate
+fact-type exactness without reading or modifying approved evidence.
 
 ## Repository layout
 

@@ -9,6 +9,10 @@ import { makeCommandResourceId } from "@/lib/ids";
 export type ActionState = { readonly message?: string; readonly error?: string };
 export type OverrideActionState = ActionState & { readonly overrideId?: string };
 export type CorrectionActionState = ActionState & { readonly candidateFactId?: string };
+export type DocumentIntakeActionState = ActionState & {
+  readonly extractionId?: string;
+  readonly candidateCount?: number;
+};
 
 export async function submitApprovalAction(_: ActionState, formData: FormData): Promise<ActionState> {
   const approvalRequestId = String(formData.get("approvalRequestId") ?? "");
@@ -49,6 +53,49 @@ export async function submitEvidenceAction(_: ActionState, formData: FormData): 
     return { message: action === "approve" ? "Evidence fact approved by the governed API." : "Evidence fact rejected by the governed API." };
   } catch (error) {
     return { error: error instanceof ApiProblem ? error.message : "The governed API could not record this evidence action." };
+  }
+}
+
+export async function submitDocumentIntakeAction(
+  _: DocumentIntakeActionState,
+  formData: FormData,
+): Promise<DocumentIntakeActionState> {
+  const returnPath = String(formData.get("returnPath") ?? "/");
+  const document = formData.get("document");
+  if (!(document instanceof File) || document.size === 0) {
+    return { error: "Choose a non-empty PDF or plain-text document." };
+  }
+  if (document.size > 5 * 1024 * 1024) {
+    return { error: "Documents are limited to 5 MiB before extraction." };
+  }
+  if (document.type !== "application/pdf" && document.type !== "text/plain") {
+    return { error: "Only PDF and UTF-8 plain-text documents can be extracted." };
+  }
+  try {
+    const client = createApiClient((await headers()).get("authorization"));
+    const uploaded = requireSuccess(
+      await client.uploadEvidenceDocument({
+        filename: document.name,
+        content_type: document.type,
+        content_base64: Buffer.from(await document.arrayBuffer()).toString("base64"),
+      }),
+    );
+    const extraction = requireSuccess(
+      await client.extractEvidenceDocument(uploaded.document_version_id),
+    );
+    revalidatePath(returnPath);
+    return {
+      message: "Extraction completed. Every returned value remains a candidate pending human review.",
+      extractionId: extraction.extraction_id,
+      candidateCount: extraction.candidates.length,
+    };
+  } catch (error) {
+    return {
+      error:
+        error instanceof ApiProblem
+          ? error.message
+          : "The governed API could not ingest and extract this document.",
+    };
   }
 }
 
