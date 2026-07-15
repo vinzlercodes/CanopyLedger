@@ -56,6 +56,13 @@ from canopyledger.credit.postgres import (
     PostgresCreditEarlyWarningInputStore,
     PostgresCreditEarlyWarningRunner,
 )
+from canopyledger.document_intelligence.engine import DocumentIntelligenceError
+from canopyledger.document_intelligence.postgres import PostgresDocumentIntelligenceStore
+from canopyledger.document_intelligence.service import (
+    DocumentExtraction,
+    DocumentIntelligenceService,
+    InMemoryDocumentIntelligenceStore,
+)
 from canopyledger.domain.ids import new_resource_id
 from canopyledger.domain.money import Money
 from canopyledger.evidence.controls import (
@@ -98,7 +105,11 @@ from canopyledger.initial_domain.pipeline import (
     run_initial_domain_pipeline,
 )
 from canopyledger.integrity.bundles import BundleType, VersionBundle
-from canopyledger.integrity.canonical import canonical_json_bytes, domain_digest
+from canopyledger.integrity.canonical import (
+    canonical_json_bytes,
+    canonical_timestamp,
+    domain_digest,
+)
 from canopyledger.integrity.idempotency import (
     IdempotencyConflict,
     IdempotencyLedger,
@@ -205,6 +216,37 @@ class EvidenceDocumentRenditionResponse(BaseModel):
     preview_status: Literal["available", "unsupported"]
     preview_text: str | None
     truncated: bool
+
+
+class CandidateReconciliationIssueResponse(BaseModel):
+    code: str
+    lot_id: str
+    expected_quantity: str
+    receipt_quantity: str
+    difference: str
+    blocks_freeze: bool
+
+
+class ExtractedCandidateProvenanceResponse(BaseModel):
+    candidate_fact_id: str
+    extraction_id: str
+    confidence: str
+    approval_state: Literal["candidate"]
+
+
+class DocumentExtractionResponse(BaseModel):
+    extraction_id: str
+    document_version_id: str
+    document_byte_digest: str
+    status: Literal["completed"]
+    document_type: str
+    classification_method: str
+    classifier_version: str
+    extractor_version: str
+    text_digest: str
+    candidates: tuple[ExtractedCandidateProvenanceResponse, ...]
+    reconciliation_issue: CandidateReconciliationIssueResponse | None
+    completed_at: str
 
 
 class EvidenceCandidateCreate(BaseModel):
@@ -1397,6 +1439,7 @@ def create_app(
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     integrity_service: IntegrityService | None = None,
     evidence_service: EvidenceService | None = None,
+    document_intelligence_service: DocumentIntelligenceService | None = None,
     policy_bundle_loader: Callable[[str], VersionBundle | None] | None = None,
     hedge_output_loader: Callable[[str], dict[str, object] | None] | None = None,
     scenario_output_loader: Callable[[str], dict[str, object] | None] | None = None,
@@ -1421,6 +1464,12 @@ def create_app(
     pipeline_start_outbox: list[str] = []
     evidence = evidence_service or EvidenceService(
         store=InMemoryEvidenceStore(),
+        clock=clock,
+        id_factory=new_resource_id,
+    )
+    document_intelligence = document_intelligence_service or DocumentIntelligenceService(
+        evidence=evidence,
+        store=InMemoryDocumentIntelligenceStore(),
         clock=clock,
         id_factory=new_resource_id,
     )
@@ -1571,6 +1620,12 @@ def create_app(
     ) -> JSONResponse:
         return _problem_response(request, 422, "VALIDATION_FAILED", str(exc))
 
+    @app.exception_handler(DocumentIntelligenceError)
+    async def handle_document_intelligence_error(
+        request: Request, exc: DocumentIntelligenceError
+    ) -> JSONResponse:
+        return _problem_response(request, 422, "DOCUMENT_PROCESSING_REJECTED", str(exc))
+
     @app.exception_handler(GovernanceError)
     async def handle_governance_error(request: Request, exc: GovernanceError) -> JSONResponse:
         return _problem_response(request, 422, "GOVERNANCE_VALIDATION_FAILED", str(exc))
@@ -1617,6 +1672,68 @@ def create_app(
             actor_id=actor,
         )
         return _evidence_document_response(document)
+
+    @app.post(
+        "/api/v1/evidence/documents/{document_version_id}/extractions",
+        status_code=201,
+        operation_id="extractEvidenceDocument",
+        response_model=DocumentExtractionResponse,
+        responses=_problem_responses(401, 404, 422),
+    )
+    def extract_evidence_document(
+        document_version_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> DocumentExtractionResponse:
+        del actor
+        try:
+            extraction = document_intelligence.extract(document_version_id)
+        except EvidenceControlError as exc:
+            if str(exc) == "Document version not found":
+                raise _Problem(404, "RESOURCE_NOT_FOUND", str(exc)) from exc
+            raise
+        return _document_extraction_response(extraction)
+
+    @app.get(
+        "/api/v1/evidence/extractions/{extraction_id}",
+        operation_id="getEvidenceDocumentExtraction",
+        response_model=DocumentExtractionResponse,
+        responses=_problem_responses(401, 404),
+    )
+    def get_evidence_document_extraction(
+        extraction_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> DocumentExtractionResponse:
+        del actor
+        try:
+            return _document_extraction_response(document_intelligence.get(extraction_id))
+        except DocumentIntelligenceError as exc:
+            if str(exc) == "document extraction not found":
+                raise _Problem(404, "RESOURCE_NOT_FOUND", str(exc)) from exc
+            raise
+
+    @app.get(
+        "/api/v1/evidence/candidate-facts/{candidate_fact_id}/extraction-provenance",
+        operation_id="getCandidateFactExtractionProvenance",
+        response_model=ExtractedCandidateProvenanceResponse,
+        responses=_problem_responses(401, 404),
+    )
+    def get_candidate_fact_extraction_provenance(
+        candidate_fact_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> ExtractedCandidateProvenanceResponse:
+        del actor
+        try:
+            provenance = document_intelligence.candidate_provenance(candidate_fact_id)
+        except DocumentIntelligenceError as exc:
+            if str(exc) == "candidate has no document extraction provenance":
+                raise _Problem(404, "RESOURCE_NOT_FOUND", str(exc)) from exc
+            raise
+        return ExtractedCandidateProvenanceResponse(
+            candidate_fact_id=provenance.candidate_fact_id,
+            extraction_id=provenance.extraction_id,
+            confidence=provenance.confidence,
+            approval_state="candidate",
+        )
 
     @app.get(
         "/api/v1/evidence/documents/{document_version_id}/rendition",
@@ -2977,6 +3094,12 @@ def create_postgres_app(
         clock=clock,
         id_factory=new_resource_id,
     )
+    document_intelligence = DocumentIntelligenceService(
+        evidence=evidence,
+        store=PostgresDocumentIntelligenceStore(engine),
+        clock=clock,
+        id_factory=new_resource_id,
+    )
     hedge_runner = PostgresHedgeLiquidityRunner(
         engine,
         store,
@@ -2997,6 +3120,7 @@ def create_postgres_app(
         clock=clock,
         integrity_service=integrity,
         evidence_service=evidence,
+        document_intelligence_service=document_intelligence,
         policy_bundle_loader=store.load_bundle,
         hedge_output_loader=hedge_runner.load_published_output,
         scenario_output_loader=scenario_runner.load_published_output,
@@ -3774,6 +3898,43 @@ def _evidence_document_rendition_response(
         preview_status="available",
         preview_text=preview,
         truncated=len(text) > preview_limit,
+    )
+
+
+def _document_extraction_response(extraction: DocumentExtraction) -> DocumentExtractionResponse:
+    issue = extraction.reconciliation_issue
+    return DocumentExtractionResponse(
+        extraction_id=extraction.resource_id,
+        document_version_id=extraction.document_version_id,
+        document_byte_digest=extraction.document_byte_digest,
+        status="completed",
+        document_type=extraction.document_type,
+        classification_method=extraction.classification_method,
+        classifier_version=extraction.classifier_version,
+        extractor_version=extraction.extractor_version,
+        text_digest=extraction.text_digest,
+        candidates=tuple(
+            ExtractedCandidateProvenanceResponse(
+                candidate_fact_id=item.candidate_fact_id,
+                extraction_id=item.extraction_id,
+                confidence=item.confidence,
+                approval_state="candidate",
+            )
+            for item in extraction.candidates
+        ),
+        reconciliation_issue=(
+            None
+            if issue is None
+            else CandidateReconciliationIssueResponse(
+                code=issue.code,
+                lot_id=issue.lot_id,
+                expected_quantity=issue.expected_quantity,
+                receipt_quantity=issue.receipt_quantity,
+                difference=issue.difference,
+                blocks_freeze=issue.blocks_freeze,
+            )
+        ),
+        completed_at=canonical_timestamp(extraction.completed_at),
     )
 
 

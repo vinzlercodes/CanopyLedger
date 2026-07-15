@@ -1,4 +1,4 @@
-.PHONY: setup test test-database-roles test-m1a-postgres migrate migrate-check lint typecheck openapi openapi-check typescript-client-check fit-credit-reference-model verify
+.PHONY: setup test test-database-roles test-m1a-postgres migrate migrate-check lint typecheck openapi openapi-check typescript-client-check fit-credit-reference-model document-extraction-benchmark verify
 
 setup:
 	uv sync --extra dev
@@ -10,7 +10,7 @@ test-database-roles:
 	bash tests/integration/test_database_roles.sh
 
 test-m1a-postgres:
-	uv run pytest -m postgres -q
+	uv run python scripts/run_postgres_acceptance.py
 
 migrate:
 	uv run alembic upgrade head
@@ -35,5 +35,8 @@ typescript-client-check:
 
 fit-credit-reference-model:
 	uv run python scripts/fit_credit_reference_model.py
+
+document-extraction-benchmark:
+	uv run python scripts/run_document_extraction_benchmark.py
 
 verify: lint typecheck openapi-check typescript-client-check test
