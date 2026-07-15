@@ -114,6 +114,60 @@ export interface CbbReserveInput {
   readonly reserve_type: string;
 }
 
+export interface ClimateIndicatorResponse {
+  readonly indicator: string;
+  readonly observed_at: string;
+  readonly origin_country: string;
+  readonly provider_id: string;
+  readonly source_digest: string;
+  readonly unit: string;
+  readonly value: string;
+}
+
+export interface ClimateScenarioResponse {
+  readonly currency: string;
+  readonly evidence_cost: string;
+  readonly family: string;
+  readonly quality_shock: string;
+  readonly scenario_id: string;
+  readonly shipment_delay_days: number;
+  readonly yield_shock: string;
+}
+
+export interface ClimateTraceabilityProjectionResponse {
+  readonly completed_at: string;
+  readonly computation_bundle_digest: string;
+  readonly eudr_evidence_state: "complete" | "incomplete" | "conflicting" | "stale" | "not_reviewed" | "review_required";
+  readonly input_digests: readonly string[];
+  readonly legal_interpretation_bundle_digest: string;
+  readonly output_digest: string;
+  readonly policy_bundle_digest: string;
+  readonly reason_codes: readonly string[];
+  readonly result: ClimateTraceabilityResultResponse;
+  readonly snapshot_id: string;
+  readonly stage: string;
+  readonly stage_output_id: string;
+  readonly stage_version: string;
+}
+
+export interface ClimateTraceabilityResultResponse {
+  readonly climate_indicators: readonly ClimateIndicatorResponse[];
+  readonly climate_scenarios: readonly ClimateScenarioResponse[];
+  readonly eudr_evidence_state: "complete" | "incomplete" | "conflicting" | "stale" | "not_reviewed" | "review_required";
+  readonly financed_emissions: FinancedEmissionsResponse;
+  readonly legal_interpretation: LegalInterpretationResponse;
+  readonly traceability: TraceabilityResponse;
+}
+
+export interface ClimateTraceabilitySummaryResponse {
+  readonly completed_at: string;
+  readonly eudr_evidence_state: "complete" | "incomplete" | "conflicting" | "stale" | "not_reviewed" | "review_required";
+  readonly legal_interpretation_bundle_digest: string;
+  readonly output_digest: string;
+  readonly reason_codes: readonly string[];
+  readonly stage_output_id: string;
+}
+
 export interface CollateralContributionRowResponse {
   readonly amount: MoneyResponse;
   readonly source_id: string;
@@ -189,6 +243,7 @@ export interface DecisionPackResponse {
   readonly approved_unfunded_exposure: MoneyResponse;
   readonly blockers: readonly string[];
   readonly cbb_output_digest: string;
+  readonly climate_traceability: ClimateTraceabilitySummaryResponse;
   readonly contractual_availability: MoneyResponse;
   readonly contractual_borrowing_base: MoneyResponse;
   readonly facility_commitment: MoneyResponse;
@@ -257,6 +312,20 @@ export interface EvidenceDocumentResponse {
   readonly version: number;
 }
 
+export interface EvidenceGraphEdgeResponse {
+  readonly source_id: string;
+  readonly target_id: string;
+}
+
+export interface EvidenceGraphNodeResponse {
+  readonly approved_fact_digest: string;
+  readonly approved_fact_id: string;
+  readonly document_byte_digest: string;
+  readonly document_version_id: string;
+  readonly node_id: string;
+  readonly node_type: string;
+}
+
 export interface EvidenceLineageResponse {
   readonly candidate_fact_id?: string | null;
   readonly document_byte_digest: string;
@@ -318,6 +387,20 @@ export interface FacilityResponse {
   readonly id: string;
   readonly legal_name: string;
   readonly version: number;
+}
+
+export interface FinancedEmissionsResponse {
+  readonly attribution_factor: string;
+  readonly data_quality_score: number;
+  readonly estimation_method: string;
+  readonly methodology_version: string;
+  readonly missing_data_warnings: readonly string[];
+  readonly restatement_lineage: string | null;
+  readonly scope_1: string;
+  readonly scope_2: string;
+  readonly scope_3: string | null;
+  readonly source_period: string;
+  readonly total_available: string;
 }
 
 export interface FreezeFacility {
@@ -588,6 +671,13 @@ export interface InventoryLotPipelineInput {
   readonly selling_cost_usd_per_mt: number | string;
 }
 
+export interface LegalInterpretationResponse {
+  readonly bundle_version: string;
+  readonly country_risk_reference_version: string;
+  readonly disclaimer: string;
+  readonly production_cutoff: string;
+}
+
 export interface M1BPipelineDemoRequest {
   readonly certificate_id: string;
   readonly computation_bundle_digest: string;
@@ -644,6 +734,12 @@ export interface OptionPositionInput {
 export interface OptionType {
 }
 
+export interface OriginConcentrationResponse {
+  readonly concentration: string;
+  readonly lot_count: string;
+  readonly origin_country: string;
+}
+
 export interface OverrideApprovalCreate {
   readonly approval_action_id: string;
   readonly reason: string;
@@ -680,6 +776,18 @@ export interface PhysicalExposureInput {
   readonly product_code: string;
   readonly quantity: number | string;
   readonly quantity_unit: string;
+}
+
+export interface PointGeometryResponse {
+  readonly coordinates: readonly [string, string];
+  readonly crs: string;
+  readonly type: string;
+}
+
+export interface PolygonGeometryResponse {
+  readonly coordinates: readonly (readonly [string, string])[];
+  readonly crs: string;
+  readonly type: string;
 }
 
 export interface PriceObservationInput {
@@ -904,6 +1012,32 @@ export interface SupersedeApprovedFactRequest {
   readonly candidate_fact_id: string;
 }
 
+export interface TraceabilityEvidenceGraphResponse {
+  readonly edges: readonly EvidenceGraphEdgeResponse[];
+  readonly nodes: readonly EvidenceGraphNodeResponse[];
+}
+
+export interface TraceabilityLotResponse {
+  readonly country_risk_reference: string | null;
+  readonly evidence_document_digest: string;
+  readonly evidence_graph: TraceabilityEvidenceGraphResponse;
+  readonly evidence_recorded_at: string;
+  readonly freshness_state: "current" | "stale";
+  readonly geometry: PointGeometryResponse | PolygonGeometryResponse;
+  readonly geometry_state: string;
+  readonly lot_id: string;
+  readonly missing_links: readonly string[];
+  readonly origin_country: string;
+  readonly production_date: string | null;
+  readonly production_date_class: "before_cutoff" | "on_or_after_cutoff" | "not_reviewed";
+  readonly reason_codes: readonly string[];
+}
+
+export interface TraceabilityResponse {
+  readonly lots: readonly TraceabilityLotResponse[];
+  readonly origin_concentration: readonly OriginConcentrationResponse[];
+}
+
 export interface UpdateFacility {
   readonly legal_name: string;
   readonly reason: string;
@@ -1094,6 +1228,15 @@ export class CanopyLedgerClient {
     return this.#request<EvidenceReviewPacketResponse>(
       "GET",
       `/api/v1/evidence/candidate-facts/${encodeURIComponent(candidate_fact_id)}/review`,
+      undefined,
+      headers,
+    );
+  }
+
+  async getClimateTraceabilityProjection(snapshot_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<ClimateTraceabilityProjectionResponse>> {
+    return this.#request<ClimateTraceabilityProjectionResponse>(
+      "GET",
+      `/api/v1/snapshots/${encodeURIComponent(snapshot_id)}/climate-traceability`,
       undefined,
       headers,
     );

@@ -48,6 +48,10 @@ from canopyledger.borrowing_base.certificate import (
     ContractualUsage,
     build_cbb_certificate,
 )
+from canopyledger.climate.postgres import (
+    PostgresClimateEudrInputStore,
+    PostgresClimateEudrRunner,
+)
 from canopyledger.domain.ids import new_resource_id
 from canopyledger.domain.money import Money
 from canopyledger.evidence.controls import (
@@ -997,6 +1001,155 @@ class ScenarioLabProjectionResponse(BaseModel):
     internal_risk_capacity: InternalRiskCapacityResponse
 
 
+class ClimateResponse(BaseModel):
+    """Strict public schema for frozen M5 projections."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class PointGeometryResponse(ClimateResponse):
+    type: Literal["Point"]
+    crs: Literal["EPSG:4326"]
+    coordinates: tuple[str, str]
+
+
+class PolygonGeometryResponse(ClimateResponse):
+    type: Literal["Polygon"]
+    crs: Literal["EPSG:4326"]
+    coordinates: tuple[tuple[str, str], ...]
+
+
+class EvidenceGraphNodeResponse(ClimateResponse):
+    node_id: str
+    node_type: str
+    approved_fact_id: str
+    approved_fact_digest: str
+    document_version_id: str
+    document_byte_digest: str
+
+
+class EvidenceGraphEdgeResponse(ClimateResponse):
+    source_id: str
+    target_id: str
+
+
+class TraceabilityEvidenceGraphResponse(ClimateResponse):
+    nodes: tuple[EvidenceGraphNodeResponse, ...]
+    edges: tuple[EvidenceGraphEdgeResponse, ...]
+
+
+class TraceabilityLotResponse(ClimateResponse):
+    lot_id: str
+    origin_country: str
+    geometry: PointGeometryResponse | PolygonGeometryResponse
+    geometry_state: Literal["valid"]
+    production_date: str | None
+    production_date_class: Literal["before_cutoff", "on_or_after_cutoff", "not_reviewed"]
+    country_risk_reference: str | None
+    evidence_document_digest: str
+    evidence_recorded_at: datetime
+    freshness_state: Literal["current", "stale"]
+    missing_links: tuple[str, ...]
+    reason_codes: tuple[str, ...]
+    evidence_graph: TraceabilityEvidenceGraphResponse
+
+
+class OriginConcentrationResponse(ClimateResponse):
+    origin_country: str
+    lot_count: str
+    concentration: str
+
+
+class TraceabilityResponse(ClimateResponse):
+    lots: tuple[TraceabilityLotResponse, ...]
+    origin_concentration: tuple[OriginConcentrationResponse, ...]
+
+
+class ClimateIndicatorResponse(ClimateResponse):
+    origin_country: str
+    indicator: str
+    value: str
+    unit: str
+    observed_at: str
+    provider_id: str
+    source_digest: str
+
+
+class ClimateScenarioResponse(ClimateResponse):
+    scenario_id: str
+    family: str
+    yield_shock: str
+    quality_shock: str
+    shipment_delay_days: int
+    evidence_cost: str
+    currency: str
+
+
+class FinancedEmissionsResponse(ClimateResponse):
+    attribution_factor: str
+    scope_1: str
+    scope_2: str
+    scope_3: str | None
+    total_available: str
+    data_quality_score: int = Field(ge=1, le=5)
+    source_period: str
+    estimation_method: str
+    methodology_version: str
+    restatement_lineage: str | None
+    missing_data_warnings: tuple[str, ...]
+
+
+class LegalInterpretationResponse(ClimateResponse):
+    bundle_version: str
+    production_cutoff: str
+    country_risk_reference_version: str
+    disclaimer: Literal[
+        "Evidence readiness is an operational state, not a legal compliance conclusion."
+    ]
+
+
+class ClimateTraceabilityResultResponse(ClimateResponse):
+    eudr_evidence_state: Literal[
+        "complete", "incomplete", "conflicting", "stale", "not_reviewed", "review_required"
+    ]
+    legal_interpretation: LegalInterpretationResponse
+    traceability: TraceabilityResponse
+    climate_indicators: tuple[ClimateIndicatorResponse, ...]
+    climate_scenarios: tuple[ClimateScenarioResponse, ...]
+    financed_emissions: FinancedEmissionsResponse
+
+
+class ClimateTraceabilityProjectionResponse(BaseModel):
+    """Published M5 evidence-readiness values, never a compliance conclusion."""
+
+    stage_output_id: str
+    snapshot_id: str
+    stage: Literal["climate_eudr"]
+    stage_version: str
+    input_digests: tuple[str, ...]
+    legal_interpretation_bundle_digest: str
+    policy_bundle_digest: str
+    computation_bundle_digest: str
+    output_digest: str
+    completed_at: datetime
+    eudr_evidence_state: Literal[
+        "complete", "incomplete", "conflicting", "stale", "not_reviewed", "review_required"
+    ]
+    reason_codes: tuple[str, ...]
+    result: ClimateTraceabilityResultResponse
+
+
+class ClimateTraceabilitySummaryResponse(BaseModel):
+    stage_output_id: str
+    output_digest: str
+    completed_at: datetime
+    eudr_evidence_state: Literal[
+        "complete", "incomplete", "conflicting", "stale", "not_reviewed", "review_required"
+    ]
+    reason_codes: tuple[str, ...]
+    legal_interpretation_bundle_digest: str
+
+
 class RecommendationDetailResponse(BaseModel):
     recommendation_id: str
     snapshot_id: str
@@ -1071,6 +1224,7 @@ class DecisionPackResponse(BaseModel):
     policy_bundle_digest: str
     hedge_liquidity: dict[str, Any]
     scenario: dict[str, Any]
+    climate_traceability: ClimateTraceabilitySummaryResponse
     blockers: tuple[str, ...]
     recommendation: RecommendationDetailResponse | None = None
     final_decision: GovernanceResourceResponse | None = None
@@ -1218,6 +1372,7 @@ def create_app(
     policy_bundle_loader: Callable[[str], VersionBundle | None] | None = None,
     hedge_output_loader: Callable[[str], dict[str, object] | None] | None = None,
     scenario_output_loader: Callable[[str], dict[str, object] | None] | None = None,
+    climate_output_loader: Callable[[str], dict[str, object] | None] | None = None,
     collateral_output_loader: Callable[[str], dict[str, object] | None] | None = None,
     governance_service: GovernanceService | PostgresGovernanceService | None = None,
     decision_context_loader: Callable[[str], DecisionContext] | None = None,
@@ -1884,6 +2039,24 @@ def create_app(
         return _scenario_lab_projection_response(snapshot_id=snapshot_id, output=output)
 
     @app.get(
+        "/api/v1/snapshots/{snapshot_id}/climate-traceability",
+        operation_id="getClimateTraceabilityProjection",
+        response_model=ClimateTraceabilityProjectionResponse,
+        responses=_problem_responses(401, 404, 409),
+    )
+    def get_climate_traceability_projection(
+        snapshot_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> ClimateTraceabilityProjectionResponse:
+        del actor
+        if climate_output_loader is None:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Climate/traceability assessment not found")
+        output = climate_output_loader(snapshot_id)
+        if output is None:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Climate/traceability assessment not found")
+        return _climate_traceability_projection_response(snapshot_id=snapshot_id, output=output)
+
+    @app.get(
         "/api/v1/snapshots/{snapshot_id}/decision-pack",
         operation_id="getSnapshotDecisionPack",
         response_model=DecisionPackResponse,
@@ -1909,6 +2082,16 @@ def create_app(
                 "STAGE_PUBLICATION_FENCED",
                 "Required published hedge or scenario output is unavailable",
             )
+        climate = climate_output_loader(snapshot_id) if climate_output_loader is not None else None
+        if climate is None:
+            raise _Problem(
+                409,
+                "STAGE_PUBLICATION_FENCED",
+                "Required published climate/traceability output is unavailable",
+            )
+        climate_summary = _climate_traceability_summary_response(
+            snapshot_id=snapshot_id, output=climate
+        )
         decision = governance.get_current_decision(snapshot_id)
         recommendation = governance.get_current_recommendation(snapshot_id)
         return DecisionPackResponse(
@@ -1927,6 +2110,7 @@ def create_app(
             policy_bundle_digest=context.policy_bundle_digest,
             hedge_liquidity=hedge,
             scenario=scenario,
+            climate_traceability=climate_summary,
             blockers=tuple(
                 reason for reason in _reason_summary(hedge, scenario).split(", ") if reason
             ),
@@ -2729,12 +2913,14 @@ def create_postgres_app(
     store = PostgresIntegrityStore(engine)
     hedge_input_store = PostgresHedgeLiquidityInputStore(engine)
     scenario_input_store = PostgresScenarioCapacityInputStore(engine)
+    climate_input_store = PostgresClimateEudrInputStore(engine)
     integrity = IntegrityService(
         store,
         clock=clock,
         snapshot_input_validators={
             "hedge_liquidity_input": hedge_input_store.validate_snapshot_reference,
             "scenario_capacity_input": scenario_input_store.validate_snapshot_reference,
+            "climate_eudr_input": climate_input_store.validate_snapshot_reference,
         },
     )
     evidence = EvidenceService(
@@ -2751,6 +2937,9 @@ def create_postgres_app(
     scenario_runner = PostgresScenarioCapacityRunner(
         engine, store, scenario_input_store, clock=clock
     )
+    climate_runner = PostgresClimateEudrRunner(
+        engine, store, climate_input_store, clock=clock
+    )
     governance = PostgresGovernanceService(engine, clock=clock)
     return create_app(
         clock=clock,
@@ -2759,6 +2948,7 @@ def create_postgres_app(
         policy_bundle_loader=store.load_bundle,
         hedge_output_loader=hedge_runner.load_published_output,
         scenario_output_loader=scenario_runner.load_published_output,
+        climate_output_loader=climate_runner.load_published_output,
         collateral_output_loader=governance.load_collateral_view,
         governance_service=governance,
         decision_context_loader=governance.load_authoritative_context,
@@ -3256,6 +3446,54 @@ def _scenario_lab_projection_response(
             "STAGE_PUBLICATION_FENCED",
             "Published scenario-capacity output is incomplete or has an unsupported schema",
         ) from exc
+
+
+def _climate_traceability_projection_response(
+    *, snapshot_id: str, output: dict[str, object]
+) -> ClimateTraceabilityProjectionResponse:
+    """Present frozen M5 evidence readiness without deriving legal conclusions."""
+    try:
+        stage = _published_stage(output, snapshot_id, "climate_eudr")
+        result = ClimateTraceabilityResultResponse.model_validate(
+            _published_mapping(stage, "result")
+        )
+        return ClimateTraceabilityProjectionResponse(
+            stage_output_id=_published_string(stage, "stage_output_id"),
+            snapshot_id=_published_string(stage, "snapshot_id"),
+            stage="climate_eudr",
+            stage_version=_published_string(stage, "stage_version"),
+            input_digests=tuple(_published_strings(stage, "input_digests")),
+            legal_interpretation_bundle_digest=_published_string(
+                stage, "legal_interpretation_bundle_digest"
+            ),
+            policy_bundle_digest=_published_string(stage, "policy_bundle_digest"),
+            computation_bundle_digest=_published_string(stage, "computation_bundle_digest"),
+            output_digest=_published_string(stage, "output_digest"),
+            completed_at=_published_datetime(stage, "completed_at"),
+            eudr_evidence_state=result.eudr_evidence_state,
+            reason_codes=tuple(_published_strings(stage, "reason_codes")),
+            result=result,
+        )
+    except (KeyError, TypeError, ValidationError, ValueError) as exc:
+        raise _Problem(
+            409,
+            "STAGE_PUBLICATION_FENCED",
+            "Published climate/traceability output is incomplete or has an unsupported schema",
+        ) from exc
+
+
+def _climate_traceability_summary_response(
+    *, snapshot_id: str, output: dict[str, object]
+) -> ClimateTraceabilitySummaryResponse:
+    projection = _climate_traceability_projection_response(snapshot_id=snapshot_id, output=output)
+    return ClimateTraceabilitySummaryResponse(
+        stage_output_id=projection.stage_output_id,
+        output_digest=projection.output_digest,
+        completed_at=projection.completed_at,
+        eudr_evidence_state=projection.eudr_evidence_state,
+        reason_codes=projection.reason_codes,
+        legal_interpretation_bundle_digest=projection.legal_interpretation_bundle_digest,
+    )
 
 
 def _published_stage(output: dict[str, object], snapshot_id: str, stage: str) -> dict[str, object]:
