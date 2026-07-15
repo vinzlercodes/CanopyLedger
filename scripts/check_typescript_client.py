@@ -101,6 +101,9 @@ def _ts_type(schema: dict[str, Any]) -> str:
         return " | ".join(json.dumps(item) for item in schema["enum"])
     schema_type = schema.get("type")
     if schema_type == "array":
+        prefix_items = schema.get("prefixItems")
+        if isinstance(prefix_items, list):
+            return "readonly [" + ", ".join(_ts_type(item) for item in prefix_items) + "]"
         item_type = _ts_type(schema["items"])
         if " | " in item_type or item_type.startswith("readonly "):
             item_type = f"({item_type})"

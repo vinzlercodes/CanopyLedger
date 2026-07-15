@@ -506,6 +506,283 @@
         "title": "CbbReserveInput",
         "type": "object"
       },
+      "ClimateIndicatorResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "indicator": {
+            "title": "Indicator",
+            "type": "string"
+          },
+          "observed_at": {
+            "title": "Observed At",
+            "type": "string"
+          },
+          "origin_country": {
+            "title": "Origin Country",
+            "type": "string"
+          },
+          "provider_id": {
+            "title": "Provider Id",
+            "type": "string"
+          },
+          "source_digest": {
+            "title": "Source Digest",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "origin_country",
+          "indicator",
+          "value",
+          "unit",
+          "observed_at",
+          "provider_id",
+          "source_digest"
+        ],
+        "title": "ClimateIndicatorResponse",
+        "type": "object"
+      },
+      "ClimateScenarioResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "evidence_cost": {
+            "title": "Evidence Cost",
+            "type": "string"
+          },
+          "family": {
+            "title": "Family",
+            "type": "string"
+          },
+          "quality_shock": {
+            "title": "Quality Shock",
+            "type": "string"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "shipment_delay_days": {
+            "title": "Shipment Delay Days",
+            "type": "integer"
+          },
+          "yield_shock": {
+            "title": "Yield Shock",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "family",
+          "yield_shock",
+          "quality_shock",
+          "shipment_delay_days",
+          "evidence_cost",
+          "currency"
+        ],
+        "title": "ClimateScenarioResponse",
+        "type": "object"
+      },
+      "ClimateTraceabilityProjectionResponse": {
+        "description": "Published M5 evidence-readiness values, never a compliance conclusion.",
+        "properties": {
+          "completed_at": {
+            "format": "date-time",
+            "title": "Completed At",
+            "type": "string"
+          },
+          "computation_bundle_digest": {
+            "title": "Computation Bundle Digest",
+            "type": "string"
+          },
+          "eudr_evidence_state": {
+            "enum": [
+              "complete",
+              "incomplete",
+              "conflicting",
+              "stale",
+              "not_reviewed",
+              "review_required"
+            ],
+            "title": "Eudr Evidence State",
+            "type": "string"
+          },
+          "input_digests": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Input Digests",
+            "type": "array"
+          },
+          "legal_interpretation_bundle_digest": {
+            "title": "Legal Interpretation Bundle Digest",
+            "type": "string"
+          },
+          "output_digest": {
+            "title": "Output Digest",
+            "type": "string"
+          },
+          "policy_bundle_digest": {
+            "title": "Policy Bundle Digest",
+            "type": "string"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "result": {
+            "$ref": "#/components/schemas/ClimateTraceabilityResultResponse"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          },
+          "stage": {
+            "const": "climate_eudr",
+            "title": "Stage",
+            "type": "string"
+          },
+          "stage_output_id": {
+            "title": "Stage Output Id",
+            "type": "string"
+          },
+          "stage_version": {
+            "title": "Stage Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage_output_id",
+          "snapshot_id",
+          "stage",
+          "stage_version",
+          "input_digests",
+          "legal_interpretation_bundle_digest",
+          "policy_bundle_digest",
+          "computation_bundle_digest",
+          "output_digest",
+          "completed_at",
+          "eudr_evidence_state",
+          "reason_codes",
+          "result"
+        ],
+        "title": "ClimateTraceabilityProjectionResponse",
+        "type": "object"
+      },
+      "ClimateTraceabilityResultResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "climate_indicators": {
+            "items": {
+              "$ref": "#/components/schemas/ClimateIndicatorResponse"
+            },
+            "title": "Climate Indicators",
+            "type": "array"
+          },
+          "climate_scenarios": {
+            "items": {
+              "$ref": "#/components/schemas/ClimateScenarioResponse"
+            },
+            "title": "Climate Scenarios",
+            "type": "array"
+          },
+          "eudr_evidence_state": {
+            "enum": [
+              "complete",
+              "incomplete",
+              "conflicting",
+              "stale",
+              "not_reviewed",
+              "review_required"
+            ],
+            "title": "Eudr Evidence State",
+            "type": "string"
+          },
+          "financed_emissions": {
+            "$ref": "#/components/schemas/FinancedEmissionsResponse"
+          },
+          "legal_interpretation": {
+            "$ref": "#/components/schemas/LegalInterpretationResponse"
+          },
+          "traceability": {
+            "$ref": "#/components/schemas/TraceabilityResponse"
+          }
+        },
+        "required": [
+          "eudr_evidence_state",
+          "legal_interpretation",
+          "traceability",
+          "climate_indicators",
+          "climate_scenarios",
+          "financed_emissions"
+        ],
+        "title": "ClimateTraceabilityResultResponse",
+        "type": "object"
+      },
+      "ClimateTraceabilitySummaryResponse": {
+        "properties": {
+          "completed_at": {
+            "format": "date-time",
+            "title": "Completed At",
+            "type": "string"
+          },
+          "eudr_evidence_state": {
+            "enum": [
+              "complete",
+              "incomplete",
+              "conflicting",
+              "stale",
+              "not_reviewed",
+              "review_required"
+            ],
+            "title": "Eudr Evidence State",
+            "type": "string"
+          },
+          "legal_interpretation_bundle_digest": {
+            "title": "Legal Interpretation Bundle Digest",
+            "type": "string"
+          },
+          "output_digest": {
+            "title": "Output Digest",
+            "type": "string"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "stage_output_id": {
+            "title": "Stage Output Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage_output_id",
+          "output_digest",
+          "completed_at",
+          "eudr_evidence_state",
+          "reason_codes",
+          "legal_interpretation_bundle_digest"
+        ],
+        "title": "ClimateTraceabilitySummaryResponse",
+        "type": "object"
+      },
       "CollateralContributionRowResponse": {
         "properties": {
           "amount": {
@@ -853,6 +1130,9 @@
             "title": "Cbb Output Digest",
             "type": "string"
           },
+          "climate_traceability": {
+            "$ref": "#/components/schemas/ClimateTraceabilitySummaryResponse"
+          },
           "contractual_availability": {
             "$ref": "#/components/schemas/MoneyResponse"
           },
@@ -941,6 +1221,7 @@
           "policy_bundle_digest",
           "hedge_liquidity",
           "scenario",
+          "climate_traceability",
           "blockers"
         ],
         "title": "DecisionPackResponse",
@@ -1198,6 +1479,64 @@
           "created_at"
         ],
         "title": "EvidenceDocumentResponse",
+        "type": "object"
+      },
+      "EvidenceGraphEdgeResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          },
+          "target_id": {
+            "title": "Target Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "target_id"
+        ],
+        "title": "EvidenceGraphEdgeResponse",
+        "type": "object"
+      },
+      "EvidenceGraphNodeResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "approved_fact_digest": {
+            "title": "Approved Fact Digest",
+            "type": "string"
+          },
+          "approved_fact_id": {
+            "title": "Approved Fact Id",
+            "type": "string"
+          },
+          "document_byte_digest": {
+            "title": "Document Byte Digest",
+            "type": "string"
+          },
+          "document_version_id": {
+            "title": "Document Version Id",
+            "type": "string"
+          },
+          "node_id": {
+            "title": "Node Id",
+            "type": "string"
+          },
+          "node_type": {
+            "title": "Node Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "node_id",
+          "node_type",
+          "approved_fact_id",
+          "approved_fact_digest",
+          "document_version_id",
+          "document_byte_digest"
+        ],
+        "title": "EvidenceGraphNodeResponse",
         "type": "object"
       },
       "EvidenceLineageResponse": {
@@ -1534,6 +1873,89 @@
           "version"
         ],
         "title": "FacilityResponse",
+        "type": "object"
+      },
+      "FinancedEmissionsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "attribution_factor": {
+            "title": "Attribution Factor",
+            "type": "string"
+          },
+          "data_quality_score": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Data Quality Score",
+            "type": "integer"
+          },
+          "estimation_method": {
+            "title": "Estimation Method",
+            "type": "string"
+          },
+          "methodology_version": {
+            "title": "Methodology Version",
+            "type": "string"
+          },
+          "missing_data_warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Data Warnings",
+            "type": "array"
+          },
+          "restatement_lineage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restatement Lineage"
+          },
+          "scope_1": {
+            "title": "Scope 1",
+            "type": "string"
+          },
+          "scope_2": {
+            "title": "Scope 2",
+            "type": "string"
+          },
+          "scope_3": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope 3"
+          },
+          "source_period": {
+            "title": "Source Period",
+            "type": "string"
+          },
+          "total_available": {
+            "title": "Total Available",
+            "type": "string"
+          }
+        },
+        "required": [
+          "attribution_factor",
+          "scope_1",
+          "scope_2",
+          "scope_3",
+          "total_available",
+          "data_quality_score",
+          "source_period",
+          "estimation_method",
+          "methodology_version",
+          "restatement_lineage",
+          "missing_data_warnings"
+        ],
+        "title": "FinancedEmissionsResponse",
         "type": "object"
       },
       "FreezeFacility": {
@@ -2932,6 +3354,36 @@
         "title": "InventoryLotPipelineInput",
         "type": "object"
       },
+      "LegalInterpretationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "bundle_version": {
+            "title": "Bundle Version",
+            "type": "string"
+          },
+          "country_risk_reference_version": {
+            "title": "Country Risk Reference Version",
+            "type": "string"
+          },
+          "disclaimer": {
+            "const": "Evidence readiness is an operational state, not a legal compliance conclusion.",
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "production_cutoff": {
+            "title": "Production Cutoff",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bundle_version",
+          "production_cutoff",
+          "country_risk_reference_version",
+          "disclaimer"
+        ],
+        "title": "LegalInterpretationResponse",
+        "type": "object"
+      },
       "M1BPipelineDemoRequest": {
         "additionalProperties": false,
         "properties": {
@@ -3264,6 +3716,30 @@
         "title": "OptionType",
         "type": "string"
       },
+      "OriginConcentrationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "concentration": {
+            "title": "Concentration",
+            "type": "string"
+          },
+          "lot_count": {
+            "title": "Lot Count",
+            "type": "string"
+          },
+          "origin_country": {
+            "title": "Origin Country",
+            "type": "string"
+          }
+        },
+        "required": [
+          "origin_country",
+          "lot_count",
+          "concentration"
+        ],
+        "title": "OriginConcentrationResponse",
+        "type": "object"
+      },
       "OverrideApprovalCreate": {
         "additionalProperties": false,
         "properties": {
@@ -3453,6 +3929,81 @@
           "quantity_unit"
         ],
         "title": "PhysicalExposureInput",
+        "type": "object"
+      },
+      "PointGeometryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "coordinates": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Coordinates",
+            "type": "array"
+          },
+          "crs": {
+            "const": "EPSG:4326",
+            "title": "Crs",
+            "type": "string"
+          },
+          "type": {
+            "const": "Point",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "crs",
+          "coordinates"
+        ],
+        "title": "PointGeometryResponse",
+        "type": "object"
+      },
+      "PolygonGeometryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "coordinates": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Coordinates",
+            "type": "array"
+          },
+          "crs": {
+            "const": "EPSG:4326",
+            "title": "Crs",
+            "type": "string"
+          },
+          "type": {
+            "const": "Polygon",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "crs",
+          "coordinates"
+        ],
+        "title": "PolygonGeometryResponse",
         "type": "object"
       },
       "PriceObservationInput": {
@@ -4605,6 +5156,167 @@
           "candidate_fact_id"
         ],
         "title": "SupersedeApprovedFactRequest",
+        "type": "object"
+      },
+      "TraceabilityEvidenceGraphResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceGraphEdgeResponse"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceGraphNodeResponse"
+            },
+            "title": "Nodes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "nodes",
+          "edges"
+        ],
+        "title": "TraceabilityEvidenceGraphResponse",
+        "type": "object"
+      },
+      "TraceabilityLotResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "country_risk_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Risk Reference"
+          },
+          "evidence_document_digest": {
+            "title": "Evidence Document Digest",
+            "type": "string"
+          },
+          "evidence_graph": {
+            "$ref": "#/components/schemas/TraceabilityEvidenceGraphResponse"
+          },
+          "evidence_recorded_at": {
+            "format": "date-time",
+            "title": "Evidence Recorded At",
+            "type": "string"
+          },
+          "freshness_state": {
+            "enum": [
+              "current",
+              "stale"
+            ],
+            "title": "Freshness State",
+            "type": "string"
+          },
+          "geometry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PointGeometryResponse"
+              },
+              {
+                "$ref": "#/components/schemas/PolygonGeometryResponse"
+              }
+            ],
+            "title": "Geometry"
+          },
+          "geometry_state": {
+            "const": "valid",
+            "title": "Geometry State",
+            "type": "string"
+          },
+          "lot_id": {
+            "title": "Lot Id",
+            "type": "string"
+          },
+          "missing_links": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Links",
+            "type": "array"
+          },
+          "origin_country": {
+            "title": "Origin Country",
+            "type": "string"
+          },
+          "production_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Production Date"
+          },
+          "production_date_class": {
+            "enum": [
+              "before_cutoff",
+              "on_or_after_cutoff",
+              "not_reviewed"
+            ],
+            "title": "Production Date Class",
+            "type": "string"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "lot_id",
+          "origin_country",
+          "geometry",
+          "geometry_state",
+          "production_date",
+          "production_date_class",
+          "country_risk_reference",
+          "evidence_document_digest",
+          "evidence_recorded_at",
+          "freshness_state",
+          "missing_links",
+          "reason_codes",
+          "evidence_graph"
+        ],
+        "title": "TraceabilityLotResponse",
+        "type": "object"
+      },
+      "TraceabilityResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "lots": {
+            "items": {
+              "$ref": "#/components/schemas/TraceabilityLotResponse"
+            },
+            "title": "Lots",
+            "type": "array"
+          },
+          "origin_concentration": {
+            "items": {
+              "$ref": "#/components/schemas/OriginConcentrationResponse"
+            },
+            "title": "Origin Concentration",
+            "type": "array"
+          }
+        },
+        "required": [
+          "lots",
+          "origin_concentration"
+        ],
+        "title": "TraceabilityResponse",
         "type": "object"
       },
       "UpdateFacility": {
@@ -7113,6 +7825,95 @@
           }
         ],
         "summary": "Create Recommendation Override"
+      }
+    },
+    "/api/v1/snapshots/{snapshot_id}/climate-traceability": {
+      "get": {
+        "operationId": "getClimateTraceabilityProjection",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClimateTraceabilityProjectionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Climate Traceability Projection"
       }
     },
     "/api/v1/snapshots/{snapshot_id}/collateral": {

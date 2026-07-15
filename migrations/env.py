@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import os
+from collections.abc import MutableMapping
 from logging.config import fileConfig
+from typing import Literal
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from canopyledger.persistence.schema import metadata
+from canopyledger.persistence.schema import SCHEMA, metadata
 
 config = context.config
 if config.config_file_name is not None:
@@ -20,6 +22,22 @@ if database_url is None:
 config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 
+def include_name(
+    name: str | None,
+    type_: Literal[
+        "schema", "table", "column", "index", "unique_constraint", "foreign_key_constraint"
+    ],
+    parent_names: MutableMapping[
+        Literal["schema_name", "table_name", "schema_qualified_table_name"], str | None
+    ],
+) -> bool:
+    """Exclude PostGIS extension schemas from application migration comparisons."""
+    del parent_names
+    if type_ == "schema":
+        return name == SCHEMA
+    return True
+
+
 def run_migrations_offline() -> None:
     context.configure(
         url=database_url,
@@ -27,6 +45,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         include_schemas=True,
+        include_name=include_name,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -43,6 +62,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=metadata,
             include_schemas=True,
+            include_name=include_name,
         )
         with context.begin_transaction():
             context.run_migrations()

@@ -19,6 +19,7 @@ APPROVER = {"Authorization": "Bearer approver-demo-token"}
         "/api/v1/evidence/review-queue",
         f"/api/v1/snapshots/{SNAPSHOT_ID}/hedge-lab",
         f"/api/v1/snapshots/{SNAPSHOT_ID}/scenario-lab",
+        f"/api/v1/snapshots/{SNAPSHOT_ID}/climate-traceability",
         "/api/v1/approval-requests",
         f"/api/v1/snapshots/{SNAPSHOT_ID}/override-requests",
         f"/api/v1/snapshots/{SNAPSHOT_ID}/governance-timeline",
@@ -41,6 +42,7 @@ def test_seeded_workspace_demo_requires_a_valid_bearer_for_every_workspace_read(
         "/api/v1/evidence/review-queue",
         f"/api/v1/snapshots/{SNAPSHOT_ID}/hedge-lab",
         f"/api/v1/snapshots/{SNAPSHOT_ID}/scenario-lab",
+        f"/api/v1/snapshots/{SNAPSHOT_ID}/climate-traceability",
     ),
 )
 def test_seeded_workspace_demo_allows_both_read_roles_to_inspect_published_state(path: str) -> None:
@@ -59,6 +61,7 @@ def test_seeded_workspace_demo_allows_both_read_roles_to_inspect_published_state
         "/api/v1/snapshots/snp_0198a000-0000-7000-8000-000000000802/collateral",
         "/api/v1/snapshots/snp_0198a000-0000-7000-8000-000000000802/hedge-lab",
         "/api/v1/snapshots/snp_0198a000-0000-7000-8000-000000000802/scenario-lab",
+        "/api/v1/snapshots/snp_0198a000-0000-7000-8000-000000000802/climate-traceability",
     ),
 )
 def test_seeded_workspace_demo_rejects_unknown_context_without_a_server_error(path: str) -> None:
@@ -109,6 +112,18 @@ def test_seeded_workspace_demo_exposes_real_fastapi_context_and_role_boundaries(
         headers=ANALYST,
     )
     assert missing.status_code == 404
+
+
+def test_seeded_decision_pack_surfaces_evidence_readiness_without_a_legal_conclusion() -> None:
+    response = TestClient(create_demo_app()).get(
+        f"/api/v1/snapshots/{SNAPSHOT_ID}/decision-pack", headers=ANALYST
+    )
+
+    assert response.status_code == 200, response.text
+    climate = response.json()["climate_traceability"]
+    assert climate["eudr_evidence_state"] == "review_required"
+    assert climate["legal_interpretation_bundle_digest"] == "sha256:" + "c" * 64
+    assert "compliant" not in str(climate).lower()
 
 
 def test_seeded_workspace_demo_allows_an_independent_approver_to_record_a_decision() -> None:
