@@ -1,6 +1,178 @@
 {
   "components": {
     "schemas": {
+      "AnalyticsAnswerResponse": {
+        "properties": {
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "data_cutoff": {
+            "title": "Data Cutoff",
+            "type": "string"
+          },
+          "lineage": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Lineage",
+            "type": "array"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/AnalyticsPlanResponse"
+          },
+          "query_digest": {
+            "title": "Query Digest",
+            "type": "string"
+          },
+          "query_run_id": {
+            "title": "Query Run Id",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "referenced_views": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Referenced Views",
+            "type": "array"
+          },
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          },
+          "scope": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Scope",
+            "type": "object"
+          },
+          "units": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Units",
+            "type": "object"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "query_run_id",
+          "question",
+          "scope",
+          "plan",
+          "result",
+          "units",
+          "assumptions",
+          "referenced_views",
+          "query_digest",
+          "lineage",
+          "data_cutoff",
+          "warnings"
+        ],
+        "title": "AnalyticsAnswerResponse",
+        "type": "object"
+      },
+      "AnalyticsPlanResponse": {
+        "properties": {
+          "comparison_snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comparison Snapshot Id"
+          },
+          "facility_id": {
+            "title": "Facility Id",
+            "type": "string"
+          },
+          "row_limit": {
+            "title": "Row Limit",
+            "type": "integer"
+          },
+          "snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Id"
+          },
+          "template_id": {
+            "title": "Template Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id",
+          "facility_id",
+          "snapshot_id",
+          "comparison_snapshot_id",
+          "row_limit"
+        ],
+        "title": "AnalyticsPlanResponse",
+        "type": "object"
+      },
+      "AnalyticsQuestionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "comparison_snapshot_id": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comparison Snapshot Id"
+          },
+          "question": {
+            "maxLength": 1000,
+            "minLength": 3,
+            "title": "Question",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Snapshot Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question",
+          "snapshot_id"
+        ],
+        "title": "AnalyticsQuestionRequest",
+        "type": "object"
+      },
       "ApprovalActionCreate": {
         "additionalProperties": false,
         "properties": {
@@ -7653,6 +7825,95 @@
           }
         ],
         "summary": "Update Facility"
+      }
+    },
+    "/api/v1/facilities/{facility_id}/analytics/answers": {
+      "post": {
+        "operationId": "askAnalyticsQuestion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "facility_id",
+            "required": true,
+            "schema": {
+              "title": "Facility Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyticsQuestionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsAnswerResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Ask Analytics Question"
       }
     },
     "/api/v1/facilities/{facility_id}/snapshots": {
