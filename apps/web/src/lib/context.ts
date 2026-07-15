@@ -35,7 +35,7 @@ export function buildContextHref({ facilityId, snapshotId }: FacilitySnapshotCon
   return `/facilities/${encodedFacilityId}/snapshots/${encodeURIComponent(snapshotId)}/cockpit`;
 }
 
-export type WorkspaceSlug = "cockpit" | "collateral" | "evidence" | "risk/hedge" | "risk/scenarios" | "approvals";
+export type WorkspaceSlug = "cockpit" | "collateral" | "evidence" | "risk/hedge" | "risk/scenarios" | "climate" | "approvals";
 
 export function buildWorkspaceHref(
   { facilityId, snapshotId }: FacilitySnapshotContext,

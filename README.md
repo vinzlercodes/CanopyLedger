@@ -15,10 +15,11 @@ The implemented reference scope includes:
 - evidence documents, candidate facts, human approval/rejection, corrections, receipt/ownership controls, and reconciliation;
 - hedge and liquidity assessment, including KC/AC contract separation, futures/options, variation-margin stress, and liquidity coverage;
 - scenario capacity and an Internal Risk Capacity (IRC) that stays distinct from CBB;
+- deterministic climate/EUDR evidence readiness, PostGIS WGS84 traceability geometry, origin concentration, climate scenarios, and financed-emissions methodology/data-quality lineage;
 - recommendations, approval requests, final decisions, overrides, separation of duties, expiry, and audit timeline;
-- a Next.js presentation layer with Cockpit, Collateral, Evidence, Hedge Lab, Scenario Lab, and Approval workspaces.
+- a Next.js presentation layer with Cockpit, Collateral, Evidence, Hedge Lab, Scenario Lab, Climate & Traceability, and Approval workspaces.
 
-Climate/EUDR, credit early warning, document intelligence, analytics copilot, agents, and reporting are planned but not implemented. The repository does not yet provide a one-command seeded demo or an official report package.
+Credit early warning, document intelligence, analytics copilot, agents, and reporting are planned but not implemented. Climate/EUDR output describes frozen evidence readiness; it is not a legal-compliance or deforestation-free certification. The repository does not yet provide a one-command seeded demo or an official report package.
 
 For an end-to-end walkthrough of the runnable scope, see [DEMO.md](DEMO.md).
 
@@ -58,7 +59,7 @@ Prerequisites:
 - Python 3.12–3.14
 - [uv](https://docs.astral.sh/uv/)
 - Node.js 20+ and npm
-- PostgreSQL 17 only for PostgreSQL integration tests
+- PostgreSQL 17 with PostGIS only for PostgreSQL integration tests
 
 Install the Python and JavaScript dependencies:
 
@@ -161,7 +162,8 @@ Important runnable endpoints include:
 - `POST /api/v1/snapshots/{snapshot_id}/recommendations`
 - `POST /api/v1/recommendations/{recommendation_id}/approval-requests`
 - `POST /api/v1/approval-requests/{approval_request_id}/approve`
-- snapshot-scoped Cockpit, Collateral, Evidence, Hedge Lab, Scenario Lab, and Approval read models
+- `GET /api/v1/snapshots/{snapshot_id}/climate-traceability`
+- snapshot-scoped Cockpit, Collateral, Evidence, Hedge Lab, Scenario Lab, Climate & Traceability, and Approval read models
 
 ## PostgreSQL integration gate
 
