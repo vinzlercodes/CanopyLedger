@@ -379,6 +379,18 @@ climate_eudr_input = Table(
     schema=SCHEMA,
 )
 
+credit_early_warning_input = Table(
+    "credit_early_warning_input",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column("canonical_payload", LargeBinary, nullable=False),
+    Column("digest", String(71), nullable=False, unique=True),
+    Column("created_by", String(40), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("resource_id", "digest", name="credit_early_warning_input_identity_digest"),
+    schema=SCHEMA,
+)
+
 climate_traceability_geometry = Table(
     "climate_traceability_geometry",
     metadata,

@@ -218,6 +218,28 @@ export interface CreateFacility {
   readonly legal_name: string;
 }
 
+export interface CreditEarlyWarningProjectionResponse {
+  readonly advisory_only: boolean;
+  readonly as_of: string;
+  readonly band: "low" | "moderate" | "high";
+  readonly completed_at: string;
+  readonly computation_bundle_digest: string;
+  readonly hard_rule_codes: readonly string[];
+  readonly horizon_days: number;
+  readonly input_digests: readonly string[];
+  readonly missing_feature_codes: readonly string[];
+  readonly model_bundle_digest: string;
+  readonly output_digest: string;
+  readonly policy_bundle_digest: string;
+  readonly probability: string;
+  readonly signal_type: string;
+  readonly snapshot_id: string;
+  readonly stage: string;
+  readonly stage_output_id: string;
+  readonly stage_version: string;
+  readonly top_reason_codes: readonly string[];
+}
+
 export interface DecisionOverrideDetailResponse {
   readonly approval_count: number;
   readonly approvals_required: number;
@@ -1237,6 +1259,15 @@ export class CanopyLedgerClient {
     return this.#request<ClimateTraceabilityProjectionResponse>(
       "GET",
       `/api/v1/snapshots/${encodeURIComponent(snapshot_id)}/climate-traceability`,
+      undefined,
+      headers,
+    );
+  }
+
+  async getCreditEarlyWarningProjection(snapshot_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<CreditEarlyWarningProjectionResponse>> {
+    return this.#request<CreditEarlyWarningProjectionResponse>(
+      "GET",
+      `/api/v1/snapshots/${encodeURIComponent(snapshot_id)}/credit-early-warning`,
       undefined,
       headers,
     );

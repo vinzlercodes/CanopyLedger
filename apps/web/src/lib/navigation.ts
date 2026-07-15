@@ -13,5 +13,6 @@ export const workspaceNavigation: readonly {
   { workspace: "risk/hedge", icon: "activity", label: "Hedge Lab" },
   { workspace: "risk/scenarios", icon: "activity", label: "Scenario Lab" },
   { workspace: "climate", icon: "spark", label: "Climate & Traceability" },
+  { workspace: "credit", icon: "activity", label: "Credit Monitoring" },
   { workspace: "approvals", icon: "shield", label: "Approval" },
 ];

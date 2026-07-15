@@ -4,6 +4,7 @@ import type {
   ApprovalQueueResponse,
   CollateralWorkspaceResponse,
   ClimateTraceabilityProjectionResponse,
+  CreditEarlyWarningProjectionResponse,
   DecisionOverrideQueueResponse,
   DecisionPackResponse,
   EvidenceReviewQueueResponse,
@@ -26,6 +27,7 @@ export type WorkspaceData =
   | DecisionPackResponse
   | CollateralWorkspaceResponse
   | ClimateTraceabilityProjectionResponse
+  | CreditEarlyWarningProjectionResponse
   | EvidenceReviewQueueResponse
   | HedgeLabProjectionResponse
   | ScenarioLabProjectionResponse
@@ -91,6 +93,7 @@ export async function loadWorkspace({
       "risk/hedge": () => client.getHedgeLabProjection(snapshotId),
       "risk/scenarios": () => client.getScenarioLabProjection(snapshotId),
       climate: () => client.getClimateTraceabilityProjection(snapshotId),
+      credit: () => client.getCreditEarlyWarningProjection(snapshotId),
       approvals: () => client.getApprovalQueue(),
     }[workspace]();
     return { context, data: requireSuccess<WorkspaceData>(response as never) };

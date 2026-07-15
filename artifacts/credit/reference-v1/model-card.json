@@ -1,0 +1,92 @@
+{
+  "evaluation": {
+    "brier_score": "0.0384",
+    "calibration_curve": [
+      {
+        "bin": "0-0.2",
+        "count": "32",
+        "mean_prediction": "0.0917",
+        "observed_rate": "0.0000"
+      },
+      {
+        "bin": "0.2-0.4",
+        "count": "8",
+        "mean_prediction": "0.3081",
+        "observed_rate": "0.0000"
+      },
+      {
+        "bin": "0.4-0.6",
+        "count": "3",
+        "mean_prediction": "0.5433",
+        "observed_rate": "0.0000"
+      },
+      {
+        "bin": "0.6-0.8",
+        "count": "4",
+        "mean_prediction": "0.7356",
+        "observed_rate": "0.7500"
+      },
+      {
+        "bin": "0.8-1",
+        "count": "25",
+        "mean_prediction": "0.9550",
+        "observed_rate": "1.0000"
+      }
+    ],
+    "challenger_accuracy": "0.9444",
+    "pr_auc": "1.0000",
+    "precision_at_threshold": "0.9032",
+    "recall_at_threshold": "1.0000",
+    "roc_auc": "1.0000",
+    "segment_performance": [
+      {
+        "event_rate": "0.3889",
+        "row_count": "72",
+        "segment": "payment_delay_under_30"
+      },
+      {
+        "event_rate": "0.0000",
+        "row_count": "0",
+        "segment": "payment_delay_30_plus"
+      }
+    ],
+    "time_stability": [
+      {
+        "brier_score": "0.0262",
+        "period": "2025-07"
+      },
+      {
+        "brier_score": "0.0489",
+        "period": "2025-08"
+      },
+      {
+        "brier_score": "0.0400",
+        "period": "2025-09"
+      }
+    ]
+  },
+  "leakage_report": {
+    "allowed_features": [
+      "liquidity_ratio",
+      "receivable_days",
+      "margin_coverage_ratio",
+      "payment_delay_days"
+    ],
+    "checked_row_count": 240,
+    "passed": true,
+    "violations": []
+  },
+  "model_card": {
+    "baseline": "logistic regression fitted with fixed-seed batch gradient descent",
+    "calibration": "five-bin holdout calibration curve",
+    "challenger": "depth-one threshold tree, comparison only",
+    "horizon_days": 90,
+    "label": "Synthetic borrower deterioration likelihood",
+    "limitations": [
+      "Advisory only; cannot calculate or alter Contractual Borrowing Base.",
+      "Synthetic reference performance is not evidence of production credit performance."
+    ],
+    "split": "per-borrower chronological 75/25 temporal holdout",
+    "training_data": "deterministic synthetic public reference panel"
+  }
+}

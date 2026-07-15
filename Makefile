@@ -1,4 +1,4 @@
-.PHONY: setup test test-database-roles test-m1a-postgres migrate migrate-check lint typecheck openapi openapi-check typescript-client-check verify
+.PHONY: setup test test-database-roles test-m1a-postgres migrate migrate-check lint typecheck openapi openapi-check typescript-client-check fit-credit-reference-model verify
 
 setup:
 	uv sync --extra dev
@@ -32,5 +32,8 @@ openapi-check:
 
 typescript-client-check:
 	npm --prefix typescript run client:check
+
+fit-credit-reference-model:
+	uv run python scripts/fit_credit_reference_model.py
 
 verify: lint typecheck openapi-check typescript-client-check test

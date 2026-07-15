@@ -55,6 +55,7 @@ def test_operation_ids_are_explicit_stable_and_unique() -> None:
         "freezeFacility",
             "getCandidateFactReview",
             "getClimateTraceabilityProjection",
+            "getCreditEarlyWarningProjection",
             "getDecisionOverride",
         "getDecisionOverrideQueue",
         "getEvidenceDocumentRendition",
