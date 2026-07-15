@@ -86,6 +86,9 @@ export async function loadWorkspace({
         },
       };
     }
+    if (workspace === "analytics") {
+      return { context };
+    }
     const response = await {
       cockpit: () => client.getSnapshotDecisionPack(snapshotId),
       collateral: () => client.getSnapshotCollateral(snapshotId, collateral),
@@ -94,7 +97,6 @@ export async function loadWorkspace({
       "risk/scenarios": () => client.getScenarioLabProjection(snapshotId),
       climate: () => client.getClimateTraceabilityProjection(snapshotId),
       credit: () => client.getCreditEarlyWarningProjection(snapshotId),
-      approvals: () => client.getApprovalQueue(),
     }[workspace]();
     return { context, data: requireSuccess<WorkspaceData>(response as never) };
   } catch (error) {

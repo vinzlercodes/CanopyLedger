@@ -17,6 +17,14 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from sqlalchemy import create_engine
 
+from canopyledger.analytics.copilot import (
+    AnalyticsAnswer,
+    AnalyticsCopilotService,
+    AnalyticsExecution,
+    AnalyticsQueryRefused,
+    InMemoryAnalyticsExecutor,
+)
+from canopyledger.analytics.postgres import PostgresAnalyticsExecutor, PostgresAnalyticsRunStore
 from canopyledger.application.evidence import (
     EvidenceReviewPacket,
     EvidenceService,
@@ -377,6 +385,37 @@ class QuantityReconciliationResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
+
+
+class AnalyticsQuestionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    question: str = Field(min_length=3, max_length=1_000)
+    snapshot_id: str = Field(min_length=1, max_length=40)
+    comparison_snapshot_id: str | None = Field(default=None, min_length=1, max_length=40)
+
+
+class AnalyticsPlanResponse(BaseModel):
+    template_id: str
+    facility_id: str
+    snapshot_id: str | None
+    comparison_snapshot_id: str | None
+    row_limit: int
+
+
+class AnalyticsAnswerResponse(BaseModel):
+    query_run_id: str
+    question: str
+    scope: dict[str, str]
+    plan: AnalyticsPlanResponse
+    result: tuple[dict[str, Any], ...]
+    units: dict[str, str]
+    assumptions: tuple[str, ...]
+    referenced_views: tuple[str, ...]
+    query_digest: str
+    lineage: tuple[str, ...]
+    data_cutoff: str
+    warnings: tuple[str, ...]
 
 
 class MoneyInput(BaseModel):
@@ -1440,6 +1479,7 @@ def create_app(
     integrity_service: IntegrityService | None = None,
     evidence_service: EvidenceService | None = None,
     document_intelligence_service: DocumentIntelligenceService | None = None,
+    analytics_copilot_service: AnalyticsCopilotService | None = None,
     policy_bundle_loader: Callable[[str], VersionBundle | None] | None = None,
     hedge_output_loader: Callable[[str], dict[str, object] | None] | None = None,
     scenario_output_loader: Callable[[str], dict[str, object] | None] | None = None,
@@ -1472,6 +1512,12 @@ def create_app(
         store=InMemoryDocumentIntelligenceStore(),
         clock=clock,
         id_factory=new_resource_id,
+    )
+    analytics_copilot = analytics_copilot_service or AnalyticsCopilotService(
+        executor=InMemoryAnalyticsExecutor(
+            execution=AnalyticsExecution(rows=(), data_cutoff=clock(), lineage=())
+        ),
+        clock=clock,
     )
     idempotency = IdempotencyLedger()
     governance = governance_service or GovernanceService(clock=clock)
@@ -1553,6 +1599,19 @@ def create_app(
             raise _Problem(403, "FORBIDDEN", "Credit-approver authority is required")
         return actor
 
+    def snapshot_belongs_to_facility(snapshot_id: str, facility_id: str) -> bool:
+        if integrity_service is not None:
+            manifest = integrity_service.get_snapshot_manifest(snapshot_id)
+            if manifest is None:
+                return False
+            representation = json.loads(manifest.body)
+            return (
+                isinstance(representation, dict)
+                and representation.get("facility_id") == facility_id
+            )
+        snapshot = snapshots.get(snapshot_id)
+        return snapshot is not None and snapshot.facility_id == facility_id
+
     @app.exception_handler(_Problem)
     async def handle_problem(request: Request, exc: _Problem) -> JSONResponse:
         return _problem_response(request, exc.status, exc.code, exc.detail)
@@ -1626,6 +1685,12 @@ def create_app(
     ) -> JSONResponse:
         return _problem_response(request, 422, "DOCUMENT_PROCESSING_REJECTED", str(exc))
 
+    @app.exception_handler(AnalyticsQueryRefused)
+    async def handle_analytics_query_refused(
+        request: Request, exc: AnalyticsQueryRefused
+    ) -> JSONResponse:
+        return _problem_response(request, 422, "QUERY_REJECTED", str(exc))
+
     @app.exception_handler(GovernanceError)
     async def handle_governance_error(request: Request, exc: GovernanceError) -> JSONResponse:
         return _problem_response(request, 422, "GOVERNANCE_VALIDATION_FAILED", str(exc))
@@ -1649,6 +1714,33 @@ def create_app(
     @app.get("/health", operation_id="healthCheck", response_model=HealthResponse)
     def health() -> HealthResponse:
         return HealthResponse(status="ok")
+
+    @app.post(
+        "/api/v1/facilities/{facility_id}/analytics/answers",
+        operation_id="askAnalyticsQuestion",
+        response_model=AnalyticsAnswerResponse,
+        responses=_problem_responses(401, 404, 422),
+    )
+    def ask_analytics_question(
+        facility_id: str,
+        command: AnalyticsQuestionRequest,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> AnalyticsAnswerResponse:
+        if not snapshot_belongs_to_facility(command.snapshot_id, facility_id):
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Snapshot not found")
+        if (
+            command.comparison_snapshot_id is not None
+            and not snapshot_belongs_to_facility(command.comparison_snapshot_id, facility_id)
+        ):
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Snapshot not found")
+        answer = analytics_copilot.answer_question(
+            actor_id=actor,
+            facility_id=facility_id,
+            snapshot_id=command.snapshot_id,
+            comparison_snapshot_id=command.comparison_snapshot_id,
+            question=command.question,
+        )
+        return _analytics_answer_response(answer)
 
     @app.post(
         "/api/v1/evidence/documents",
@@ -3100,6 +3192,11 @@ def create_postgres_app(
         clock=clock,
         id_factory=new_resource_id,
     )
+    analytics_copilot = AnalyticsCopilotService(
+        executor=PostgresAnalyticsExecutor(engine, clock=clock),
+        run_store=PostgresAnalyticsRunStore(engine),
+        clock=clock,
+    )
     hedge_runner = PostgresHedgeLiquidityRunner(
         engine,
         store,
@@ -3121,6 +3218,7 @@ def create_postgres_app(
         integrity_service=integrity,
         evidence_service=evidence,
         document_intelligence_service=document_intelligence,
+        analytics_copilot_service=analytics_copilot,
         policy_bundle_loader=store.load_bundle,
         hedge_output_loader=hedge_runner.load_published_output,
         scenario_output_loader=scenario_runner.load_published_output,
@@ -3137,6 +3235,29 @@ class _Problem(Exception):
         self.status = status
         self.code = code
         self.detail = detail
+
+
+def _analytics_answer_response(answer: AnalyticsAnswer) -> AnalyticsAnswerResponse:
+    return AnalyticsAnswerResponse(
+        query_run_id=answer.query_run_id,
+        question=answer.question,
+        scope=dict(answer.scope),
+        plan=AnalyticsPlanResponse(
+            template_id=answer.plan.template_id,
+            facility_id=answer.plan.facility_id,
+            snapshot_id=answer.plan.snapshot_id,
+            comparison_snapshot_id=answer.plan.comparison_snapshot_id,
+            row_limit=answer.plan.row_limit,
+        ),
+        result=tuple(dict(row) for row in answer.result),
+        units=dict(answer.units),
+        assumptions=answer.assumptions,
+        referenced_views=answer.referenced_views,
+        query_digest=answer.query_digest,
+        lineage=answer.lineage,
+        data_cutoff=canonical_timestamp(answer.data_cutoff),
+        warnings=answer.warnings,
+    )
 
 
 def _problem_responses(*statuses: int) -> dict[int | str, dict[str, Any]]:

@@ -232,6 +232,7 @@ def _private_request_method() -> list[str]:
         "  ): Promise<ApiResponse<T>> {",
         "    const init: RequestInit = {",
         "      method,",
+        "      cache: \"no-store\",",
         "      headers: {",
         "        ...this.#defaultHeaders,",
         "        ...headers,",
