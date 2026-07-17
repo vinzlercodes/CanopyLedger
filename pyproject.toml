@@ -37,6 +37,25 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/canopyledger"]
 
+[tool.hatch.build.targets.sdist]
+# Keep the published source package focused on software, deployable configuration, and
+# end-user documentation. Internal plans and contributor-agent state remain in the
+# repository but are not release artifacts.
+exclude = [
+  "/AGENTS.md",
+  "/CANOPYLEDGER_MASTER_PLAN.md",
+  "/MASTER_PLAN.md",
+  "/PROGRESS.md",
+  "/.codex",
+  "/.idea",
+  "/docs/plans",
+  "/docs/research",
+  "/docs/superpowers",
+  "/docs/contracts",
+  "/.pre-commit-config.yaml",
+  "/sonar-project.properties",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]

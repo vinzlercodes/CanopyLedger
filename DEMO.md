@@ -632,18 +632,18 @@ Treat this test as the reproducible data-bearing visual-contract reference. It s
 
 ## 9. Canonical PostgreSQL/PostGIS report demonstration
 
-Run the full M10 walkthrough:
+Run the complete database-backed report walkthrough:
 
 ```bash
 make demo
 ```
 
 This starts a disposable PostgreSQL 17/PostGIS database, applies migrations, ingests and approves
-synthetic evidence, freezes the snapshot, publishes M1B/M3/M4A/M5/M6, records a separate human
-approval, creates the HTML/PDF report package, and serves the API plus web UI. Use the printed
-`/sign-in` URL and choose the synthetic approver role; then open the seeded facility’s Reports
-workspace. Press Ctrl-C when done. `make demo-verify` performs the same durable seed/report package
-flow without launching servers.
+synthetic evidence, freezes the snapshot, publishes collateral, hedge/liquidity, scenario/IRC,
+climate/traceability, and credit-advisory results, records a separate human approval, creates the
+HTML/PDF report package, and serves the API plus web UI. Use the printed `/sign-in` URL and choose the
+synthetic approver role; then open the seeded facility’s Reports workspace. Press Ctrl-C when done.
+`make demo-verify` performs the same durable seed/report package flow without launching servers.
 
 ### 9.1 Optional: run the PostgreSQL durability suite
 
