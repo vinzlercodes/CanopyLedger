@@ -3,7 +3,7 @@
 import base64
 import binascii
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_EVEN, Decimal
@@ -17,6 +17,19 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from sqlalchemy import create_engine
 
+from canopyledger.agents.core import (
+    AgentCapabilityDenied,
+    AgentError,
+    AgentRole,
+    AgentRun,
+    AgentRunner,
+    AgentRunStore,
+    DeterministicReplayPlanner,
+    InMemoryAgentRunStore,
+    Principal,
+    default_capability_registry,
+)
+from canopyledger.agents.postgres import PostgresAgentRunStore
 from canopyledger.analytics.copilot import (
     AnalyticsAnswer,
     AnalyticsCopilotService,
@@ -416,6 +429,105 @@ class AnalyticsAnswerResponse(BaseModel):
     lineage: tuple[str, ...]
     data_cutoff: str
     warnings: tuple[str, ...]
+
+
+class AgentRunStartRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    run_id: str = Field(pattern=r"^agr_[a-z0-9-]+$")
+    agent_role: AgentRole
+    goal: str = Field(min_length=1, max_length=2_000)
+
+
+class AgentTaskResponse(BaseModel):
+    resource_id: str
+    title: str
+    capability: str
+    status: str
+    completed_at: datetime | None = None
+
+
+class AgentTaskPlanResponse(BaseModel):
+    resource_id: str
+    planner_type: str
+    planner_version: str
+    goal: str
+    planned_capabilities: tuple[str, ...]
+    created_at: datetime
+    digest: str
+
+
+class AgentToolCallResponse(BaseModel):
+    resource_id: str
+    task_id: str
+    capability: str
+    inputs: dict[str, str]
+    authorization: str
+    authorization_reason: str
+    occurred_at: datetime
+    output_digest: str | None = None
+
+
+class AgentToolResultResponse(BaseModel):
+    resource_id: str
+    call_id: str
+    output_schema: str
+    status: str
+    output: dict[str, object]
+    output_digest: str
+    occurred_at: datetime
+
+
+class AgentHandoffResponse(BaseModel):
+    resource_id: str
+    source_role: AgentRole
+    target_role: str
+    approval_request_id: str
+    created_at: datetime
+
+
+class AgentTraceEventResponse(BaseModel):
+    sequence: int
+    event_type: str
+    occurred_at: datetime
+    detail: str
+
+
+class AgentRunResponse(BaseModel):
+    resource_id: str
+    facility_id: str
+    snapshot_id: str
+    principal_id: str
+    agent_role: AgentRole
+    planner_type: str
+    planner_version: str
+    status: str
+    created_at: datetime
+    digest: str
+    task_plan: AgentTaskPlanResponse | None = None
+    tasks: tuple[AgentTaskResponse, ...]
+    tool_calls: tuple[AgentToolCallResponse, ...]
+    tool_results: tuple[AgentToolResultResponse, ...]
+    handoffs: tuple[AgentHandoffResponse, ...]
+    trace: tuple[AgentTraceEventResponse, ...]
+
+
+class AgentRunListResponse(BaseModel):
+    items: tuple[AgentRunResponse, ...]
+
+
+class AgentCapabilityResponse(BaseModel):
+    name: str
+    risk_level: str
+    allowed_agent_roles: tuple[AgentRole, ...]
+    allowed_principal_roles: tuple[str, ...]
+    input_fields: tuple[str, ...]
+    output_schema: str
+    requires_human_approval: bool
+
+
+class AgentCapabilityListResponse(BaseModel):
+    items: tuple[AgentCapabilityResponse, ...]
 
 
 class MoneyInput(BaseModel):
@@ -1487,6 +1599,8 @@ def create_app(
     credit_early_warning_output_loader: Callable[[str], dict[str, object] | None] | None = None,
     collateral_output_loader: Callable[[str], dict[str, object] | None] | None = None,
     governance_service: GovernanceService | PostgresGovernanceService | None = None,
+    agent_runner: AgentRunner | None = None,
+    agent_store: AgentRunStore | None = None,
     decision_context_loader: Callable[[str], DecisionContext] | None = None,
     initial_facilities: tuple[FacilityRecord, ...] = (),
     initial_snapshots: tuple[SnapshotManifest, ...] = (),
@@ -1612,6 +1726,122 @@ def create_app(
         snapshot = snapshots.get(snapshot_id)
         return snapshot is not None and snapshot.facility_id == facility_id
 
+    def agent_snapshot_payload(snapshot_id: str) -> dict[str, object]:
+        if integrity_service is not None:
+            stored = integrity_service.get_snapshot_manifest(snapshot_id)
+            if stored is None:
+                raise AgentError("frozen snapshot is not available")
+            payload = json.loads(stored.body)
+            if not isinstance(payload, dict):
+                raise AgentError("frozen snapshot has unsupported representation")
+            return payload
+        snapshot = snapshots.get(snapshot_id)
+        if snapshot is None:
+            raise AgentError("frozen snapshot is not available")
+        return _snapshot_representation(snapshot)
+
+    def agent_snapshot_read(inputs: Mapping[str, str]) -> Mapping[str, object]:
+        payload = agent_snapshot_payload(inputs["snapshot_id"])
+        return {
+            "snapshot_id": payload["snapshot_id"],
+            "facility_id": payload["facility_id"],
+            "snapshot_digest": payload["digest"],
+        }
+
+    def agent_approved_evidence(inputs: Mapping[str, str]) -> Mapping[str, object]:
+        payload = agent_snapshot_payload(inputs["snapshot_id"])
+        raw_inputs = payload.get("inputs")
+        if not isinstance(raw_inputs, list):
+            raise AgentError("frozen snapshot input references are unavailable")
+        references = [
+            {"resource_id": item.get("resource_id"), "digest": item.get("digest")}
+            for item in raw_inputs
+            if isinstance(item, dict) and item.get("resource_type") == "approved_fact"
+        ]
+        return {"snapshot_id": inputs["snapshot_id"], "approved_fact_references": references}
+
+    def agent_stage_output(inputs: Mapping[str, str]) -> Mapping[str, object]:
+        loaders = {
+            "hedge_liquidity": hedge_output_loader,
+            "scenario_capacity": scenario_output_loader,
+            "climate_traceability": climate_output_loader,
+            "credit_early_warning": credit_early_warning_output_loader,
+            "collateral_valuation": collateral_output_loader,
+        }
+        loader = loaders.get(inputs["stage"])
+        if loader is None:
+            raise AgentError("requested stage is not available through a typed agent tool")
+        output = loader(inputs["snapshot_id"])
+        if output is None:
+            raise AgentError("requested published stage output is unavailable")
+        return output
+
+    def agent_pipeline_start(inputs: Mapping[str, str]) -> Mapping[str, object]:
+        agent_snapshot_payload(inputs["snapshot_id"])
+        if inputs["snapshot_id"] not in pipeline_start_outbox:
+            pipeline_start_outbox.append(inputs["snapshot_id"])
+        return {"snapshot_id": inputs["snapshot_id"], "state": "PIPELINE_START_REQUESTED"}
+
+    def agent_pipeline_status(inputs: Mapping[str, str]) -> Mapping[str, object]:
+        agent_snapshot_payload(inputs["snapshot_id"])
+        return {
+            "snapshot_id": inputs["snapshot_id"],
+            "start_requested": inputs["snapshot_id"] in pipeline_start_outbox,
+        }
+
+    def agent_decision_pack_draft(inputs: Mapping[str, str]) -> Mapping[str, object]:
+        recommendation = governance.get_current_recommendation(inputs["snapshot_id"])
+        decision = governance.get_current_decision(inputs["snapshot_id"])
+        return {
+            "snapshot_id": inputs["snapshot_id"],
+            "recommendation_id": recommendation.resource_id if recommendation else None,
+            "final_decision_id": decision.resource_id if decision else None,
+            "draft_only": True,
+        }
+
+    def agent_conflicts(inputs: Mapping[str, str]) -> Mapping[str, object]:
+        payload = agent_snapshot_payload(inputs["snapshot_id"])
+        raw_inputs = payload.get("inputs")
+        if not isinstance(raw_inputs, list):
+            raise AgentError("frozen snapshot input references are unavailable")
+        return {
+            "snapshot_id": inputs["snapshot_id"],
+            "candidate_input_count": sum(
+                1
+                for item in raw_inputs
+                if isinstance(item, dict) and item.get("resource_type") == "candidate_fact"
+            ),
+            "conflict_state": "review immutable evidence and pipeline reason codes",
+        }
+
+    agent_tools: dict[str, Callable[[Mapping[str, str]], Mapping[str, object]]] = {
+        "snapshot.read": agent_snapshot_read,
+        "evidence.approved.read": agent_approved_evidence,
+        "pipeline.start": agent_pipeline_start,
+        "pipeline.status": agent_pipeline_status,
+        "stage-output.get": agent_stage_output,
+        "decision-pack.draft": agent_decision_pack_draft,
+        "approval.route": lambda inputs: {
+            "approval_request_id": inputs["approval_request_id"],
+            "authority": "human approval routing only",
+        },
+        "conflict.surface": agent_conflicts,
+    }
+
+    agents = agent_runner or AgentRunner(
+        registry=default_capability_registry(),
+        planner=DeterministicReplayPlanner(),
+        store=agent_store or InMemoryAgentRunStore(),
+        clock=clock,
+        tools=agent_tools,
+    )
+
+    def agent_principal(actor: str) -> Principal:
+        return Principal(
+            actor_id=actor,
+            roles=("credit_approver",) if actor.startswith("apr_") else ("analyst",),
+        )
+
     @app.exception_handler(_Problem)
     async def handle_problem(request: Request, exc: _Problem) -> JSONResponse:
         return _problem_response(request, exc.status, exc.code, exc.detail)
@@ -1691,6 +1921,16 @@ def create_app(
     ) -> JSONResponse:
         return _problem_response(request, 422, "QUERY_REJECTED", str(exc))
 
+    @app.exception_handler(AgentCapabilityDenied)
+    async def handle_agent_capability_denied(
+        request: Request, exc: AgentCapabilityDenied
+    ) -> JSONResponse:
+        return _problem_response(request, 403, "AGENT_CAPABILITY_DENIED", str(exc))
+
+    @app.exception_handler(AgentError)
+    async def handle_agent_error(request: Request, exc: AgentError) -> JSONResponse:
+        return _problem_response(request, 422, "AGENT_RUN_FAILED", str(exc))
+
     @app.exception_handler(GovernanceError)
     async def handle_governance_error(request: Request, exc: GovernanceError) -> JSONResponse:
         return _problem_response(request, 422, "GOVERNANCE_VALIDATION_FAILED", str(exc))
@@ -1741,6 +1981,99 @@ def create_app(
             question=command.question,
         )
         return _analytics_answer_response(answer)
+
+    @app.post(
+        "/api/v1/facilities/{facility_id}/snapshots/{snapshot_id}/agent-runs",
+        status_code=201,
+        operation_id="startAgentRun",
+        response_model=AgentRunResponse,
+        responses=_problem_responses(401, 403, 404, 422),
+    )
+    def start_agent_run(
+        facility_id: str,
+        snapshot_id: str,
+        command: AgentRunStartRequest,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> AgentRunResponse:
+        if (integrity_service is not None or snapshots) and not snapshot_belongs_to_facility(
+            snapshot_id, facility_id
+        ):
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Snapshot not found")
+        run = agents.run(
+            run_id=command.run_id,
+            principal=agent_principal(actor),
+            role=command.agent_role,
+            facility_id=facility_id,
+            snapshot_id=snapshot_id,
+            goal=command.goal,
+        )
+        return _agent_run_response(run)
+
+    @app.get(
+        "/api/v1/agent-runs/{agent_run_id}",
+        operation_id="getAgentRun",
+        response_model=AgentRunResponse,
+        responses=_problem_responses(401, 403, 404),
+    )
+    def get_agent_run(
+        agent_run_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> AgentRunResponse:
+        try:
+            run = agents.store.get(agent_run_id)
+        except KeyError as exc:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Agent run not found") from exc
+        if run.principal.actor_id != actor and not actor.startswith("apr_"):
+            raise _Problem(403, "FORBIDDEN", "Agent trace is not visible to this principal")
+        return _agent_run_response(run)
+
+    @app.get(
+        "/api/v1/facilities/{facility_id}/snapshots/{snapshot_id}/agent-runs",
+        operation_id="listAgentRuns",
+        response_model=AgentRunListResponse,
+        responses=_problem_responses(401, 403, 404),
+    )
+    def list_agent_runs(
+        facility_id: str,
+        snapshot_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> AgentRunListResponse:
+        if (integrity_service is not None or snapshots) and not snapshot_belongs_to_facility(
+            snapshot_id, facility_id
+        ):
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Snapshot not found")
+        visible = tuple(
+            run
+            for run in agents.store.list_for_snapshot(snapshot_id)
+            if run.facility_id == facility_id
+            and (run.principal.actor_id == actor or actor.startswith("apr_"))
+        )
+        return AgentRunListResponse(items=tuple(_agent_run_response(run) for run in visible))
+
+    @app.get(
+        "/api/v1/agent-capabilities",
+        operation_id="listAgentCapabilities",
+        response_model=AgentCapabilityListResponse,
+        responses=_problem_responses(401),
+    )
+    def list_agent_capabilities(
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> AgentCapabilityListResponse:
+        del actor
+        return AgentCapabilityListResponse(
+            items=tuple(
+                AgentCapabilityResponse(
+                    name=spec.name,
+                    risk_level=spec.risk_level.value,
+                    allowed_agent_roles=spec.allowed_agent_roles,
+                    allowed_principal_roles=spec.allowed_principal_roles,
+                    input_fields=spec.input_fields,
+                    output_schema=spec.output_schema,
+                    requires_human_approval=spec.requires_human_approval,
+                )
+                for spec in agents.registry.specifications()
+            )
+        )
 
     @app.post(
         "/api/v1/evidence/documents",
@@ -3227,6 +3560,7 @@ def create_postgres_app(
         collateral_output_loader=governance.load_collateral_view,
         governance_service=governance,
         decision_context_loader=governance.load_authoritative_context,
+        agent_store=PostgresAgentRunStore(engine),
     )
 
 
@@ -3257,6 +3591,88 @@ def _analytics_answer_response(answer: AnalyticsAnswer) -> AnalyticsAnswerRespon
         lineage=answer.lineage,
         data_cutoff=canonical_timestamp(answer.data_cutoff),
         warnings=answer.warnings,
+    )
+
+
+def _agent_run_response(run: AgentRun) -> AgentRunResponse:
+    return AgentRunResponse(
+        resource_id=run.resource_id,
+        facility_id=run.facility_id,
+        snapshot_id=run.snapshot_id,
+        principal_id=run.principal.actor_id,
+        agent_role=run.agent_role,
+        planner_type=run.planner_type,
+        planner_version=run.planner_version,
+        status=run.status,
+        created_at=run.created_at,
+        digest=run.digest,
+        task_plan=(
+            AgentTaskPlanResponse(
+                resource_id=run.task_plan.resource_id,
+                planner_type=run.task_plan.planner_type,
+                planner_version=run.task_plan.planner_version,
+                goal=run.task_plan.goal,
+                planned_capabilities=run.task_plan.planned_capabilities,
+                created_at=run.task_plan.created_at,
+                digest=run.task_plan.digest,
+            )
+            if run.task_plan is not None
+            else None
+        ),
+        tasks=tuple(
+            AgentTaskResponse(
+                resource_id=item.resource_id,
+                title=item.title,
+                capability=item.capability,
+                status=item.status,
+                completed_at=item.completed_at,
+            )
+            for item in run.tasks
+        ),
+        tool_calls=tuple(
+            AgentToolCallResponse(
+                resource_id=item.resource_id,
+                task_id=item.task_id,
+                capability=item.capability,
+                inputs=dict(item.inputs),
+                authorization=item.authorization,
+                authorization_reason=item.authorization_reason,
+                occurred_at=item.occurred_at,
+                output_digest=item.output_digest,
+            )
+            for item in run.tool_calls
+        ),
+        tool_results=tuple(
+            AgentToolResultResponse(
+                resource_id=item.resource_id,
+                call_id=item.call_id,
+                output_schema=item.output_schema,
+                status=item.status,
+                output=dict(item.output),
+                output_digest=item.output_digest,
+                occurred_at=item.occurred_at,
+            )
+            for item in run.tool_results
+        ),
+        handoffs=tuple(
+            AgentHandoffResponse(
+                resource_id=item.resource_id,
+                source_role=item.source_role,
+                target_role=item.target_role,
+                approval_request_id=item.approval_request_id,
+                created_at=item.created_at,
+            )
+            for item in run.handoffs
+        ),
+        trace=tuple(
+            AgentTraceEventResponse(
+                sequence=item.sequence,
+                event_type=item.event_type,
+                occurred_at=item.occurred_at,
+                detail=item.detail,
+            )
+            for item in run.trace
+        ),
     )
 
 

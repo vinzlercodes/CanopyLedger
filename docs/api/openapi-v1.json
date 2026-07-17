@@ -1,6 +1,490 @@
 {
   "components": {
     "schemas": {
+      "AgentCapabilityListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AgentCapabilityResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AgentCapabilityListResponse",
+        "type": "object"
+      },
+      "AgentCapabilityResponse": {
+        "properties": {
+          "allowed_agent_roles": {
+            "items": {
+              "$ref": "#/components/schemas/AgentRole"
+            },
+            "title": "Allowed Agent Roles",
+            "type": "array"
+          },
+          "allowed_principal_roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Principal Roles",
+            "type": "array"
+          },
+          "input_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Input Fields",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "output_schema": {
+            "title": "Output Schema",
+            "type": "string"
+          },
+          "requires_human_approval": {
+            "title": "Requires Human Approval",
+            "type": "boolean"
+          },
+          "risk_level": {
+            "title": "Risk Level",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "risk_level",
+          "allowed_agent_roles",
+          "allowed_principal_roles",
+          "input_fields",
+          "output_schema",
+          "requires_human_approval"
+        ],
+        "title": "AgentCapabilityResponse",
+        "type": "object"
+      },
+      "AgentHandoffResponse": {
+        "properties": {
+          "approval_request_id": {
+            "title": "Approval Request Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "resource_id": {
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "source_role": {
+            "$ref": "#/components/schemas/AgentRole"
+          },
+          "target_role": {
+            "title": "Target Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_id",
+          "source_role",
+          "target_role",
+          "approval_request_id",
+          "created_at"
+        ],
+        "title": "AgentHandoffResponse",
+        "type": "object"
+      },
+      "AgentRole": {
+        "enum": [
+          "facility_orchestrator",
+          "evidence_review_assistant",
+          "collateral_analysis_assistant",
+          "market_risk_assistant",
+          "credit_analysis_assistant",
+          "climate_evidence_assistant",
+          "decision_pack_assistant",
+          "reporting_assistant"
+        ],
+        "title": "AgentRole",
+        "type": "string"
+      },
+      "AgentRunListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AgentRunResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AgentRunListResponse",
+        "type": "object"
+      },
+      "AgentRunResponse": {
+        "properties": {
+          "agent_role": {
+            "$ref": "#/components/schemas/AgentRole"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "facility_id": {
+            "title": "Facility Id",
+            "type": "string"
+          },
+          "handoffs": {
+            "items": {
+              "$ref": "#/components/schemas/AgentHandoffResponse"
+            },
+            "title": "Handoffs",
+            "type": "array"
+          },
+          "planner_type": {
+            "title": "Planner Type",
+            "type": "string"
+          },
+          "planner_version": {
+            "title": "Planner Version",
+            "type": "string"
+          },
+          "principal_id": {
+            "title": "Principal Id",
+            "type": "string"
+          },
+          "resource_id": {
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "task_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentTaskPlanResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/AgentTaskResponse"
+            },
+            "title": "Tasks",
+            "type": "array"
+          },
+          "tool_calls": {
+            "items": {
+              "$ref": "#/components/schemas/AgentToolCallResponse"
+            },
+            "title": "Tool Calls",
+            "type": "array"
+          },
+          "tool_results": {
+            "items": {
+              "$ref": "#/components/schemas/AgentToolResultResponse"
+            },
+            "title": "Tool Results",
+            "type": "array"
+          },
+          "trace": {
+            "items": {
+              "$ref": "#/components/schemas/AgentTraceEventResponse"
+            },
+            "title": "Trace",
+            "type": "array"
+          }
+        },
+        "required": [
+          "resource_id",
+          "facility_id",
+          "snapshot_id",
+          "principal_id",
+          "agent_role",
+          "planner_type",
+          "planner_version",
+          "status",
+          "created_at",
+          "digest",
+          "tasks",
+          "tool_calls",
+          "tool_results",
+          "handoffs",
+          "trace"
+        ],
+        "title": "AgentRunResponse",
+        "type": "object"
+      },
+      "AgentRunStartRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_role": {
+            "$ref": "#/components/schemas/AgentRole"
+          },
+          "goal": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Goal",
+            "type": "string"
+          },
+          "run_id": {
+            "pattern": "^agr_[a-z0-9-]+$",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "agent_role",
+          "goal"
+        ],
+        "title": "AgentRunStartRequest",
+        "type": "object"
+      },
+      "AgentTaskPlanResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "planned_capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Planned Capabilities",
+            "type": "array"
+          },
+          "planner_type": {
+            "title": "Planner Type",
+            "type": "string"
+          },
+          "planner_version": {
+            "title": "Planner Version",
+            "type": "string"
+          },
+          "resource_id": {
+            "title": "Resource Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_id",
+          "planner_type",
+          "planner_version",
+          "goal",
+          "planned_capabilities",
+          "created_at",
+          "digest"
+        ],
+        "title": "AgentTaskPlanResponse",
+        "type": "object"
+      },
+      "AgentTaskResponse": {
+        "properties": {
+          "capability": {
+            "title": "Capability",
+            "type": "string"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "resource_id": {
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_id",
+          "title",
+          "capability",
+          "status"
+        ],
+        "title": "AgentTaskResponse",
+        "type": "object"
+      },
+      "AgentToolCallResponse": {
+        "properties": {
+          "authorization": {
+            "title": "Authorization",
+            "type": "string"
+          },
+          "authorization_reason": {
+            "title": "Authorization Reason",
+            "type": "string"
+          },
+          "capability": {
+            "title": "Capability",
+            "type": "string"
+          },
+          "inputs": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Inputs",
+            "type": "object"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "output_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Digest"
+          },
+          "resource_id": {
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_id",
+          "task_id",
+          "capability",
+          "inputs",
+          "authorization",
+          "authorization_reason",
+          "occurred_at"
+        ],
+        "title": "AgentToolCallResponse",
+        "type": "object"
+      },
+      "AgentToolResultResponse": {
+        "properties": {
+          "call_id": {
+            "title": "Call Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "output": {
+            "additionalProperties": true,
+            "title": "Output",
+            "type": "object"
+          },
+          "output_digest": {
+            "title": "Output Digest",
+            "type": "string"
+          },
+          "output_schema": {
+            "title": "Output Schema",
+            "type": "string"
+          },
+          "resource_id": {
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_id",
+          "call_id",
+          "output_schema",
+          "status",
+          "output",
+          "output_digest",
+          "occurred_at"
+        ],
+        "title": "AgentToolResultResponse",
+        "type": "object"
+      },
+      "AgentTraceEventResponse": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "sequence": {
+            "title": "Sequence",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sequence",
+          "event_type",
+          "occurred_at",
+          "detail"
+        ],
+        "title": "AgentTraceEventResponse",
+        "type": "object"
+      },
       "AnalyticsAnswerResponse": {
         "properties": {
           "assumptions": {
@@ -5939,6 +6423,133 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/agent-capabilities": {
+      "get": {
+        "operationId": "listAgentCapabilities",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentCapabilityListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Agent Capabilities"
+      }
+    },
+    "/api/v1/agent-runs/{agent_run_id}": {
+      "get": {
+        "operationId": "getAgentRun",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_run_id",
+            "required": true,
+            "schema": {
+              "title": "Agent Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Agent Run"
+      }
+    },
     "/api/v1/approval-requests": {
       "get": {
         "operationId": "getApprovalQueue",
@@ -8073,6 +8684,215 @@
           }
         ],
         "summary": "Freeze Facility"
+      }
+    },
+    "/api/v1/facilities/{facility_id}/snapshots/{snapshot_id}/agent-runs": {
+      "get": {
+        "operationId": "listAgentRuns",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "facility_id",
+            "required": true,
+            "schema": {
+              "title": "Facility Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRunListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Agent Runs"
+      },
+      "post": {
+        "operationId": "startAgentRun",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "facility_id",
+            "required": true,
+            "schema": {
+              "title": "Facility Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "snapshot_id",
+            "required": true,
+            "schema": {
+              "title": "Snapshot Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentRunStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Start Agent Run"
       }
     },
     "/api/v1/hedge-liquidity/demo": {
