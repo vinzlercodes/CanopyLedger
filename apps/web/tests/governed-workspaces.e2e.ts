@@ -59,6 +59,7 @@ test("authorized M4B workspaces render server-issued projections and forward ide
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/risk/scenarios", analystToken, ["Scenario Lab", "Uncapped IRC", "Stressed CBB and shortfalls"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/climate", analystToken, ["Climate &amp; Traceability", "Origin map", "Map-equivalent traceability table", "Evidence readiness"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/analytics", analystToken, ["Analytics Copilot", "Approved template question", "Run approved read", "never sends SQL from the browser"]],
+    ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/agents", analystToken, ["Governed Agents", "Start a bounded snapshot review", "Code-owned capability registry", "No governed agent runs"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/approvals", approverToken, ["Independent human approval queue"]],
   ] as const;
 
@@ -178,6 +179,8 @@ function fixtureBody(path: string): Record<string, unknown> {
   if (path.endsWith("/hedge-lab")) return hedgeLab();
   if (path.endsWith("/scenario-lab")) return scenarioLab();
   if (path.endsWith("/climate-traceability")) return climateTraceability();
+  if (path === "/api/v1/agent-capabilities") return { items: [] };
+  if (path.endsWith("/agent-runs")) return { items: [] };
   if (path === "/api/v1/approval-requests") return { items: [] };
   if (path.endsWith("/override-requests")) return { items: [] };
   if (path.endsWith("/governance-timeline")) return { snapshot_id: snapshotId, items: [] };

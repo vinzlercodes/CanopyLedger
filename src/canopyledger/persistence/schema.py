@@ -863,3 +863,30 @@ audit_event = Table(
     Column("occurred_at", DateTime(timezone=True), nullable=False),
     schema=SCHEMA,
 )
+
+agent_run = Table(
+    "agent_run",
+    metadata,
+    Column("resource_id", String(64), primary_key=True),
+    Column(
+        "facility_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.facility_working_state.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column(
+        "snapshot_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.facility_snapshot.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column("principal_id", String(40), nullable=False),
+    Column("agent_role", String(64), nullable=False),
+    Column("planner_type", String(64), nullable=False),
+    Column("status", String(32), nullable=False),
+    Column("payload", JSONB, nullable=False),
+    Column("digest", String(71), nullable=False, unique=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    schema=SCHEMA,
+)
+Index("agent_run_snapshot_created", agent_run.c.snapshot_id, agent_run.c.created_at.desc())

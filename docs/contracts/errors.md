@@ -16,3 +16,5 @@ Responses use `application/problem+json` with `type`, `title`, `status`, `detail
 | DOCUMENT_PROCESSING_REJECTED | 422 | Document is unsafe, malformed, encrypted, oversized, archived, or unsupported for bounded extraction |
 | STAGE_PUBLICATION_FENCED | 409 | Attempt lost lease or epoch |
 | QUERY_REJECTED | 422 | Analytics query violates semantic/SQL policy |
+| AGENT_CAPABILITY_DENIED | 403 | Agent capability is absent from the code-owned registry or denied to its resolved principal |
+| AGENT_RUN_FAILED | 422 | A registry-authorized typed tool failed; the immutable run trace records the sanitized failure |

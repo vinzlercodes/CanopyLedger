@@ -45,6 +45,7 @@ _LATER_REVISION_TABLES = frozenset(
         "document_extraction",
         "candidate_fact_extraction",
         "analytics_query_run",
+        "agent_run",
     }
 )
 
