@@ -5575,6 +5575,146 @@
         "title": "RejectedFactResponse",
         "type": "object"
       },
+      "ReportArtifactResponse": {
+        "properties": {
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "format": {
+            "enum": [
+              "HTML",
+              "PDF"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Metadata",
+            "type": "object"
+          },
+          "report_model_digest": {
+            "title": "Report Model Digest",
+            "type": "string"
+          }
+        },
+        "required": [
+          "format",
+          "report_model_digest",
+          "digest",
+          "metadata"
+        ],
+        "title": "ReportArtifactResponse",
+        "type": "object"
+      },
+      "ReportGenerationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "package_kind": {
+            "default": "CURRENT_OFFICIAL",
+            "enum": [
+              "CURRENT_OFFICIAL",
+              "HISTORICAL_AUDIT"
+            ],
+            "title": "Package Kind",
+            "type": "string"
+          },
+          "report_id": {
+            "pattern": "^rpt_[0-9a-f-]+$",
+            "title": "Report Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "report_id"
+        ],
+        "title": "ReportGenerationRequest",
+        "type": "object"
+      },
+      "ReportModelResponse": {
+        "properties": {
+          "artifact_manifest": {
+            "additionalProperties": true,
+            "title": "Artifact Manifest",
+            "type": "object"
+          },
+          "decision_id": {
+            "title": "Decision Id",
+            "type": "string"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "package_kind": {
+            "enum": [
+              "CURRENT_OFFICIAL",
+              "HISTORICAL_AUDIT"
+            ],
+            "title": "Package Kind",
+            "type": "string"
+          },
+          "resource_id": {
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "sections": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Sections",
+            "type": "object"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_id",
+          "package_kind",
+          "snapshot_id",
+          "decision_id",
+          "sections",
+          "artifact_manifest",
+          "digest"
+        ],
+        "title": "ReportModelResponse",
+        "type": "object"
+      },
+      "ReportPackageResponse": {
+        "properties": {
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/ReportArtifactResponse"
+            },
+            "title": "Artifacts",
+            "type": "array"
+          },
+          "package_kind": {
+            "enum": [
+              "CURRENT_OFFICIAL",
+              "HISTORICAL_AUDIT"
+            ],
+            "title": "Package Kind",
+            "type": "string"
+          },
+          "report_model": {
+            "$ref": "#/components/schemas/ReportModelResponse"
+          }
+        },
+        "required": [
+          "package_kind",
+          "report_model",
+          "artifacts"
+        ],
+        "title": "ReportPackageResponse",
+        "type": "object"
+      },
       "ScenarioCapacityStageOutputResponse": {
         "properties": {
           "completed_at": {
@@ -7049,6 +7189,201 @@
           }
         ],
         "summary": "Create Decision Override"
+      }
+    },
+    "/api/v1/decisions/{decision_id}/reports": {
+      "get": {
+        "operationId": "listDecisionReports",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "title": "Decision Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReportPackageResponse"
+                  },
+                  "title": "Response Listdecisionreports",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Decision Reports"
+      },
+      "post": {
+        "operationId": "generateDecisionReport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "title": "Decision Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportGenerationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportPackageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Generate Decision Report"
       }
     },
     "/api/v1/evidence/approved-facts/{approved_fact_id}/supersede": {
@@ -9405,6 +9740,91 @@
           }
         ],
         "summary": "Create Recommendation Override"
+      }
+    },
+    "/api/v1/reports/{report_id}/artifacts/{artifact_format}": {
+      "get": {
+        "operationId": "downloadReportArtifact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "title": "Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "artifact_format",
+            "required": true,
+            "schema": {
+              "enum": [
+                "HTML",
+                "PDF"
+              ],
+              "title": "Artifact Format",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Problem Details"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Download Report Artifact"
       }
     },
     "/api/v1/snapshots/{snapshot_id}/climate-traceability": {

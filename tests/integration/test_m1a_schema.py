@@ -45,6 +45,8 @@ EXPECTED_TABLES = {
     "quantity_reconciliation_issue",
     "rejected_fact",
     "recommendation",
+    "report_artifact",
+    "report_model",
     "snapshot_input_reference",
     "warehouse_receipt_evidence",
 }
@@ -95,6 +97,8 @@ def test_immutable_resources_have_database_update_and_delete_guards(
         "quantity_reconciliation_issue",
         "rejected_fact",
         "recommendation",
+        "report_artifact",
+        "report_model",
         "snapshot_input_reference",
         "warehouse_receipt_evidence",
     }

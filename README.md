@@ -17,9 +17,13 @@ The implemented reference scope includes:
 - scenario capacity and an Internal Risk Capacity (IRC) that stays distinct from CBB;
 - deterministic climate/EUDR evidence readiness, PostGIS WGS84 traceability geometry, origin concentration, climate scenarios, and financed-emissions methodology/data-quality lineage;
 - recommendations, approval requests, final decisions, overrides, separation of duties, expiry, and audit timeline;
-- a Next.js presentation layer with Cockpit, Collateral, Evidence, Hedge Lab, Scenario Lab, Climate & Traceability, and Approval workspaces.
+- a Next.js presentation layer with Cockpit, Collateral, Evidence, Hedge Lab, Scenario Lab, Climate & Traceability, Approval, and Reports workspaces;
+- canonical report-model JSON with deterministic HTML/PDF renderings, pinned renderer/font metadata,
+  current-versus-historical package designation, and immutable report artifacts.
 
-Credit early warning, document intelligence, analytics copilot, agents, and reporting are planned but not implemented. Climate/EUDR output describes frozen evidence readiness; it is not a legal-compliance or deforestation-free certification. The repository does not yet provide a one-command seeded demo or an official report package.
+Climate/EUDR output describes frozen evidence readiness; it is not a legal-compliance or
+deforestation-free certification. The reference `make demo` command creates an approved synthetic
+decision package and prints its report-model and artifact digests.
 
 For an end-to-end walkthrough of the runnable scope, see [DEMO.md](DEMO.md).
 
@@ -87,6 +91,20 @@ CANOPYLEDGER_NEXT_DIST_DIR=.next-e2e npm --prefix apps/web run build
 
 `pytest` skips PostgreSQL-marked tests when `DATABASE_URL` is unset. That is expected for a local, non-database checkout; it is not equivalent to the durable integration gate.
 
+Run the canonical local report demo:
+
+```bash
+make demo
+```
+
+`make demo` starts a fresh disposable PostgreSQL 17/PostGIS instance, applies migrations, ingests
+and approves synthetic evidence, freezes one facility snapshot, publishes M1B/M3/M4A/M5/M6,
+records an independent final approval, creates the immutable HTML/PDF report package, and starts
+the API plus Reports UI. Open the printed `/sign-in` URL, select the synthetic approver role, and
+navigate to the facility’s **Reports** workspace. Press Ctrl-C to stop the servers and remove the
+disposable database. Use `make demo-verify` to run the same pipeline/package walkthrough without
+starting the web servers. Supplying `DATABASE_URL` makes the caller responsible for database lifecycle.
+
 ## Run locally
 
 Start the API in one terminal:
@@ -114,7 +132,8 @@ npm --prefix apps/web run dev
 
 Open <http://127.0.0.1:3000/sign-in> and choose the synthetic analyst or approver role. The browser receives only a signed, HttpOnly role cookie; the web server maps it to the synthetic bearer header when calling FastAPI. FastAPI still authorizes every request. This opt-in flow proves identity forwarding only: it does not create facilities, snapshots, or published workspace data. This is a local reference demo, not a production identity provider. [DEMO.md](DEMO.md) has the complete click-by-click walkthrough and fixture limitations.
 
-For a populated local workspace, start the explicit seeded reference factory instead of `create_app`:
+For a lightweight UI fixture that skips the canonical database pipeline, start the explicit seeded
+reference factory instead of `create_app`:
 
 ```bash
 uv run uvicorn canopyledger.demo.workspace:create_demo_app --factory --host 127.0.0.1 --port 8000
@@ -127,7 +146,9 @@ Facility: fac_0198a000-0000-7000-8000-000000000801
 Snapshot: snp_0198a000-0000-7000-8000-000000000801
 ```
 
-This developer fixture exercises actual FastAPI authorization and read routes, but its frozen values are checked-in synthetic projections. It is not the canonical database-backed pipeline or an official report demo.
+This developer fixture exercises actual FastAPI authorization and read routes, but its frozen values
+are checked-in synthetic projections. It is not the canonical database-backed pipeline; use `make demo`
+for the full M10 report workflow.
 
 The local demonstration tokens are intentionally non-secret fixtures:
 
@@ -164,6 +185,9 @@ Important runnable endpoints include:
 - `POST /api/v1/snapshots/{snapshot_id}/recommendations`
 - `POST /api/v1/recommendations/{recommendation_id}/approval-requests`
 - `POST /api/v1/approval-requests/{approval_request_id}/approve`
+- `POST /api/v1/decisions/{decision_id}/reports` (current approved final decision only)
+- `GET /api/v1/decisions/{decision_id}/reports`
+- `GET /api/v1/reports/{report_id}/artifacts/{HTML|PDF}`
 - `GET /api/v1/snapshots/{snapshot_id}/climate-traceability`
 - snapshot-scoped Cockpit, Collateral, Evidence, Hedge Lab, Scenario Lab, Climate & Traceability, and Approval read models
 
@@ -212,6 +236,7 @@ src/canopyledger/evidence/ evidence controls and immutable fact lineage
 src/canopyledger/hedge/   hedge and liquidity engine
 src/canopyledger/scenario/ scenario capacity and IRC engine
 src/canopyledger/governance/ recommendations, approvals, decisions, overrides
+src/canopyledger/reporting/ canonical report models, pinned rendering, immutable artifacts
 typescript/               canonical vectors and generated TypeScript client
 tests/                    unit, property, API, SSR, and PostgreSQL integration tests
 docs/api/                 checked-in OpenAPI artifact
@@ -220,6 +245,9 @@ docs/api/                 checked-in OpenAPI artifact
 ## Contributing and security
 
 Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md), keep authoritative calculations in Python, preserve snapshot/bundle/approval boundaries, and include executable verification evidence with changes.
+
+See [docs/reporting.md](docs/reporting.md), [docs/data-card.md](docs/data-card.md), and
+[docs/release-checklist.md](docs/release-checklist.md) for M10 reporting and release material.
 
 Please do not open public issues containing vulnerabilities, real financial data, credentials, or sensitive documents. See [SECURITY.md](SECURITY.md).
 

@@ -42,6 +42,7 @@ class PostGISGeometry(UserDefinedType[object]):
     def get_col_spec(self, **_: object) -> str:
         return "geometry(Geometry,4326)"
 
+
 facility_working_state = Table(
     "facility_working_state",
     metadata,
@@ -890,3 +891,49 @@ agent_run = Table(
     schema=SCHEMA,
 )
 Index("agent_run_snapshot_created", agent_run.c.snapshot_id, agent_run.c.created_at.desc())
+
+report_model = Table(
+    "report_model",
+    metadata,
+    Column("resource_id", String(40), primary_key=True),
+    Column(
+        "snapshot_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.facility_snapshot.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column(
+        "decision_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.final_decision.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column("package_kind", String(32), nullable=False),
+    Column("canonical_payload", LargeBinary, nullable=False),
+    Column("digest", String(71), nullable=False, unique=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint(
+        "package_kind IN ('CURRENT_OFFICIAL', 'HISTORICAL_AUDIT')", name="known_report_kind"
+    ),
+    schema=SCHEMA,
+)
+
+report_artifact = Table(
+    "report_artifact",
+    metadata,
+    Column("resource_id", String(64), primary_key=True),
+    Column(
+        "report_model_id",
+        String(40),
+        ForeignKey(f"{SCHEMA}.report_model.resource_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    Column("artifact_format", String(8), nullable=False),
+    Column("rendered_bytes", LargeBinary, nullable=False),
+    Column("metadata", JSONB, nullable=False),
+    Column("digest", String(71), nullable=False, unique=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("report_model_id", "artifact_format", name="report_artifact_format"),
+    CheckConstraint("artifact_format IN ('HTML', 'PDF')", name="known_report_artifact_format"),
+    schema=SCHEMA,
+)

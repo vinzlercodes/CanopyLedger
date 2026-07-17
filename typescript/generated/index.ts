@@ -1087,6 +1087,34 @@ export interface RejectedFactResponse {
   readonly rejected_fact_id: string;
 }
 
+export interface ReportArtifactResponse {
+  readonly digest: string;
+  readonly format: "HTML" | "PDF";
+  readonly metadata: Record<string, string>;
+  readonly report_model_digest: string;
+}
+
+export interface ReportGenerationRequest {
+  readonly package_kind?: "CURRENT_OFFICIAL" | "HISTORICAL_AUDIT";
+  readonly report_id: string;
+}
+
+export interface ReportModelResponse {
+  readonly artifact_manifest: Record<string, unknown>;
+  readonly decision_id: string;
+  readonly digest: string;
+  readonly package_kind: "CURRENT_OFFICIAL" | "HISTORICAL_AUDIT";
+  readonly resource_id: string;
+  readonly sections: Record<string, Record<string, unknown>>;
+  readonly snapshot_id: string;
+}
+
+export interface ReportPackageResponse {
+  readonly artifacts: readonly ReportArtifactResponse[];
+  readonly package_kind: "CURRENT_OFFICIAL" | "HISTORICAL_AUDIT";
+  readonly report_model: ReportModelResponse;
+}
+
 export interface ScenarioCapacityStageOutputResponse {
   readonly completed_at: string;
   readonly computation_bundle_digest: string;
@@ -1379,6 +1407,15 @@ export class CanopyLedgerClient {
     );
   }
 
+  async downloadReportArtifact(report_id: string, artifact_format: string, headers: RequestHeaders = {}): Promise<ApiResponse<string>> {
+    return this.#request<string>(
+      "GET",
+      `/api/v1/reports/${encodeURIComponent(report_id)}/artifacts/${encodeURIComponent(artifact_format)}`,
+      undefined,
+      headers,
+    );
+  }
+
   async evaluateHedgeLiquidityDemo(body: HedgeLiquidityDemoRequest, headers: RequestHeaders = {}): Promise<ApiResponse<HedgeLiquidityPreviewResponse>> {
     return this.#request<HedgeLiquidityPreviewResponse>(
       "POST",
@@ -1401,6 +1438,15 @@ export class CanopyLedgerClient {
     return this.#request<SnapshotManifestResponse>(
       "POST",
       `/api/v1/facilities/${encodeURIComponent(facility_id)}/snapshots`,
+      body,
+      headers,
+    );
+  }
+
+  async generateDecisionReport(decision_id: string, body: ReportGenerationRequest, headers: RequestHeaders = {}): Promise<ApiResponse<ReportPackageResponse>> {
+    return this.#request<ReportPackageResponse>(
+      "POST",
+      `/api/v1/decisions/${encodeURIComponent(decision_id)}/reports`,
       body,
       headers,
     );
@@ -1644,6 +1690,15 @@ export class CanopyLedgerClient {
     return this.#request<AgentRunListResponse>(
       "GET",
       `/api/v1/facilities/${encodeURIComponent(facility_id)}/snapshots/${encodeURIComponent(snapshot_id)}/agent-runs`,
+      undefined,
+      headers,
+    );
+  }
+
+  async listDecisionReports(decision_id: string, headers: RequestHeaders = {}): Promise<ApiResponse<readonly ReportPackageResponse[]>> {
+    return this.#request<readonly ReportPackageResponse[]>(
+      "GET",
+      `/api/v1/decisions/${encodeURIComponent(decision_id)}/reports`,
       undefined,
       headers,
     );
