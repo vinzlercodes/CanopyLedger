@@ -73,12 +73,33 @@ def test_report_model_is_canonical_replayable_and_keeps_authoritative_caps_disti
 
     assert first.digest == replay.digest
     assert first.canonical_json == replay.canonical_json
+    assert first.canonical_payload()["schema_version"] == "report-model-v2"
     assert first.sections["facility_summary"]["snapshot_id"].startswith("snp_")
-    capacity = first.sections["capacity_and_decision"]
-    assert capacity["contractual_borrowing_base"]["amount"] == "100000.00"
-    assert first.sections["capacity_and_decision"]["internal_risk_capacity"]["amount"] == "90000.00"
-    assert capacity["recommended_incremental_draw"]["amount"] == "60000.00"
+    assert first.sections["contractual_borrowing_base"]["amount"] == "100000.00"
+    assert first.sections["internal_risk_capacity"]["amount"] == "90000.00"
+    assert first.sections["recommendation"]["recommended_incremental_draw"]["amount"] == "60000.00"
     assert first.artifact_manifest["template_version"] == "committee-pack-v1"
+    assert tuple(first.sections) == (
+        "facility_summary",
+        "requested_and_approved_amount",
+        "contractual_borrowing_base",
+        "inventory_and_receivables_eligibility",
+        "reserves",
+        "hedge_and_basis_exposure",
+        "variation_margin_liquidity",
+        "scenario_results",
+        "internal_risk_capacity",
+        "credit_early_warning_signal",
+        "climate_and_eudr_evidence_state",
+        "financed_emissions_information",
+        "recommendation",
+        "approval_or_override",
+        "conditions_and_expiry",
+        "data_and_methodology_limitations",
+    )
+    assert first.sections["conditions_and_expiry"]["final_decision"]["resource_id"].startswith(
+        "fdc_"
+    )
 
 
 @pytest.mark.parametrize("status,superseded_by", [("REJECTED", None), ("APPROVED", "fdc_new")])
@@ -108,6 +129,7 @@ def test_pinned_renderer_normalizes_metadata_and_fails_closed_without_the_declar
     assert first_pdf.bytes == replay_pdf.bytes
     assert first_pdf.bytes.startswith(b"%PDF-1.4")
     assert first_pdf.metadata["creation_date"] == "D:19700101000000Z"
+    assert b"CURRENT OFFICIAL DECISION" in first_html.bytes
 
     with pytest.raises(MissingPinnedFont):
         PinnedReportRenderer(

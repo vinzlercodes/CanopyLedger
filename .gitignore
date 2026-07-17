@@ -18,10 +18,10 @@ AGENTS.md
 CANOPYLEDGER_MASTER_PLAN.md
 MASTER_PLAN.md
 PROGRESS.md
-docs/contracts/
 docs/research/
 docs/superpowers/
 docs/plans/
+docs/contracts/
 dist/
 build/
 *.egg-info/
