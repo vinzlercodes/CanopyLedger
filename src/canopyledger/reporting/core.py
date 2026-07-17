@@ -62,7 +62,7 @@ class ReportModel:
     def canonical_payload(self) -> dict[str, Any]:
         return {
             "resource_id": self.resource_id,
-            "schema_version": "report-model-v1",
+            "schema_version": "report-model-v2",
             "package_kind": self.package_kind.value,
             "snapshot_id": self.snapshot_id,
             "decision_id": self.decision_id,
@@ -73,14 +73,6 @@ class ReportModel:
 
 class ReportModelCompiler:
     """Compiles a fixed, source-only committee-pack model from immutable inputs."""
-
-    _STAGE_SECTION_ORDER = (
-        ("inventory_and_receivables_eligibility", "collateral"),
-        ("hedge_and_basis_exposure", "hedge"),
-        ("scenario_results", "scenario"),
-        ("climate_and_eudr_evidence_state", "climate"),
-        ("credit_early_warning_signal", "credit"),
-    )
 
     def compile(self, source: ReportCompileInput) -> ReportModel:
         """Produce a canonical model after enforcing decision/report designation rules."""
@@ -102,6 +94,17 @@ class ReportModelCompiler:
         _required_text(source.renderer_manifest, "locale", "renderer manifest")
         _required_text(source.renderer_manifest, "timezone", "renderer manifest")
 
+        recommendation = _required_mapping(source.decision_pack, "recommendation", "decision pack")
+        final_decision = _required_mapping(source.decision_pack, "final_decision", "decision pack")
+        collateral = _required_mapping(source.stage_outputs, "collateral", "stage outputs")
+        hedge = _required_mapping(source.stage_outputs, "hedge", "stage outputs")
+        scenario = _required_mapping(source.stage_outputs, "scenario", "stage outputs")
+        climate = _required_mapping(source.stage_outputs, "climate", "stage outputs")
+        credit = _required_mapping(source.stage_outputs, "credit", "stage outputs")
+
+        # Each section copies a versioned source verbatim.  The intentional duplication
+        # gives committee readers the fixed plan-defined order without giving renderers
+        # permission to derive, aggregate, or otherwise recalculate a reported value.
         sections: dict[str, Mapping[str, Any]] = {
             "facility_summary": {
                 "snapshot_id": snapshot_id,
@@ -109,34 +112,38 @@ class ReportModelCompiler:
                 "as_of": _required_text(source.snapshot, "as_of", "snapshot"),
             },
             "requested_and_approved_amount": {
-                "recommendation": source.decision_pack.get("recommendation"),
-                "final_decision": source.decision_pack.get("final_decision"),
+                "recommendation": recommendation,
+                "final_decision": final_decision,
             },
-            "capacity_and_decision": {
-                "contractual_borrowing_base": _required_mapping(
-                    source.decision_pack, "contractual_borrowing_base", "decision pack"
-                ),
-                "contractual_availability": _required_mapping(
-                    source.decision_pack, "contractual_availability", "decision pack"
-                ),
-                "internal_risk_capacity": _required_mapping(
-                    source.decision_pack, "internal_risk_capacity", "decision pack"
-                ),
-                "recommended_incremental_draw": _nested_mapping(
-                    source.decision_pack, "recommendation", "recommended_incremental_draw"
-                ),
+            "contractual_borrowing_base": _required_mapping(
+                source.decision_pack, "contractual_borrowing_base", "decision pack"
+            ),
+            "inventory_and_receivables_eligibility": collateral,
+            "reserves": collateral,
+            "hedge_and_basis_exposure": hedge,
+            "variation_margin_liquidity": hedge,
+            "scenario_results": scenario,
+            "internal_risk_capacity": _required_mapping(
+                source.decision_pack, "internal_risk_capacity", "decision pack"
+            ),
+            "credit_early_warning_signal": credit,
+            "climate_and_eudr_evidence_state": climate,
+            "financed_emissions_information": climate,
+            "recommendation": recommendation,
+            "approval_or_override": {
+                "final_decision": final_decision,
+                "decision": dict(source.decision),
             },
-        }
-        for section_name, stage_name in self._STAGE_SECTION_ORDER:
-            sections[section_name] = _required_mapping(
-                source.stage_outputs, stage_name, "stage outputs"
-            )
-        sections["approval_or_override"] = {"decision": dict(source.decision)}
-        sections["data_and_methodology_limitations"] = {
-            "notice": (
-                "Values are copied from pinned immutable outputs; "
-                "renderers do not recalculate them."
-            )
+            "conditions_and_expiry": {
+                "recommendation": recommendation,
+                "final_decision": final_decision,
+            },
+            "data_and_methodology_limitations": {
+                "notice": (
+                    "Values are copied from pinned immutable outputs; "
+                    "renderers do not recalculate them."
+                )
+            },
         }
 
         manifest: dict[str, Any] = {
@@ -157,7 +164,7 @@ class ReportModelCompiler:
         }
         payload = {
             "resource_id": source.report_id,
-            "schema_version": "report-model-v1",
+            "schema_version": "report-model-v2",
             "package_kind": source.package_kind.value,
             "snapshot_id": snapshot_id,
             "decision_id": decision_id,
@@ -173,7 +180,7 @@ class ReportModelCompiler:
             sections=sections,
             artifact_manifest=manifest,
             canonical_json=canonical_json,
-            digest=domain_digest("report_model", 1, canonical_json),
+            digest=domain_digest("report_model", 2, canonical_json),
         )
 
 
@@ -189,10 +196,6 @@ def _required_mapping(source: Mapping[str, Any], key: str, label: str) -> Mappin
     if not isinstance(value, Mapping):
         raise ReportIneligible(f"{label} requires {key}")
     return value
-
-
-def _nested_mapping(source: Mapping[str, Any], parent: str, key: str) -> Mapping[str, Any]:
-    return _required_mapping(_required_mapping(source, parent, "decision pack"), key, parent)
 
 
 def _nested_text(source: Mapping[str, Any], parent: str, key: str) -> str:

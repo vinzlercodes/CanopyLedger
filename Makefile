@@ -1,4 +1,4 @@
-.PHONY: setup test test-database-roles test-m1a-postgres migrate migrate-check lint typecheck openapi openapi-check typescript-client-check fit-credit-reference-model document-extraction-benchmark demo demo-verify verify
+.PHONY: setup test test-database-roles test-postgres test-m1a-postgres migrate migrate-check lint typecheck openapi openapi-check typescript-client-check fit-credit-reference-model document-extraction-benchmark demo demo-verify verify
 
 setup:
 	uv sync --extra dev
@@ -9,8 +9,11 @@ test:
 test-database-roles:
 	bash tests/integration/test_database_roles.sh
 
-test-m1a-postgres:
+test-postgres:
 	uv run python scripts/run_postgres_acceptance.py
+
+# Compatibility alias for existing local automation. Prefer `make test-postgres`.
+test-m1a-postgres: test-postgres
 
 migrate:
 	uv run alembic upgrade head
