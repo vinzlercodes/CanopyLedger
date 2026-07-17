@@ -86,7 +86,7 @@ export async function loadWorkspace({
         },
       };
     }
-    if (workspace === "analytics" || workspace === "agents") {
+    if (workspace === "analytics" || workspace === "agents" || workspace === "reports") {
       return { context };
     }
     const response = await {

@@ -9,4 +9,5 @@ Requirements:
 3. Run `make verify`.
 4. Update `PROGRESS.md` when milestone state or verification evidence changes.
 5. Document contract changes before implementation.
-
+6. For reporting changes, prove canonical replay, pinned-font failure, metadata normalization, and
+   current-final-decision enforcement before requesting a release.

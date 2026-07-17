@@ -1,8 +1,12 @@
 # CanopyLedger demo guide
 
-This guide demonstrates the currently implemented reference scope: deterministic collateral calculations, evidence review, hedge/liquidity, scenario/IRC projections, climate/EUDR evidence readiness, financed-emissions lineage, human governance, and the seven Next.js workspaces.
+This guide demonstrates deterministic collateral calculations, evidence review, hedge/liquidity,
+scenario/IRC projections, climate/EUDR evidence readiness, financed-emissions lineage, credit early
+warning, human governance, canonical reports, and the Next.js workspaces.
 
-It does not claim to demonstrate planned capabilities. In particular, there is no one-command seed/report demo, no credit model, no copilot/agent runtime, and no official report renderer yet. The Climate & Traceability workspace reports evidence state only; it never certifies legal compliance or deforestation-free status.
+The canonical one-command path is `make demo`. It runs only synthetic data through a disposable
+PostgreSQL/PostGIS pipeline and starts the API and web app. Climate & Traceability reports evidence
+readiness only; it never certifies legal compliance or deforestation-free status.
 
 All examples use synthetic fixture data and intentionally non-secret demo tokens.
 
@@ -626,7 +630,22 @@ It also verifies that unauthenticated snapshot URLs do not disclose resource exi
 
 Treat this test as the reproducible data-bearing visual-contract reference. It supplies a frozen fixture snapshot and values for each workspace, starts a real Next.js server, and asserts the visible headings and fields described in sections 8.5–8.10.
 
-## 9. Optional: run the PostgreSQL durability demonstration
+## 9. Canonical PostgreSQL/PostGIS report demonstration
+
+Run the full M10 walkthrough:
+
+```bash
+make demo
+```
+
+This starts a disposable PostgreSQL 17/PostGIS database, applies migrations, ingests and approves
+synthetic evidence, freezes the snapshot, publishes M1B/M3/M4A/M5/M6, records a separate human
+approval, creates the HTML/PDF report package, and serves the API plus web UI. Use the printed
+`/sign-in` URL and choose the synthetic approver role; then open the seeded facility’s Reports
+workspace. Press Ctrl-C when done. `make demo-verify` performs the same durable seed/report package
+flow without launching servers.
+
+### 9.1 Optional: run the PostgreSQL durability suite
 
 This is optional but recommended before evaluating persistence behavior. Start a disposable PostgreSQL 17 instance yourself, then run:
 
@@ -638,7 +657,9 @@ uv run alembic check
 uv run pytest -m postgres -q
 ```
 
-Expected result: the suite validates database role isolation, immutable records, durable restart behavior, serializable freeze, fenced stage publication, replay-visible outputs, evidence controls, governance, hedge/liquidity, and scenario capacity.
+Expected result: the suite validates database role isolation, immutable records, durable restart behavior,
+serializable freeze, fenced stage publication, replay-visible outputs, evidence controls, governance,
+hedge/liquidity, scenario capacity, and canonical report persistence.
 
 ## 10. What to explain in a live demo
 
@@ -651,7 +672,9 @@ Use this sequence when presenting the system:
 5. Create a recommendation; call out that it is not a final decision.
 6. Approve it with a different actor; demonstrate that an analyst cannot self-approve.
 7. Walk the UI using sections 8.2–8.11, then run the end-to-end UI test to prove the seven authorized workspace contracts and server-side identity forwarding.
-8. State remaining scope honestly: credit, document intelligence, copilot/agents, reporting, and the seeded one-command demo remain future milestones. Climate/EUDR output remains evidence readiness, never a legal-compliance conclusion.
+8. State remaining scope honestly: the credit early-warning output is advisory only; document intelligence
+and copilot/agent features remain governed support tooling. Climate/EUDR output remains evidence
+readiness, never a legal-compliance conclusion.
 
 ## Troubleshooting
 

@@ -61,6 +61,7 @@ test("authorized M4B workspaces render server-issued projections and forward ide
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/analytics", analystToken, ["Analytics Copilot", "Approved template question", "Run approved read", "never sends SQL from the browser"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/agents", analystToken, ["Governed Agents", "Start a bounded snapshot review", "Code-owned capability registry", "No governed agent runs"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/approvals", approverToken, ["Independent human approval queue"]],
+    ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/reports", analystToken, ["Committee Reports", "Awaiting current approved final decision"]],
   ] as const;
 
   for (const [path, authorization, expected] of pages) {

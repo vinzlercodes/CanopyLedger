@@ -145,6 +145,15 @@ from canopyledger.integrity.snapshot import (
 )
 from canopyledger.market.snapshot import FxRate, MarketSnapshot, PriceObservation
 from canopyledger.persistence.postgres import PostgresEvidenceStore, PostgresIntegrityStore
+from canopyledger.reporting.core import ReportCompileInput, ReportModelCompiler, ReportPackageKind
+from canopyledger.reporting.postgres import PostgresReportService
+from canopyledger.reporting.service import (
+    InMemoryReportService,
+    ReportPackage,
+    reference_renderer_manifest,
+    reference_report_renderer,
+    reference_report_service,
+)
 from canopyledger.scenario.postgres import (
     PostgresScenarioCapacityInputStore,
     PostgresScenarioCapacityRunner,
@@ -1451,6 +1460,36 @@ class DecisionPackResponse(BaseModel):
     final_decision: GovernanceResourceResponse | None = None
 
 
+class ReportGenerationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    report_id: str = Field(pattern=r"^rpt_[0-9a-f-]+$")
+    package_kind: Literal["CURRENT_OFFICIAL", "HISTORICAL_AUDIT"] = "CURRENT_OFFICIAL"
+
+
+class ReportModelResponse(BaseModel):
+    resource_id: str
+    package_kind: Literal["CURRENT_OFFICIAL", "HISTORICAL_AUDIT"]
+    snapshot_id: str
+    decision_id: str
+    sections: dict[str, dict[str, Any]]
+    artifact_manifest: dict[str, Any]
+    digest: str
+
+
+class ReportArtifactResponse(BaseModel):
+    format: Literal["HTML", "PDF"]
+    report_model_digest: str
+    digest: str
+    metadata: dict[str, str]
+
+
+class ReportPackageResponse(BaseModel):
+    package_kind: Literal["CURRENT_OFFICIAL", "HISTORICAL_AUDIT"]
+    report_model: ReportModelResponse
+    artifacts: tuple[ReportArtifactResponse, ...]
+
+
 class CollateralLineageResponse(BaseModel):
     collateral_valuation_stage_output_id: str
     collateral_valuation_stage_version: str
@@ -1599,6 +1638,7 @@ def create_app(
     credit_early_warning_output_loader: Callable[[str], dict[str, object] | None] | None = None,
     collateral_output_loader: Callable[[str], dict[str, object] | None] | None = None,
     governance_service: GovernanceService | PostgresGovernanceService | None = None,
+    report_service: InMemoryReportService | PostgresReportService | None = None,
     agent_runner: AgentRunner | None = None,
     agent_store: AgentRunStore | None = None,
     decision_context_loader: Callable[[str], DecisionContext] | None = None,
@@ -1635,6 +1675,7 @@ def create_app(
     )
     idempotency = IdempotencyLedger()
     governance = governance_service or GovernanceService(clock=clock)
+    reports = report_service or reference_report_service()
     bearer = HTTPBearer(auto_error=False)
 
     def govern(operation: Callable[[GovernanceService], Any]) -> Any:
@@ -1738,6 +1779,21 @@ def create_app(
         snapshot = snapshots.get(snapshot_id)
         if snapshot is None:
             raise AgentError("frozen snapshot is not available")
+        return _snapshot_representation(snapshot)
+
+    def report_snapshot_payload(snapshot_id: str) -> dict[str, object]:
+        """Load the immutable snapshot manifest that can source a report package."""
+        if integrity_service is not None:
+            stored = integrity_service.get_snapshot_manifest(snapshot_id)
+            if stored is None:
+                raise _Problem(404, "RESOURCE_NOT_FOUND", "Frozen snapshot not found")
+            payload = json.loads(stored.body)
+            if not isinstance(payload, dict):
+                raise _Problem(409, "STAGE_PUBLICATION_FENCED", "Snapshot manifest is malformed")
+            return payload
+        snapshot = snapshots.get(snapshot_id)
+        if snapshot is None:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Frozen snapshot not found")
         return _snapshot_representation(snapshot)
 
     def agent_snapshot_read(inputs: Mapping[str, str]) -> Mapping[str, object]:
@@ -1968,9 +2024,8 @@ def create_app(
     ) -> AnalyticsAnswerResponse:
         if not snapshot_belongs_to_facility(command.snapshot_id, facility_id):
             raise _Problem(404, "RESOURCE_NOT_FOUND", "Snapshot not found")
-        if (
-            command.comparison_snapshot_id is not None
-            and not snapshot_belongs_to_facility(command.comparison_snapshot_id, facility_id)
+        if command.comparison_snapshot_id is not None and not snapshot_belongs_to_facility(
+            command.comparison_snapshot_id, facility_id
         ):
             raise _Problem(404, "RESOURCE_NOT_FOUND", "Snapshot not found")
         answer = analytics_copilot.answer_question(
@@ -2709,6 +2764,132 @@ def create_app(
                 else None
             ),
             final_decision=(_final_decision_response(decision) if decision is not None else None),
+        )
+
+    @app.post(
+        "/api/v1/decisions/{decision_id}/reports",
+        status_code=201,
+        operation_id="generateDecisionReport",
+        response_model=ReportPackageResponse,
+        responses=_problem_responses(401, 403, 404, 409, 422),
+    )
+    def generate_decision_report(
+        decision_id: str,
+        command: ReportGenerationRequest,
+        actor: Annotated[str, Depends(current_credit_approver)],
+    ) -> ReportPackageResponse:
+        del actor
+        decision = governance.assert_report_eligible(decision_id)
+        snapshot = report_snapshot_payload(decision.snapshot_id)
+        decision_pack = get_snapshot_decision_pack(decision.snapshot_id, actor="report-worker")
+        if (
+            decision_pack.final_decision is None
+            or decision_pack.final_decision.resource_id != decision_id
+        ):
+            raise _Problem(
+                409, "INVALID_STATE_TRANSITION", "Decision is not current for its snapshot"
+            )
+        collateral = (
+            collateral_output_loader(decision.snapshot_id)
+            if collateral_output_loader is not None
+            else None
+        )
+        hedge = (
+            hedge_output_loader(decision.snapshot_id) if hedge_output_loader is not None else None
+        )
+        scenario = (
+            scenario_output_loader(decision.snapshot_id)
+            if scenario_output_loader is not None
+            else None
+        )
+        climate = (
+            climate_output_loader(decision.snapshot_id)
+            if climate_output_loader is not None
+            else None
+        )
+        credit = (
+            credit_early_warning_output_loader(decision.snapshot_id)
+            if credit_early_warning_output_loader is not None
+            else None
+        )
+        if any(item is None for item in (collateral, hedge, scenario, climate, credit)):
+            raise _Problem(
+                409,
+                "STAGE_PUBLICATION_FENCED",
+                "All published M1B, M3, M4, M5, and M6 outputs are required for reporting",
+            )
+        renderer = reference_renderer_manifest()
+        source = ReportCompileInput(
+            report_id=command.report_id,
+            package_kind=ReportPackageKind(command.package_kind),
+            decision={
+                "resource_id": decision.resource_id,
+                "snapshot_id": decision.snapshot_id,
+                "status": decision.status.value,
+                "superseded_by": decision.superseded_by,
+                "digest": decision.digest,
+            },
+            snapshot=snapshot,
+            decision_pack=decision_pack.model_dump(mode="json"),
+            stage_outputs={
+                "collateral": _report_stage_output("collateral", collateral),
+                "hedge": _report_stage_output("hedge", hedge),
+                "scenario": _report_stage_output("scenario", scenario),
+                "climate": _report_stage_output("climate", climate),
+                "credit": _report_stage_output("credit", credit),
+            },
+            template_version="committee-pack-v1",
+            renderer_manifest={
+                "renderer": str(renderer["renderer_version"]),
+                "font_digest": str(renderer["font_digest"]),
+                "locale": str(renderer["locale"]),
+                "timezone": str(renderer["timezone"]),
+            },
+            created_at=clock(),
+        )
+        return _report_package_response(reports.generate(source))
+
+    @app.get(
+        "/api/v1/decisions/{decision_id}/reports",
+        operation_id="listDecisionReports",
+        response_model=tuple[ReportPackageResponse, ...],
+        responses=_problem_responses(401, 404),
+    )
+    def list_decision_reports(
+        decision_id: str,
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> tuple[ReportPackageResponse, ...]:
+        del actor
+        return tuple(
+            _report_package_response(item) for item in reports.list_for_decision(decision_id)
+        )
+
+    @app.get(
+        "/api/v1/reports/{report_id}/artifacts/{artifact_format}",
+        operation_id="downloadReportArtifact",
+        responses=_problem_responses(401, 404),
+    )
+    def download_report_artifact(
+        report_id: str,
+        artifact_format: Literal["HTML", "PDF"],
+        actor: Annotated[str, Depends(current_actor)],
+    ) -> Response:
+        del actor
+        try:
+            package = reports.get(report_id)
+        except KeyError as exc:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Report package not found") from exc
+        artifact = next(
+            (item for item in package.artifacts if item.format.value == artifact_format), None
+        )
+        if artifact is None:
+            raise _Problem(404, "RESOURCE_NOT_FOUND", "Report artifact not found")
+        return Response(
+            content=artifact.bytes,
+            media_type=(
+                "application/pdf" if artifact_format == "PDF" else "text/html; charset=utf-8"
+            ),
+            headers={"ETag": f'"{artifact.digest}"'},
         )
 
     @app.get(
@@ -3539,13 +3720,14 @@ def create_postgres_app(
     scenario_runner = PostgresScenarioCapacityRunner(
         engine, store, scenario_input_store, clock=clock
     )
-    climate_runner = PostgresClimateEudrRunner(
-        engine, store, climate_input_store, clock=clock
-    )
-    credit_runner = PostgresCreditEarlyWarningRunner(
-        engine, store, credit_input_store, clock=clock
-    )
+    climate_runner = PostgresClimateEudrRunner(engine, store, climate_input_store, clock=clock)
+    credit_runner = PostgresCreditEarlyWarningRunner(engine, store, credit_input_store, clock=clock)
     governance = PostgresGovernanceService(engine, clock=clock)
+    report_service = PostgresReportService(
+        engine,
+        compiler=ReportModelCompiler(),
+        renderer=reference_report_renderer(),
+    )
     return create_app(
         clock=clock,
         integrity_service=integrity,
@@ -3559,6 +3741,7 @@ def create_postgres_app(
         credit_early_warning_output_loader=credit_runner.load_published_output,
         collateral_output_loader=governance.load_collateral_view,
         governance_service=governance,
+        report_service=report_service,
         decision_context_loader=governance.load_authoritative_context,
         agent_store=PostgresAgentRunStore(engine),
     )
@@ -5024,6 +5207,45 @@ def _facility_cockpit_page(
 
 def _money_display(value: Money) -> str:
     return f"{value.quantized().amount:.2f} {value.currency}"
+
+
+def _report_stage_output(name: str, output: object) -> dict[str, Any]:
+    """Retain a published output verbatim and expose an immutable source digest for M10."""
+    if not isinstance(output, dict):
+        raise ValueError(f"{name} output must be a mapping")
+    existing_digest = output.get("output_digest")
+    if isinstance(existing_digest, str) and existing_digest:
+        return output
+    return {
+        "output_digest": domain_digest("report_source", 1, canonical_json_bytes(output)),
+        "result": output,
+    }
+
+
+def _report_package_response(package: ReportPackage) -> ReportPackageResponse:
+    """Map immutable reporting records to the typed public API without returning binary bytes."""
+    model = package.report_model
+    return ReportPackageResponse(
+        package_kind=model.package_kind.value,
+        report_model=ReportModelResponse(
+            resource_id=model.resource_id,
+            package_kind=model.package_kind.value,
+            snapshot_id=model.snapshot_id,
+            decision_id=model.decision_id,
+            sections={name: dict(value) for name, value in model.sections.items()},
+            artifact_manifest=dict(model.artifact_manifest),
+            digest=model.digest,
+        ),
+        artifacts=tuple(
+            ReportArtifactResponse(
+                format=item.format.value,
+                report_model_digest=item.report_model_digest,
+                digest=item.digest,
+                metadata=item.metadata,
+            )
+            for item in package.artifacts
+        ),
+    )
 
 
 def _reason_summary(hedge: dict[str, object] | None, scenario: dict[str, object] | None) -> str:

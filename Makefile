@@ -1,4 +1,4 @@
-.PHONY: setup test test-database-roles test-m1a-postgres migrate migrate-check lint typecheck openapi openapi-check typescript-client-check fit-credit-reference-model document-extraction-benchmark verify
+.PHONY: setup test test-database-roles test-m1a-postgres migrate migrate-check lint typecheck openapi openapi-check typescript-client-check fit-credit-reference-model document-extraction-benchmark demo demo-verify verify
 
 setup:
 	uv sync --extra dev
@@ -38,5 +38,11 @@ fit-credit-reference-model:
 
 document-extraction-benchmark:
 	uv run python scripts/run_document_extraction_benchmark.py
+
+demo:
+	uv run python scripts/run_demo.py
+
+demo-verify:
+	uv run python scripts/run_demo.py --no-serve
 
 verify: lint typecheck openapi-check typescript-client-check test

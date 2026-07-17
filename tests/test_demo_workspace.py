@@ -145,6 +145,40 @@ def test_seeded_workspace_demo_allows_an_independent_approver_to_record_a_decisi
     assert api.get("/api/v1/approval-requests", headers=APPROVER).json() == {"items": []}
 
 
+def test_seeded_workspace_demo_generates_a_current_official_report_only_after_approval() -> None:
+    api = TestClient(create_demo_app())
+    decision_id = "fdc_0198a000-0000-7000-8000-000000000803"
+
+    rejected = api.post(
+        f"/api/v1/decisions/{decision_id}/reports",
+        headers=ANALYST,
+        json={"report_id": "rpt_0198a000-0000-7000-8000-000000000801"},
+    )
+    assert rejected.status_code == 403
+
+    approved = api.post(
+        "/api/v1/approval-requests/arq_0198a000-0000-7000-8000-000000000801/approve",
+        headers=APPROVER,
+        json={
+            "approval_action_id": "apa_0198a000-0000-7000-8000-000000000803",
+            "final_decision_id": decision_id,
+            "reason": "Independent approval before rendering the synthetic committee package.",
+        },
+    )
+    assert approved.status_code == 201, approved.text
+
+    report = api.post(
+        f"/api/v1/decisions/{decision_id}/reports",
+        headers=APPROVER,
+        json={"report_id": "rpt_0198a000-0000-7000-8000-000000000801"},
+    )
+    assert report.status_code == 201, report.text
+    payload = report.json()
+    assert payload["package_kind"] == "CURRENT_OFFICIAL"
+    assert payload["report_model"]["snapshot_id"] == SNAPSHOT_ID
+    assert {artifact["format"] for artifact in payload["artifacts"]} == {"HTML", "PDF"}
+
+
 def test_seeded_workspace_demo_enforces_evidence_and_final_decision_boundaries() -> None:
     candidate_fact_id = "caf_0198a000-0000-7000-8000-000000000801"
     approval_request_id = "arq_0198a000-0000-7000-8000-000000000801"
