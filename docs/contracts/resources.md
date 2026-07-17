@@ -24,6 +24,10 @@
 - `DocumentExtraction` and `CandidateFactExtractionProvenance`. Extraction records source-byte
   digest, classification/parser/extractor versions, text digest, advisory reconciliation state, and
   candidate-only confidence. They never carry approval authority.
+- `AgentRun`, `TaskPlan`, `AgentTask`, `ToolCallRecord`, `ToolResultRecord`, `HandoffRecord`, and
+  `TraceEvent`. Agent records retain planner/version, resolved principal, typed tool inputs and
+  output digests, authorization outcome, retry identity, and human-routing context. They are
+  immutable audit records and cannot represent a credit approval or evidence promotion.
 
 ## Operational integrity
 
