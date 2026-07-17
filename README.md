@@ -2,110 +2,98 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
-CanopyLedger is an open-source reference implementation for governed, coffee-backed trade-finance decisions. It turns synthetic facility, collateral, evidence, market, hedge, and scenario inputs into reproducible calculations and keeps final lending decisions with authorized humans.
+CanopyLedger is an open-source reference application for making transparent, repeatable
+borrowing-base decisions in coffee trade finance. It brings collateral, receivables, evidence,
+market inputs, hedges, scenarios, climate and traceability evidence, and human approvals into one
+auditable decision record.
 
-It is deliberately not a core-banking system, a trading platform, a market-data terminal, a legal-compliance service, or an autonomous credit engine. It is a learning and integration reference; do not use it with real borrower, farmer, trading, market, or credential data.
+The project exists to demonstrate a safer decisioning pattern: calculations are reproducible,
+evidence is reviewable, and an authorized person—not an automated system—makes the final decision.
+It is intended for learning, prototyping, and integration design. All bundled data is synthetic;
+do not use the reference application with real borrower, farmer, customer, market, credential, or
+regulated production data.
 
-## Project status
+## What you can do with it
 
-The implemented reference scope includes:
+- Calculate contractual borrowing base and availability from inventory, receivables, reserves, and
+  usage.
+- Review document-derived evidence, approve or reject candidate facts, and preserve correction and
+  supersession history.
+- Explore hedge liquidity, scenario capacity, internal risk capacity, credit early-warning signals,
+  and climate/traceability evidence readiness without conflating them with the contractual result.
+- Create recommendations, request independent approval, record final decisions and overrides, and
+  inspect their audit timeline.
+- Create immutable decision report packages with a canonical JSON model plus HTML and PDF artifacts.
+- Use the FastAPI service directly or explore the same API through the included Next.js web app.
 
-- immutable facility snapshots, versioned bundles, canonical JSON/decimal/timestamp handling, idempotency, audit events, and replay-oriented output digests;
-- deterministic inventory and receivables valuation, eligibility, reserves, contractual borrowing base (CBB), and contractual availability;
-- evidence documents, candidate facts, human approval/rejection, corrections, receipt/ownership controls, and reconciliation;
-- hedge and liquidity assessment, including KC/AC contract separation, futures/options, variation-margin stress, and liquidity coverage;
-- scenario capacity and an Internal Risk Capacity (IRC) that stays distinct from CBB;
-- deterministic climate/EUDR evidence readiness, PostGIS WGS84 traceability geometry, origin concentration, climate scenarios, and financed-emissions methodology/data-quality lineage;
-- recommendations, approval requests, final decisions, overrides, separation of duties, expiry, and audit timeline;
-- a Next.js presentation layer with Cockpit, Collateral, Evidence, Hedge Lab, Scenario Lab, Climate & Traceability, Approval, and Reports workspaces;
-- canonical report-model JSON with deterministic HTML/PDF renderings, pinned renderer/font metadata,
-  current-versus-historical package designation, and immutable report artifacts.
+## Key safeguards
 
-Climate/EUDR output describes frozen evidence readiness; it is not a legal-compliance or
-deforestation-free certification. The reference `make demo` command creates an approved synthetic
-decision package and prints its report-model and artifact digests.
+CanopyLedger keeps several concepts deliberately separate:
 
-For an end-to-end walkthrough of the runnable scope, see [DEMO.md](DEMO.md).
+- **Contractual borrowing base (CBB)** is the collateral calculation defined by the facility terms.
+- **Internal risk capacity (IRC)** is a risk-management view; it never silently replaces CBB.
+- **Evidence candidates** are not approved evidence until a human reviewer accepts them.
+- **Recommendations** are advisory; a final decision needs an authorized, independent approver.
+- **Current reports** are issued only for the active approved decision. Historical reports remain
+  clearly designated as audit records.
 
-## Design commitments
-
-CanopyLedger is built around a few non-negotiable boundaries:
-
-- Mutable working data becomes an immutable, content-addressed snapshot before authoritative calculation.
-- Every authoritative output retains snapshot, bundle, input/output digest, timestamp, and reason-code lineage.
-- Money and other authoritative decimals are serialized as strings; browser code formats them but never recalculates them.
-- CBB is the contractual collateral result. IRC is a separate internal-risk result. Neither is silently substituted for the other.
-- A recommendation is advisory. A final decision requires an authorized, independent human actor.
-- Corrections and overrides preserve history rather than rewriting immutable records.
-- The web app is a contract consumer: FastAPI authorizes requests and Python owns authoritative calculation.
+The browser displays API-provided results and lineage. It does not calculate authoritative
+financial values or create official reports from client state.
 
 ## Architecture
 
 ```text
 Next.js web app
-  Cockpit · Collateral · Evidence · Hedge Lab · Scenario Lab · Approval
-                          |
-                     HTTPS / JSON
-                          |
-FastAPI API ── immutable snapshots, evidence, governance, typed read models
-                          |
-          PostgreSQL adapters / in-memory local adapters
-                          |
-deterministic Python calculations ── CBB · hedge/liquidity · scenario/IRC
+  Cockpit · Collateral · Evidence · Hedge · Scenarios · Climate · Approvals · Reports
+                                      |
+                                 HTTPS / JSON
+                                      |
+FastAPI service ── snapshots · evidence · governance · reporting read models
+                                      |
+              PostgreSQL/PostGIS adapters or in-memory local adapters
+                                      |
+     deterministic Python engines ── valuation · eligibility · liquidity · scenarios
 ```
 
-The local FastAPI factory uses in-memory adapters for fast experimentation. PostgreSQL-backed adapters, Alembic migrations, and integration tests exercise durable behavior separately.
+Local experimentation uses in-memory adapters. The durable path uses PostgreSQL, PostGIS,
+Alembic migrations, and the integration suite.
 
 ## Quick start
 
-Prerequisites:
+### Prerequisites
 
 - Python 3.12–3.14
 - [uv](https://docs.astral.sh/uv/)
-- Node.js 20+ and npm
-- PostgreSQL 17 with PostGIS only for PostgreSQL integration tests
+- Node.js 20 or later and npm
+- Docker, only for the complete disposable PostgreSQL/PostGIS demonstration and integration gate
 
-Install the Python and JavaScript dependencies:
+### Install
 
 ```bash
+git clone https://github.com/vinzlercodes/CanopyLedger.git
+cd CanopyLedger
 uv sync --extra dev
 npm --prefix typescript install
 npm --prefix apps/web install
 ```
 
-Run the complete local verification suite:
-
-```bash
-uv run ruff check .
-uv run mypy
-uv run pytest -q
-uv run python scripts/export_openapi.py --check
-uv run python scripts/check_typescript_client.py
-npm --prefix typescript run typecheck
-npm --prefix typescript test
-npm --prefix apps/web run typecheck
-npm --prefix apps/web test
-npm --prefix apps/web run test:e2e
-CANOPYLEDGER_NEXT_DIST_DIR=.next-e2e npm --prefix apps/web run build
-```
-
-`pytest` skips PostgreSQL-marked tests when `DATABASE_URL` is unset. That is expected for a local, non-database checkout; it is not equivalent to the durable integration gate.
-
-Run the canonical local report demo:
+### Run the full synthetic demonstration
 
 ```bash
 make demo
 ```
 
-`make demo` starts a fresh disposable PostgreSQL 17/PostGIS instance, applies migrations, ingests
-and approves synthetic evidence, freezes one facility snapshot, publishes M1B/M3/M4A/M5/M6,
-records an independent final approval, creates the immutable HTML/PDF report package, and starts
-the API plus Reports UI. Open the printed `/sign-in` URL, select the synthetic approver role, and
-navigate to the facility’s **Reports** workspace. Press Ctrl-C to stop the servers and remove the
-disposable database. Use `make demo-verify` to run the same pipeline/package walkthrough without
-starting the web servers. Supplying `DATABASE_URL` makes the caller responsible for database lifecycle.
+This starts a disposable PostgreSQL/PostGIS database, loads only synthetic records, applies the
+schema migrations, creates an approved decision and its immutable report package, then starts the
+API and web app. Open the `/sign-in` address printed by the command, choose a synthetic role, and
+open the facility’s **Reports** workspace. Stop the command with Ctrl-C; it removes the disposable
+database it created.
 
-## Run locally
+Use `make demo-verify` when you want the same end-to-end workflow and report verification without
+starting the web servers. See the [demo guide](DEMO.md) for a click-by-click walkthrough, direct API
+examples, expected synthetic results, and known limits of the demo.
+
+## Run the application locally
 
 Start the API in one terminal:
 
@@ -113,14 +101,20 @@ Start the API in one terminal:
 uv run uvicorn canopyledger.api.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
-Check it in another terminal:
+Confirm it is running:
 
 ```bash
 curl http://127.0.0.1:8000/health
-curl http://127.0.0.1:8000/openapi.json > /tmp/canopyledger-openapi.json
 ```
 
-Then start the web app with the opt-in local synthetic sign-in:
+For a populated UI walkthrough without the database pipeline, use the checked-in synthetic workspace
+instead:
+
+```bash
+uv run uvicorn canopyledger.demo.workspace:create_demo_app --factory --host 127.0.0.1 --port 8000
+```
+
+In a second terminal, start the web app with the explicitly enabled local sign-in:
 
 ```bash
 export CANOPYLEDGER_DEMO_SESSION_SECRET="$(openssl rand -hex 32)"
@@ -130,126 +124,101 @@ CANOPYLEDGER_DEMO_SESSION_SECRET="$CANOPYLEDGER_DEMO_SESSION_SECRET" \
 npm --prefix apps/web run dev
 ```
 
-Open <http://127.0.0.1:3000/sign-in> and choose the synthetic analyst or approver role. The browser receives only a signed, HttpOnly role cookie; the web server maps it to the synthetic bearer header when calling FastAPI. FastAPI still authorizes every request. This opt-in flow proves identity forwarding only: it does not create facilities, snapshots, or published workspace data. This is a local reference demo, not a production identity provider. [DEMO.md](DEMO.md) has the complete click-by-click walkthrough and fixture limitations.
+Open <http://127.0.0.1:3000/sign-in>. The demo roles and tokens are public synthetic fixtures, not
+an authentication design. The web server forwards the selected synthetic identity to FastAPI, where
+authorization remains enforced.
 
-For a lightweight UI fixture that skips the canonical database pipeline, start the explicit seeded
-reference factory instead of `create_app`:
+## Reports
 
-```bash
-uv run uvicorn canopyledger.demo.workspace:create_demo_app --factory --host 127.0.0.1 --port 8000
-```
+Reports are compiled from a frozen snapshot, published outputs, a recommendation, and an approved
+final decision. The canonical report model is JSON; HTML and PDF are derived, immutable artifacts.
+Each package records its input and output digests, renderer metadata, and whether it is the current
+official report or a retained historical audit report.
 
-Then start the web application with the local sign-in variables above and open the fixed synthetic context:
+Use the Reports workspace to inspect a package and download its HTML or PDF artifact. Integrations
+can create a package with `POST /api/v1/decisions/{decision_id}/reports`, list packages with
+`GET /api/v1/decisions/{decision_id}/reports`, and download an artifact from
+`GET /api/v1/reports/{report_id}/artifacts/{format}`. The detailed [reporting guide](docs/reporting.md)
+explains the report lifecycle and reproducibility guarantees.
 
-```text
-Facility: fac_0198a000-0000-7000-8000-000000000801
-Snapshot: snp_0198a000-0000-7000-8000-000000000801
-```
+## API and client
 
-This developer fixture exercises actual FastAPI authorization and read routes, but its frozen values
-are checked-in synthetic projections. It is not the canonical database-backed pipeline; use `make demo`
-for the full M10 report workflow.
+The live schema is available at `/openapi.json`; the versioned checked-in contract is
+[docs/api/openapi-v1.json](docs/api/openapi-v1.json). A generated TypeScript client is kept in
+[`typescript/generated`](typescript/generated/).
 
-The local demonstration tokens are intentionally non-secret fixtures:
+The most useful starting points are:
 
-```text
-analyst-demo-token
-approver-demo-token
-second-approver-demo-token
-```
+- `GET /health` for service status.
+- `POST /api/v1/cbb-certificates/demo` for a synthetic borrowing-base calculation.
+- Evidence document and candidate-fact endpoints for the review workflow.
+- Snapshot-scoped Cockpit, Collateral, Evidence, Hedge, Scenario, Climate, Approval, and Reports
+  read models for UI or integration use.
 
-They exist solely for the synthetic reference application. Never adapt them into a real authentication design.
+API callers must treat monetary values and other authoritative decimals as strings, retain returned
+lineage fields, and keep authorization on the server side.
 
-## API and generated client
+## Verification
 
-The checked-in OpenAPI contract is [docs/api/openapi-v1.json](docs/api/openapi-v1.json). The generated TypeScript client lives in `typescript/generated/`; do not hand-edit it.
-
-After changing a public API model or route, regenerate/check both artifacts:
-
-```bash
-uv run python scripts/export_openapi.py
-uv run python scripts/check_typescript_client.py --write
-uv run python scripts/export_openapi.py --check
-uv run python scripts/check_typescript_client.py
-```
-
-Important runnable endpoints include:
-
-- `GET /health`
-- `POST /api/v1/cbb-certificates/demo`
-- `POST /api/v1/m1b/pipeline/demo`
-- `POST /api/v1/hedge-liquidity/demo` (explicitly non-authoritative preview)
-- `POST /api/v1/evidence/documents` and candidate-fact review actions
-- `POST /api/v1/evidence/documents/{document_version_id}/extractions` (candidate-only M7 parsing)
-- `GET /api/v1/evidence/extractions/{extraction_id}` and candidate extraction provenance
-- `POST /api/v1/snapshots/{snapshot_id}/recommendations`
-- `POST /api/v1/recommendations/{recommendation_id}/approval-requests`
-- `POST /api/v1/approval-requests/{approval_request_id}/approve`
-- `POST /api/v1/decisions/{decision_id}/reports` (current approved final decision only)
-- `GET /api/v1/decisions/{decision_id}/reports`
-- `GET /api/v1/reports/{report_id}/artifacts/{HTML|PDF}`
-- `GET /api/v1/snapshots/{snapshot_id}/climate-traceability`
-- snapshot-scoped Cockpit, Collateral, Evidence, Hedge Lab, Scenario Lab, Climate & Traceability, and Approval read models
-
-## PostgreSQL integration gate
-
-Run the complete fresh-database acceptance gate locally with Docker installed and running:
+Run the standard local checks:
 
 ```bash
-make test-m1a-postgres
+make verify
+npm --prefix typescript run typecheck
+npm --prefix typescript test
+npm --prefix apps/web run typecheck
+npm --prefix apps/web test
+npm --prefix apps/web run test:e2e
+CANOPYLEDGER_NEXT_DIST_DIR=.next-e2e npm --prefix apps/web run build
 ```
 
-The target starts a uniquely named disposable PostGIS 17 container, bootstraps capability roles,
-runs migrations, Alembic drift detection, and the complete PostgreSQL marker suite, then removes
-the container. It fails if Docker or any gate is unavailable; it never treats skipped PostgreSQL
-tests as acceptance evidence.
-
-To use a separately provisioned disposable PostgreSQL 17/PostGIS database instead, bootstrap its
-capability roles first, set `DATABASE_URL`, and run the same target, or execute the individual
-steps:
+`pytest` skips tests that require PostgreSQL when `DATABASE_URL` is unset. To run the full durable
+acceptance gate with Docker, use:
 
 ```bash
-export DATABASE_URL='postgresql+psycopg://postgres:canopyledger-test@localhost:5432/canopyledger'
-bash tests/integration/test_database_roles.sh
-uv run alembic upgrade head
-uv run alembic check
-uv run pytest -m postgres -q
+make test-postgres
 ```
 
-Use an empty disposable database. The integration suite verifies immutable persistence, capability-role boundaries, serializable snapshot freeze, durable stage publication, replay, and governance behavior.
+The command provisions an isolated PostGIS database, runs migrations and database checks, executes
+the PostgreSQL-marked tests, then removes the database.
 
-## Document intelligence benchmark
+## Documentation
 
-M7 classification/extraction is deterministic and candidate-only. Run the checked-in benchmark with
-`make document-extraction-benchmark`; its JSON reports classification accuracy and candidate
-fact-type exactness without reading or modifying approved evidence.
+- [Demo guide](DEMO.md) — install, API, UI, and report-package walkthrough.
+- [Reporting guide](docs/reporting.md) — report lifecycle, artifacts, and reproducibility.
+- [Synthetic data card](docs/data-card.md) — what the bundled fixtures are and are not.
+- [API contract](docs/api/openapi-v1.json) — versioned OpenAPI document.
+- [Contributing guide](CONTRIBUTING.md) — development setup and contribution expectations.
+- [Code of conduct](CODE_OF_CONDUCT.md) — expectations for a respectful community.
+- [Support](SUPPORT.md) — where to get help and what to include in a question.
+- [Security policy](SECURITY.md) — reporting a vulnerability and handling sensitive data.
+- [Release notes](docs/releases/v0.1.0.md) — changes in the first public release.
 
 ## Repository layout
 
 ```text
-apps/web/                 Next.js App Router presentation layer
-src/canopyledger/api/     FastAPI routes, typed API models, OpenAPI rendering
-src/canopyledger/domain/  Money, IDs, units, domain value objects
-src/canopyledger/integrity/ canonicalization, snapshots, digests, replay, idempotency
-src/canopyledger/borrowing_base/ CBB calculations and certificate output
-src/canopyledger/evidence/ evidence controls and immutable fact lineage
-src/canopyledger/hedge/   hedge and liquidity engine
-src/canopyledger/scenario/ scenario capacity and IRC engine
-src/canopyledger/governance/ recommendations, approvals, decisions, overrides
-src/canopyledger/reporting/ canonical report models, pinned rendering, immutable artifacts
-typescript/               canonical vectors and generated TypeScript client
-tests/                    unit, property, API, SSR, and PostgreSQL integration tests
-docs/api/                 checked-in OpenAPI artifact
+apps/web/                   Next.js presentation layer
+src/canopyledger/api/       FastAPI routes and API models
+src/canopyledger/*/         Domain engines and durable adapters
+src/canopyledger/reporting/ Canonical report models and renderers
+typescript/                 Shared canonical utilities and generated API client
+migrations/                 Alembic database migrations
+docs/                       User, integration, and release documentation
+tests/                      Unit, API, UI, and PostgreSQL integration tests
 ```
+
+## Scope and limitations
+
+CanopyLedger is not a core-banking system, market-data terminal, trading platform, legal compliance
+service, or autonomous credit engine. Climate and traceability output describes evidence readiness;
+it does not certify legal compliance or deforestation-free status. The project has no production
+identity-provider, secrets-management, operational-monitoring, or regulatory deployment setup.
 
 ## Contributing and security
 
-Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md), keep authoritative calculations in Python, preserve snapshot/bundle/approval boundaries, and include executable verification evidence with changes.
-
-See [docs/reporting.md](docs/reporting.md), [docs/data-card.md](docs/data-card.md), and
-[docs/release-checklist.md](docs/release-checklist.md) for M10 reporting and release material.
-
-Please do not open public issues containing vulnerabilities, real financial data, credentials, or sensitive documents. See [SECURITY.md](SECURITY.md).
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull
+request. Do not include vulnerabilities, real financial data, sensitive documents, or credentials
+in public issues; follow [SECURITY.md](SECURITY.md) instead.
 
 ## License
 

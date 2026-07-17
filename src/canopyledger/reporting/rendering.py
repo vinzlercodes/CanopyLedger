@@ -52,6 +52,11 @@ class PinnedReportRenderer:
     def render_html(self, model: ReportModel) -> RenderedReportArtifact:
         """Render stable semantic HTML without clock, network, or calculation access."""
         self._verify_environment(model)
+        designation = (
+            "HISTORICAL AUDIT — NOT AN OFFICIAL CURRENT DECISION"
+            if model.package_kind.value == "HISTORICAL_AUDIT"
+            else "CURRENT OFFICIAL DECISION"
+        )
         section_html = "".join(
             "<section><h2>"
             + html.escape(name.replace("_", " ").title())
@@ -65,8 +70,8 @@ class PinnedReportRenderer:
             '<meta name="report-renderer" content="'
             + html.escape(self._renderer_version)
             + '"><title>CanopyLedger Committee Pack</title></head><body>'
-            "<header><h1>CanopyLedger Committee Pack</h1><p>"
-            + html.escape(model.package_kind.value)
+            "<header><h1>CanopyLedger Committee Pack</h1><p role=\"status\">"
+            + html.escape(designation)
             + "</p><code>"
             + html.escape(model.digest)
             + "</code></header>"

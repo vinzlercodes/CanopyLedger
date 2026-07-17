@@ -2825,7 +2825,13 @@ def create_app(
             decision={
                 "resource_id": decision.resource_id,
                 "snapshot_id": decision.snapshot_id,
+                "recommendation_id": decision.recommendation_id,
+                "approval_request_id": decision.approval_request_id,
                 "status": decision.status.value,
+                "approver_id": decision.approver_id,
+                "reason": decision.reason,
+                "approved_at": canonical_timestamp(decision.approved_at),
+                "override_id": decision.override_id,
                 "superseded_by": decision.superseded_by,
                 "digest": decision.digest,
             },

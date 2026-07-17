@@ -1,0 +1,18 @@
+# Keep contributor-only planning and local-agent guidance out of generated source archives.
+# The repository history retains these files where tracked; user-facing documentation and
+# deployable source remain available in release archives.
+AGENTS.md export-ignore
+CANOPYLEDGER_MASTER_PLAN.md export-ignore
+MASTER_PLAN.md export-ignore
+PROGRESS.md export-ignore
+
+.codex export-ignore
+.idea export-ignore
+
+docs/plans export-ignore
+docs/research export-ignore
+docs/superpowers export-ignore
+docs/contracts export-ignore
+
+.pre-commit-config.yaml export-ignore
+sonar-project.properties export-ignore
