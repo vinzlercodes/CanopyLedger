@@ -280,355 +280,207 @@ The default in-memory API does not seed the fully published read models required
 
 ## 8. Detailed UI walkthrough
 
-### 8.1 Know which UI experience you are viewing
+The screenshots below are the visual reference for this walkthrough. They were
+captured from the local, seeded FastAPI workspace described in section 7.1,
+using only the synthetic facility and immutable snapshot in this guide. They
+show server-issued read models, not a calculation pipeline or an official
+credit record. Expand **Authoritative lineage** before relying on a value: the
+snapshot, stage, digest, bundle references, timestamp, and reason codes belong
+with that value.
 
-There are three valid experiences in this reference build:
+> **Capture context.** The seeded UI factory is for repeatable browser
+> verification. `make demo` remains the canonical PostgreSQL/PostGIS
+> demonstration. Screens that show an approval or override use an in-memory
+> synthetic mutation solely to reveal the governed UI state; they are not
+> production instructions or evidence of a real approval.
 
-1. **Local signed-in shell and safe resource states.** Start the app with `CANOPYLEDGER_DEMO_AUTH_ENABLED=true`, sign in at `/sign-in`, and inspect navigation, context selection, loading, role display, and non-disclosure behavior. This uses synthetic identities only.
-2. **Seeded FastAPI workspace demonstration.** Start `canopyledger.demo.workspace:create_demo_app` as described in section 7.1. It is the browser-ready path for the fixed values below and exercises real FastAPI auth, context, projections, evidence, and approval routes.
-3. **Automated UI contract.** The checked-in end-to-end test starts a compatible fixture API and a real Next.js server. It remains the isolated regression check for the rendered workspace contract.
+### 8.1 Choose the local demonstration role
 
-Do not try to add an authorization token to a URL. The local browser flow keeps bearer values server-side. Do not use the demo tokens outside this synthetic local reference application.
+Start at `/sign-in`. Read both role cards before selecting a role. **Analyst**
+can inspect and review; **Approver** can act only when FastAPI permits it.
+Neither browser session contains a bearer token, and neither role makes the
+fixture data authoritative.
 
-### 8.2 Start at the shell and orient yourself
+![Local synthetic sign-in with analyst and approver role cards](docs/assets/demo-ui/08-01-local-sign-in.png)
 
-With the API and web server running, open <http://127.0.0.1:3000>.
+### 8.2 Orient yourself in the shell
 
-On a desktop viewport, look for these elements before doing anything else:
+After signing in, use the left navigation and the top context bar. The current
+shell has eleven workspaces: Cockpit, Collateral, Evidence, Hedge Lab, Scenario
+Lab, Climate & Traceability, Credit Monitoring, Analytics Copilot, Governed
+Agents, Approval, and Reports. With no context selected, `Unavailable` is the
+expected authority state.
 
-- The left **Primary navigation** sidebar with `Cockpit`, `Collateral`, `Evidence`, `Hedge Lab`, `Scenario Lab`, and `Approval`.
-- The top context bar with **Facility ID**, **Immutable snapshot ID**, and **Open context**.
-- The **Authority** badge. With no selected context it says `Unavailable`; that is expected.
-- The session control at the right of the top bar. Before local sign-in it offers **Sign in locally**; after analyst sign-in it reads **Demo analyst**, says **Identity forwarded server-side**, and offers **Sign out**.
-- The main heading **Select a facility to establish context**.
-- The **Governance workflow key**, which defines `Working draft`, `Frozen snapshot`, `Published output`, `Recommendation`, and `Final decision`.
+![Desktop workspace shell with navigation, context picker, role, and governance key](docs/assets/demo-ui/08-02-workspace-shell.png)
 
-On a narrow/mobile viewport, use the menu button labelled **Toggle workspace navigation**. Click it to open the **Governed workspaces** sheet; click the same control again to close it. The available links are the same as in the desktop sidebar.
+On a narrow screen, select **Toggle workspace navigation** to open the same
+workspace list. Select it again (shown as **Close**) to dismiss the sheet.
 
-Before continuing, read the two statements below the root-page heading:
+![Mobile workspace navigation sheet](docs/assets/demo-ui/08-02-mobile-navigation.png)
 
-- Browser code does not calculate CBB, IRC, hedge, scenario, or decision values.
-- Human approval remains separate from recommendations.
+### 8.3 Select the frozen facility context
 
-Those are functional boundaries, not marketing copy: every number in a populated workspace comes from FastAPI.
-
-### 8.3 Select a facility and a snapshot
-
-The context picker establishes the routes that every workspace uses.
-
-#### Use the checked-in UI fixture values
-
-The repeatable UI test uses the following complete, internally consistent
-read-only fixture. It is the best set of values to use when comparing the
-screens in this guide with the automated browser contract.
-
-| Field | Value | Expected context detail |
-|---|---|---|
-| Facility ID | `fac_0198a000-0000-7000-8000-000000000801` | `Fixture Coffee Trader`, USD, facility commitment `120,000.00` |
-| Immutable snapshot ID | `snp_0198a000-0000-7000-8000-000000000801` | Belongs to the fixture facility and opens the frozen routes below |
-| Local analyst role | Choose **Continue as analyst** at `/sign-in` | Cockpit, Collateral, Evidence, Hedge Lab, and Scenario Lab |
-| Local approver role | Choose **Continue as approver** at `/sign-in` | Approval workspace |
-
-These identifiers work in both the seeded FastAPI factory from section 7.1 and
-the isolated UI fixture launched by `npm --prefix apps/web run test:e2e`. They
-do not exist in the default empty `create_app` API. Local browser sign-in does
-not create missing data; start the seeded factory before entering these values
-in the live browser.
-
-1. Click the **Facility ID** field and enter a permitted facility identifier beginning with `fac_`.
-2. For a working-facility view, leave **Immutable snapshot ID** empty.
-3. Click **Open context**.
-4. Expect the browser URL to become `/facilities/{facilityId}/cockpit`.
-5. If the API authorizes and finds the facility, expect a **Mutable facility context** page showing the legal name, facility ID, working version, and currency. The authority badge reads `Working draft`.
-
-To open a frozen workspace instead:
-
-1. Enter the same facility identifier.
-2. Click **Immutable snapshot ID** and enter the selected snapshot identifier beginning with `snp_`.
-3. Click **Open context**.
-4. Expect the browser URL to become `/facilities/{facilityId}/snapshots/{snapshotId}/cockpit`.
-5. The authority badge reads `Frozen snapshot` only after FastAPI confirms that the snapshot belongs to the facility.
-
-The snapshot field cannot stand alone. If you enter a snapshot without a facility, the client rejects the context and does not navigate. Supply both IDs rather than trying to infer a facility from a snapshot.
-
-### 8.4 Recognize expected safe states
-
-These states are intentional. Do not treat them as calculation results.
-
-| What you do | What you should see | What it means |
-|---|---|---|
-| Open a workspace while it is loading | **Retrieving authoritative state** and “CanopyLedger will not infer values…” | The web app is waiting for the API; it does not show a placeholder number. |
-| Stop the API, then open a context | **CanopyLedger could not load this context** | The API connection failed; restart FastAPI and retry. |
-| Open a protected context while signed out or with local sign-in disabled | **Authentication or role access is required** | The app deliberately does not say whether the facility or snapshot exists. |
-| Use an unknown ID with a valid authorized request | **This resource is unavailable** or a workspace-specific unavailable panel | The resource is absent or not visible; no value is inferred. |
-| Open a snapshot before the relevant published output exists | **No published workspace output is available** | The snapshot may exist, but that stage is not available for presentation. |
-
-Every unavailable screen has **Return to context selection** or an equivalent workspace return link. Click it, correct the context or authorization, and retry; do not attempt to populate fields by hand in the browser.
-
-### 8.5 Walk through Cockpit
-
-With an authorized fixture or environment that exposes a populated snapshot, click **Cockpit** in the sidebar. The route is:
+Enter these values in the top bar, then select **Open context**:
 
 ```text
-/facilities/{facilityId}/snapshots/{snapshotId}/cockpit
+Facility ID: fac_0198a000-0000-7000-8000-000000000801
+Immutable snapshot ID: snp_0198a000-0000-7000-8000-000000000801
 ```
 
-Check the page in this order:
+The browser redirects to the frozen Cockpit route only after FastAPI confirms
+the facility/snapshot pairing. A snapshot cannot be opened by itself: supply
+both IDs. To inspect a working facility instead, leave the snapshot blank.
 
-1. Confirm the heading **Governed capacity, never browser-calculated** and the `Frozen snapshot` badge.
-2. Read the seven top cards. They must remain separate: **Facility commitment**, **Current exposure**, **Contractual borrowing base**, **Contractual availability**, **Internal risk capacity**, **Liquidity cap**, and **Approved unfunded exposure**. Each card identifies its currency and says it was returned by the API.
-3. In **Advisory recommendation**, look for the recommended exposure cap and its binding constraint. If there is no recommendation, the card says **No recommendation published**. This never means approval.
-4. In **Human final decision**, distinguish **Awaiting independent approval** from **Recorded decision**. Capacity numbers do not change that status by implication.
-5. Expand **Authoritative lineage** under the recommendation or CBB section. Check the selected snapshot ID, stage/digest, and timestamp before using any number.
-6. Read **Constraints and blockers**. Reason codes remain visible; do not dismiss a blocker because a high-level capacity number looks acceptable.
-7. Compare the raw server-issued **Hedge liquidity projection** and **Scenario projection** panels. They are presented as projections, not reimplemented browser formulas.
+![Filled context picker before opening the frozen snapshot](docs/assets/demo-ui/08-03-context-ready.png)
 
-Using the fixture values above, the cards should show the following. These are
-server responses to look for, not numbers to type into the browser:
+### 8.4 Recognize safe states before retrying
 
-| Cockpit element | Expected value |
-|---|---|
-| Facility commitment | USD `120,000.00` |
-| Current exposure | USD `20,000.00` |
-| Contractual borrowing base | USD `100,000.00` (`sha256:cbb`) |
-| Contractual availability | USD `75,000.00` |
-| Internal risk capacity | USD `90,000.00` (`sha256:scenario`) |
-| Liquidity cap | USD `95,000.00` (`sha256:hedge`) |
-| Approved unfunded exposure | USD `5,000.00` |
-| Policy cap | USD `85,000.00` (`sha256:policy`) |
-| Hedge-liquidity projection | liquidity coverage ratio `1.12` |
-| Scenario projection | expected shortfall USD `12,000.00` |
-| Constraint | `MARGIN_STRESS` |
+An access-safe screen deliberately does not disclose whether a protected
+facility or snapshot exists. Select **Sign in locally**, choose a permitted
+role, and return to the same route. Other safe states are equally intentional:
+loading says **Retrieving authoritative state**; an authorized missing resource
+says it is unavailable; and a missing published stage says no published output
+is available. Do not infer or enter values in any of these states.
 
-This fixture intentionally has no recommendation or final decision. Therefore
-**No recommendation published** and an awaiting-approval state are the correct
-outcome; no override control is expected.
+![Unauthenticated snapshot route with non-disclosing access guidance](docs/assets/demo-ui/08-04-safe-access-guidance.png)
 
-If there is a recorded final decision, the Cockpit also exposes **Request dual-control override**. That action is explained in section 8.11; do not use it to modify the original recommendation.
+### 8.5 Read Cockpit without collapsing authority boundaries
 
-### 8.6 Walk through Collateral
+Start at **Cockpit**. Read the top cards first: commitment, exposure, CBB,
+contractual availability, IRC, liquidity cap, and approved unfunded exposure
+are separate server-issued values. Then distinguish the **Advisory
+recommendation** from the **Human final decision**. A recommendation is not an
+approval, and CBB and IRC remain independent.
 
-Click **Collateral**. The default route is:
+Continue down the page for climate-evidence readiness, blockers, lineage, and
+the compact S5 Hedge & liquidity and S6 Scenario & IRC summaries. The
+**Inspect canonical JSON** disclosures are read-only source-envelope views;
+they do not expose a browser calculation.
 
-```text
-/facilities/{facilityId}/snapshots/{snapshotId}/collateral
-```
+![Frozen Cockpit showing capacity cards, recommendation, decision state, blockers, and S5/S6 summaries](docs/assets/demo-ui/08-05-cockpit.png)
 
-Use the section tabs in this order:
+### 8.6 Inspect each collateral projection
 
-1. Click **Inventory**. Check the table headings: lot, input quantity, normalized quantity, gross market value, net recovery value, and advanced value.
-2. Click **Receivables**. Check open amount, facility value, advanced value, and returned reason codes.
-3. Click **Eligible contributions**. This is the server-issued contribution view, not a browser total.
-4. Click **Reserves**. Check each contractual reserve type and amount.
+Select **Collateral**, then use the four tabs. The line above every table says
+**Frozen server page** and gives the returned row count and page size. If a
+**Next authoritative page** control appears, use it rather than client-side
+sorting or pagination. Finish by checking blockers and lineage.
 
-For every tab, inspect the line above the table: it says **Frozen server page** and identifies the authoritative row count and page size. If **Next authoritative page** appears, click it to request the API cursor for the next page; do not use client-side sorting or pagination to create an authoritative view.
+1. **Inventory** shows the normalized quantity and market/recovery/advanced
+   values returned for each lot.
 
-At the bottom, inspect **Constraints and blockers** and expand **Authoritative lineage**. Inventory and receivables are tied to the collateral-valuation stage; contributions and reserves are tied to eligibility/reserves. Record the selected snapshot and output digest if you are discussing a row outside the UI.
+   ![Inventory collateral projection](docs/assets/demo-ui/08-06-collateral-inventory.png)
 
-With the fixture context, **Inventory** has one authoritative row (`1` total,
-page size `25`): lot `lot-1`, input and normalized quantity `50 metric_tonne`,
-conversion table `m1b-v1`, gross market value USD `100,000.00`, net recovery
-value USD `90,000.00`, and advanced value USD `70,000.00`. Expect reason code
-`MARGIN_STRESS`. The lineage identifies `out_collateral` / `m1b-1` /
-`sha256:collateral` and `out_eligibility` / `m1b-1` / `sha256:eligibility`.
-The other fixture tabs are empty, so their empty state—not invented rows—is the
-expected result.
+2. **Receivables** keeps open amount, facility value, advanced value, and
+   reason codes in the server projection.
 
-### 8.7 Walk through Evidence and its actions
+   ![Receivables collateral projection](docs/assets/demo-ui/08-06-collateral-receivables.png)
 
-Click **Evidence**. On a populated queue, each row shows fact type, normalized value, subject, period, candidate ID, extractor/version, conflicts, and document lineage.
+3. **Eligible contributions** is the issued eligibility view, not a browser
+   total.
 
-For a candidate row:
+   ![Eligible contributions projection](docs/assets/demo-ui/08-06-collateral-contributions.png)
 
-1. Read the conflicts and **Document lineage** disclosure first.
-2. Click **Open review packet**. The route adds the candidate-fact ID after `/evidence/`.
-3. In the review page, compare **Candidate fact** against **Original document**: normalized value, raw value, subject/period, page region, extractor, document version, byte digest, uploader, and content type.
-4. If shown, read **Safe text rendition**. It is a bounded derived preview, not the original file.
-5. Click **Download original attachment** only when the original immutable bytes are needed. The browser receives it as an attachment, not an embedded document.
-6. Read **Conflicts, history, supersession** before acting.
+4. **Reserves** lists the contractual reserve types and amounts.
 
-For an unreconciled candidate, the review page provides **Approve fact** and **Reject fact**:
+   ![Contractual reserves projection](docs/assets/demo-ui/08-06-collateral-reserves.png)
 
-- To approve, click **Approve fact**. Expect the success text **Evidence fact approved by the governed API.** The queue is revalidated; the candidate no longer remains a pending review item.
-- To reject, first enter a clear value in **Rejection reason**, then click **Reject fact**. Expect **Evidence fact rejected by the governed API.** A blank reason produces an inline error instead of a mutation.
+### 8.7 Review evidence before taking a human action
 
-To correct rather than approve/reject:
+Select **Evidence**. A queue entry is candidate evidence—not approved evidence.
+Read its extractor, conflict, and document-lineage details before selecting
+**Open review packet**.
 
-1. Scroll to **Record correction candidate**.
-2. Edit **Corrected raw value**, **Corrected normalized value**, and **Corrected value JSON**.
-3. Click **Create correction candidate**.
-4. Expect **Correction candidate created. It is not approved evidence until a human reviews it.**
-5. Click **Open correction review**, inspect the new candidate, then use **Approve correction and supersede** only after selecting the active approved fact being replaced.
+![Evidence queue with candidate-only intake and human actions](docs/assets/demo-ui/08-07-evidence-queue.png)
 
-Supersession preserves the original approved fact and its historical snapshot references. It does not rewrite the earlier fact.
+In the packet, compare candidate and original-document metadata, including raw
+and normalized values, subject/period, source-byte digest, uploader, and
+extractor. **Safe text rendition** is a bounded preview; the original remains
+an attachment download. Use **Approve fact** only after review. To reject,
+provide a reason first. A correction remains a candidate until a person uses
+**Approve correction and supersede** against the active approved fact.
 
-For a concrete read-only review example, open candidate `cf_1`. The queue row
-is a `warehouse_receipt` for subject `lot-1`, period `2026-07`, with normalized
-value `50`, document version `docv_1`, byte digest `sha256:fixture`, page
-region `page 1`, and extractor `human` version `1`. The review packet compares
-candidate value `{ "quantity": "50" }` and raw value `50 bags`. Its safe text
-rendition is `receipt.txt` (`text/plain`) with preview:
+![Evidence review packet with provenance, safe rendition, actions, and correction fields](docs/assets/demo-ui/08-07-evidence-packet.png)
 
-```text
-Warehouse receipt
-Lot KC-01
-```
+After a successful approval, the history identifies the active approved fact;
+it does not rewrite the source document or earlier snapshot references.
 
-The fixture is intentionally read-only: it demonstrates inspection,
-attachment handling, and lineage but does not expose an evidence mutation
-endpoint. To exercise **Approve fact**, **Reject fact**, or correction fields,
-use an authorized environment that supplies a pending candidate and mutation
-permissions. A useful correction example for a receipt-backed lot is raw value
-`48 bags`, normalized value `48`, and corrected JSON
-`{"quantity":"48"}`; the UI must still show it as a candidate until an
-independent human action approves it.
+![Approved evidence state showing the preserved active fact and correction boundary](docs/assets/demo-ui/08-07-evidence-approved-state.png)
 
-### 8.8 Walk through Hedge Lab
+### 8.8 Inspect the published Hedge Lab output
 
-Click **Hedge Lab**. Check that the page identifies a published hedge-and-liquidity output and has a `Published output` badge.
+Select **Hedge Lab**. This is a frozen S5 output, not a trade-entry screen.
+Read the four headline cards, then the physical/hedge delta, variation-margin,
+valuation/Greeks, exchange-source, exposure, and delivery-alignment panels.
+Verify product and exchange source details before interpreting a hedge ratio or
+liquidity result; finish with reason codes and lineage.
 
-Read the page from top to bottom:
+![Published Hedge Lab output](docs/assets/demo-ui/08-08-hedge-lab.png)
 
-1. The top cards show **Net price exposure**, **Hedge ratio**, **Liquidity coverage**, and **Margin-call shortfall**.
-2. **Physical and hedge delta** separates gross/net physical exposure, futures, option delta, basis, and FX exposure.
-3. **Variation margin protection** separates available liquidity, one-day/multi-day stress, required reserve, and timing mismatch.
-4. **Valuation and option Greeks** separates futures P&L, option value/P&L, and returned Greeks.
-5. **Frozen exchange sources** shows product/exchange, contract size/unit, settlement rule, and source-document digest. Verify `KC` and `AC` are not conflated.
-6. Review **Futures and option exposure** and **Physical and hedge month mismatch** tables.
-7. Finish with reason codes and **Authoritative lineage**.
+### 8.9 Inspect the published Scenario Lab output
 
-Do not expect trade-entry controls. This is an analysis view of a frozen output, not an execution interface.
+Select **Scenario Lab**. Keep **Contractual CBB**, **Uncapped IRC**, and
+**Governed IRC** distinct. Then inspect the pinned Monte Carlo method,
+capacity buffers, shortfall/stability values, distribution, stressed-outcome
+table, loss contributions, reason codes, and lineage. The UI has no control to
+change seed, shocks, or capacity rules.
 
-The fixture output gives you concrete checks for each panel:
+![Published Scenario Lab output](docs/assets/demo-ui/08-09-scenario-lab.png)
 
-| Hedge Lab element | Expected value |
-|---|---|
-| Net price exposure / hedge ratio | `71,019.428 kilogram` / `0.58` |
-| Gross / net physical | `50,000` / `45,000 kilogram` |
-| Futures / option delta | `34,019.428` / `-8,000 kilogram` |
-| Liquidity coverage / margin shortfall | `2.50` / USD `0.00` |
-| Available cash + undrawn availability | USD `10,000.00` + USD `15,000.00` = USD `25,000.00` |
-| One-day / multi-day margin stress | USD `5,000.00` / USD `10,000.00` |
-| Futures position | `KC`, delivery `2026-09`, `2` contracts, P&L USD `1,200.00` |
-| Option position | `KC` put, delivery `2026-12`, `1` contract, value USD `700.00`, P&L USD `-100.00` |
-| Exchange source | ICE `KC`; `37,500 pound` contract, digest `sha256:spec` |
-| Published lineage / constraint | `out_hedge`, `sha256:hedge`, `MARGIN_STRESS` |
+### 8.10 Record an independent final decision
 
-### 8.9 Walk through Scenario Lab
+Sign in as an eligible **Approver**, open **Approval**, and begin with the
+requester's identity, expiry, self-approval prohibition, recommendation
+lineage, and binding constraint. Enter an auditable **Decision reason** before
+selecting **Approve** or **Reject**. FastAPI, not the browser, enforces role,
+expiry, and separation of duties.
 
-Click **Scenario Lab**. The page is a published scenario/capacity projection.
+![Pending approval request with reason field and immutable audit timeline](docs/assets/demo-ui/08-10-approval-queue.png)
 
-1. Start with the four top cards: **Contractual CBB**, **Uncapped IRC**, **Governed IRC**, and **Expected shortfall**. The three capacity values must not be collapsed into one number.
-2. In **Monte Carlo method**, inspect scenario version, distribution, PRNG/seed, paths/steps, correlation, and VaR.
-3. In **Internal capacity composition**, inspect the risk, tail-loss, liquidity, counterparty, and climate/evidence buffers.
-4. In **Shortfall and stability**, review CBB-deficiency probability, margin-liquidity-shortfall probability, expected shortfalls, and VaR stability band.
-5. In **Published distribution**, inspect hedge-effectiveness values and tail contribution by factor.
-6. Read **Stressed CBB and shortfalls** and **Aggregated loss contribution** tables before relying on a headline IRC value.
-7. Inspect reason codes and the final lineage disclosure.
+After a recorded action, the queue refreshes and the immutable timeline retains
+the approval and final-decision events. An empty queue means no request was
+returned for that snapshot; it never implies a decision.
 
-The page shows frozen scenario results. It does not provide a browser control to alter seeds, shocks, or capacity rules.
+![Approval workspace after the synthetic decision, with timeline and override queue](docs/assets/demo-ui/08-10-approval-recorded.png)
 
-For the fixture snapshot, expect contractual CBB USD `100,000.00`, uncapped
-and governed IRC each USD `68,500.00`, and expected shortfall USD `18,000.00`.
-The Monte Carlo disclosure shows scenario version `2026.07`, `MT19937`, seed
-`7` derived from the snapshot digest, normal distribution, `1,000` paths,
-`10` time steps, confidence `0.99`, and correlation `0.40`. Its VaR is USD
-`15,000.00`; the stability band is USD `13,000.00`–`17,000.00`.
+### 8.11 Request a dual-control override
 
-In the remaining panels, verify risk/tail/liquidity/counterparty/climate buffers
-of USD `10,000.00` / `18,000.00` / `2,000.00` / `1,000.00` / `500.00`;
-CBB-deficiency and margin-shortfall probabilities `0.10` and `0.05`; expected
-collateral and margin shortfalls USD `3,000.00` and `2,000.00`; and the
-`stress-price` row with stressed CBB USD `75,000.00`, margin shortfall USD
-`2,000.00`, and loss USD `27,000.00`. The lineage is `out_scenario` /
-`sha256:scenario`, with reason code `IRC_POLICY_CAP_BINDS`.
+The form appears only after the Cockpit shows a recorded final decision. Enter
+the proposed cap, policy basis, expiry, and reason, then select **Request
+override**. The original recommendation and decision remain unchanged.
 
-### 8.10 Walk through the Approval workspace
+![Cockpit dual-control override request form](docs/assets/demo-ui/08-11-override-request.png)
 
-Click **Approval** using an approver-authorized request. The route is:
+On success, retain the immutable override ID and open the review record.
 
-```text
-/facilities/{facilityId}/snapshots/{snapshotId}/approvals
-```
+![Recorded override request with immutable ID and review link](docs/assets/demo-ui/08-11-override-recorded.png)
 
-For each visible approval request:
+The review shows the original decision, recommendation, digest, requester, and
+`n of required approvals`. A different eligible approver must supply the
+independent reason and select **Record override approval**. The requester and
+duplicate approvers are rejected, so this seeded walkthrough correctly stops
+at `0 of 2 approvals`.
 
-1. Confirm the heading **Independent human approval queue**.
-2. Read the recommended exposure cap, binding constraint, requester, expiry, and **Self-approval prohibited** status.
-3. Expand **Authoritative lineage** and verify the recommendation snapshot/digest before deciding.
-4. Enter an auditable explanation in **Decision reason**.
-5. Click **Approve** or **Reject**.
-6. Expect either **Approval recorded by the governed API.** or **Rejection recorded by the governed API.** The queue refreshes after a successful action.
+![Dual-control override review awaiting independent approvers](docs/assets/demo-ui/08-11-override-review.png)
 
-Do not use the analyst identity to approve an analyst-created request. The API rejects it; an error is the correct safety outcome, not a UI defect. An expired request also cannot become a final decision.
+### 8.12 Reproduce the visual contract
 
-Below the approval queue, inspect **Override review queue** and **Snapshot audit timeline**. An empty queue or timeline is meaningful: it means no visible request/event has been returned for the selected snapshot.
+The images are checked-in UI evidence, while the automated contract below
+verifies the rendered workspace routes and server-side identity forwarding. It
+uses an isolated test fixture; it is not a substitute for the PostgreSQL
+pipeline or a calculation authority.
 
-The checked-in fixture intentionally returns empty approval, override, and
-timeline lists. So, with its IDs, **Independent human approval queue** followed
-by the empty-state guidance is the expected screen. It is not evidence that an
-approval request has been silently approved or rejected.
-
-For a data-bearing approval environment, select an existing request returned by
-that environment—never invent an ID in the URL—and check these example field
-values before deciding: recommended cap USD `85,000.00`, binding constraint
-`MARGIN_STRESS`, a future expiry such as `2030-07-12T00:00:00Z`, and decision
-reason `Reviewed fixture warehouse receipt and margin-stress constraint.` The
-last value is an example explanation to enter, not a substitute for the
-server-issued recommendation, requester, snapshot, or digest.
-
-### 8.11 Request and approve a dual-control override
-
-This path is visible only after Cockpit shows **Recorded decision**.
-
-To request an override:
-
-1. Return to **Cockpit** and find **Request dual-control override** in the final-decision panel.
-2. Enter **Proposed exposure cap**. The currency is prefilled and read-only.
-3. Enter the policy citation in **Policy basis**, a future **Expiry**, and a clear **Reason**.
-4. Click **Request override**.
-5. Expect **Dual-control override request recorded by the governed API.** The UI shows an immutable override ID and an **Open override review** link.
-
-To review it:
-
-1. Click **Open override review** or find the request in the approval workspace’s override queue.
-2. Verify proposed cap, policy basis, expiry, requester, reason, original decision ID, recommendation ID, digest, and `n of required approvals`.
-3. With an eligible independent approver, enter **Independent approval reason**.
-4. Click **Record override approval**.
-5. Expect **Override approval recorded. The API enforces dual control.**
-
-The request form disappears once the required approval count is reached or the request expires. The original decision and recommendation remain visible and traceable throughout.
-
-If your authorized environment contains a recorded final decision, safe example
-form values are proposed exposure cap `80000.00` (in the displayed decision
-currency, normally USD), policy basis `credit-policy-7.2`, expiry
-`2030-07-12T00:00:00Z`, and reason `Temporary exception while margin-stress
-evidence is independently reviewed.` These values do not make a request valid
-on their own: the server must already return the original final decision and
-recommendation, and it must accept the requesting actor. On the fixture in this
-guide, the form correctly remains absent because there is no final decision.
-
-### 8.12 Use the fixture-backed walkthrough as the reproducible UI reference
-
-Run this command whenever you want the current complete governed-workspace UI demonstration:
+![Frozen Cockpit visual contract exercised by the fixture-backed UI journey](docs/assets/demo-ui/08-05-cockpit.png)
 
 ```bash
 npm --prefix apps/web run test:e2e
 ```
 
-The test launches a real Next.js server and a local fixture API, then verifies that:
+When the application UI changes, recapture the affected screenshot from the
+seeded local factory, update its supporting steps, and keep the automation
+passing. This keeps the guide, rendered contract, and authoritative-boundary
+language aligned.
 
-- all seven workspace routes render authoritative server-issued values;
-- Cockpit keeps commitment, exposure, CBB, liquidity cap, and recommendation/decision concepts distinct;
-- Collateral is server-paginated and retains stage lineage;
-- Evidence shows safe rendition metadata and attachment-only download;
-- Hedge Lab and Scenario Lab show frozen projections rather than browser calculations;
-- Approval is separately authorized; and
-- local signed-in roles are mapped to a bearer header only on the server before the API call.
-
-It also verifies that unauthenticated snapshot URLs do not disclose resource existence and instead present safe access guidance.
-
-Treat this test as the reproducible data-bearing visual-contract reference. It supplies a frozen fixture snapshot and values for each workspace, starts a real Next.js server, and asserts the visible headings and fields described in sections 8.5–8.10.
 
 ## 9. Canonical PostgreSQL/PostGIS report demonstration
 
