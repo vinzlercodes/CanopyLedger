@@ -1,0 +1,10 @@
+.projection-pair > * {
+  min-width: 0;
+}
+
+.compact-list span,
+.compact-list code {
+  display: block;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
