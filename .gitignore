@@ -22,11 +22,14 @@ docs/research/
 docs/superpowers/
 docs/plans/
 docs/contracts/
+docs/audits/2026-07-17-end-to-end-audit.md
 dist/
 build/
 *.egg-info/
 node_modules/
 .next/
+.next-demo/
+.next-demo-*/
 .worktrees/
 artifacts/generated/
 data/private/

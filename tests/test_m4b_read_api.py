@@ -1,12 +1,16 @@
 """M4B governed workspace read projections."""
 
 import base64
+from copy import deepcopy
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from fastapi.testclient import TestClient
 
 from canopyledger.api.app import create_app
+from canopyledger.demo.workspace import SNAPSHOT_ID as DEMO_SNAPSHOT_ID
+from canopyledger.demo.workspace import _hedge_output
 from canopyledger.domain.money import Money
 from canopyledger.governance.core import DecisionContext, GovernanceService, RecommendationClass
 
@@ -35,13 +39,25 @@ def _context(snapshot_id: str) -> DecisionContext:
 
 
 def _app(
-    governance: GovernanceService | None = None, *, include_climate: bool = True
+    governance: GovernanceService | None = None,
+    *,
+    include_climate: bool = True,
+    decision_context_loader=_context,
+    hedge_output_loader=None,
 ):
     return create_app(
         clock=lambda: NOW,
         governance_service=governance or GovernanceService(clock=lambda: NOW),
-        decision_context_loader=_context,
+        decision_context_loader=decision_context_loader,
         collateral_output_loader=lambda _: {
+            "contractual_borrowing_base": {
+                "stage_output_id": "out_cbb",
+                "snapshot_id": SNAPSHOT_ID,
+                "stage": "contractual_borrowing_base",
+                "stage_version": "m1b-1",
+                "output_digest": "sha256:" + "0" * 64,
+                "result": {"currency": "USD"},
+            },
             "collateral_valuation": {
                 "stage_output_id": "out_collateral",
                 "snapshot_id": SNAPSHOT_ID,
@@ -120,11 +136,14 @@ def _app(
                 },
             },
         },
-        hedge_output_loader=lambda _: {
+        hedge_output_loader=hedge_output_loader or (lambda _: {
             "stage_output_id": "out_hedge",
             "snapshot_id": SNAPSHOT_ID,
             "stage": "hedge_liquidity",
             "stage_version": "s5-1",
+            "input_digests": ["sha256:" + "f" * 64],
+            "policy_bundle_digest": "sha256:" + "d" * 64,
+            "computation_bundle_digest": "sha256:" + "f" * 64,
             "output_digest": "sha256:" + "b" * 64,
             "reason_codes": ["MARGIN_STRESS"],
             "completed_at": NOW.isoformat(),
@@ -234,13 +253,16 @@ def _app(
                     "required_liquidity_coverage_ratio": "1.00",
                 },
             },
-        },
+        }),
         climate_output_loader=_climate_output if include_climate else None,
         scenario_output_loader=lambda _: {
             "stage_output_id": "out_scenario",
             "snapshot_id": SNAPSHOT_ID,
             "stage": "scenario_capacity",
             "stage_version": "s6-1",
+            "input_digests": ["sha256:" + "f" * 64],
+            "policy_bundle_digest": "sha256:" + "d" * 64,
+            "computation_bundle_digest": "sha256:" + "f" * 64,
             "output_digest": "sha256:" + "c" * 64,
             "reason_codes": ["IRC_POLICY_CAP_BINDS"],
             "completed_at": NOW.isoformat(),
@@ -340,8 +362,43 @@ def test_decision_pack_keeps_cbb_and_irc_separate_with_frozen_lineage() -> None:
     assert payload["contractual_borrowing_base"] == {"amount": "100000.00", "currency": "USD"}
     assert payload["internal_risk_capacity"] == {"amount": "90000.00", "currency": "USD"}
     assert payload["cbb_output_digest"] == "sha256:" + "a" * 64
-    assert payload["hedge_liquidity"]["stage"] == "hedge_liquidity"
-    assert payload["scenario"]["stage"] == "scenario_capacity"
+    assert "hedge_liquidity" not in payload
+    assert "scenario" not in payload
+    assert payload["hedge_liquidity_summary"] == {
+        "stage_output_id": "out_hedge",
+        "snapshot_id": SNAPSHOT_ID,
+        "stage": "hedge_liquidity",
+        "stage_version": "s5-1",
+        "input_digests": ["sha256:" + "f" * 64],
+        "policy_bundle_digest": "sha256:" + "d" * 64,
+        "computation_bundle_digest": "sha256:" + "f" * 64,
+        "output_digest": "sha256:" + "b" * 64,
+        "completed_at": NOW.isoformat().replace("+00:00", "Z"),
+        "reason_codes": ["MARGIN_STRESS"],
+        "net_price_exposure": "71019.428",
+        "exposure_unit": "kilogram",
+        "hedge_ratio": "0.58",
+        "liquidity_coverage_ratio": "2.50",
+        "margin_call_shortfall": {"amount": "0.00", "currency": "USD"},
+    }
+    assert payload["scenario_capacity_summary"] == {
+        "stage_output_id": "out_scenario",
+        "snapshot_id": SNAPSHOT_ID,
+        "stage": "scenario_capacity",
+        "stage_version": "s6-1",
+        "input_digests": ["sha256:" + "f" * 64],
+        "policy_bundle_digest": "sha256:" + "d" * 64,
+        "computation_bundle_digest": "sha256:" + "f" * 64,
+        "output_digest": "sha256:" + "c" * 64,
+        "completed_at": NOW.isoformat().replace("+00:00", "Z"),
+        "reason_codes": ["IRC_POLICY_CAP_BINDS"],
+        "scenario_version": "2026.07",
+        "expected_shortfall": {"amount": "18000.00", "currency": "USD"},
+        "cbb_deficiency_probability": "0.10",
+        "margin_liquidity_shortfall_probability": "0.05",
+        "uncapped_irc": {"amount": "68500.00", "currency": "USD"},
+        "governed_irc": {"amount": "68500.00", "currency": "USD"},
+    }
     assert "MARGIN_STRESS" in payload["blockers"]
     assert payload["climate_traceability"]["eudr_evidence_state"] == "review_required"
 
@@ -350,6 +407,33 @@ def test_decision_pack_is_fenced_when_climate_evidence_is_not_published() -> Non
     response = TestClient(_app(include_climate=False)).get(
         f"/api/v1/snapshots/{SNAPSHOT_ID}/decision-pack", headers=ANALYST
     )
+
+    assert response.status_code == 409, response.text
+    assert response.json()["code"] == "STAGE_PUBLICATION_FENCED"
+
+
+def test_decision_pack_is_fenced_when_a_risk_stage_digest_is_not_pinned_to_context() -> None:
+    response = TestClient(
+        _app(
+            decision_context_loader=lambda snapshot_id: replace(
+                _context(snapshot_id), hedge_liquidity_output_digest="sha256:" + "e" * 64
+            )
+        )
+    ).get(f"/api/v1/snapshots/{SNAPSHOT_ID}/decision-pack", headers=ANALYST)
+
+    assert response.status_code == 409, response.text
+    assert response.json()["code"] == "STAGE_PUBLICATION_FENCED"
+
+
+def test_decision_pack_fences_malformed_risk_stage_lineage() -> None:
+    malformed_hedge = deepcopy(_hedge_output(DEMO_SNAPSHOT_ID))
+    assert malformed_hedge is not None
+    malformed_hedge["snapshot_id"] = SNAPSHOT_ID
+    del malformed_hedge["input_digests"]
+
+    response = TestClient(
+        _app(hedge_output_loader=lambda _: malformed_hedge)
+    ).get(f"/api/v1/snapshots/{SNAPSHOT_ID}/decision-pack", headers=ANALYST)
 
     assert response.status_code == 409, response.text
     assert response.json()["code"] == "STAGE_PUBLICATION_FENCED"
@@ -399,6 +483,7 @@ def test_collateral_read_projection_is_typed_paginated_and_retains_stage_lineage
             "advanced_value": {"amount": "70000.00", "currency": "USD"},
         }
     ]
+    assert payload["lineage"]["contractual_borrowing_base_output_digest"] == "sha256:" + "0" * 64
     assert payload["lineage"]["collateral_valuation_output_digest"] == "sha256:" + "1" * 64
     assert payload["lineage"]["eligibility_output_digest"] == "sha256:" + "2" * 64
     assert payload["reason_codes"] == ["INSURANCE_PENDING", "MARGIN_STRESS"]

@@ -316,6 +316,9 @@ export interface CollateralLineageResponse {
   readonly collateral_valuation_output_digest: string;
   readonly collateral_valuation_stage_output_id: string;
   readonly collateral_valuation_stage_version: string;
+  readonly contractual_borrowing_base_output_digest: string;
+  readonly contractual_borrowing_base_stage_output_id: string;
+  readonly contractual_borrowing_base_stage_version: string;
   readonly eligibility_output_digest: string;
   readonly eligibility_stage_output_id: string;
   readonly eligibility_stage_version: string;
@@ -408,8 +411,8 @@ export interface DecisionPackResponse {
   readonly contractual_borrowing_base: MoneyResponse;
   readonly facility_commitment: MoneyResponse;
   readonly final_decision?: GovernanceResourceResponse | null;
-  readonly hedge_liquidity: Record<string, unknown>;
   readonly hedge_liquidity_output_digest: string;
+  readonly hedge_liquidity_summary: HedgeLiquidityCockpitSummaryResponse;
   readonly internal_risk_capacity: MoneyResponse;
   readonly irc_output_digest: string;
   readonly liquidity_cap: MoneyResponse;
@@ -417,7 +420,7 @@ export interface DecisionPackResponse {
   readonly policy_bundle_digest: string;
   readonly policy_caps: readonly MoneyResponse[];
   readonly recommendation?: RecommendationDetailResponse | null;
-  readonly scenario: Record<string, unknown>;
+  readonly scenario_capacity_summary: ScenarioCapacityCockpitSummaryResponse;
   readonly snapshot_id: string;
 }
 
@@ -722,6 +725,24 @@ export interface HedgeLabProjectionResponse {
   readonly stage_output_id: string;
   readonly stage_version: string;
   readonly valuation: HedgeValuationResponse;
+}
+
+export interface HedgeLiquidityCockpitSummaryResponse {
+  readonly completed_at: string;
+  readonly computation_bundle_digest: string;
+  readonly exposure_unit: string;
+  readonly hedge_ratio: string | null;
+  readonly input_digests: readonly string[];
+  readonly liquidity_coverage_ratio: string | null;
+  readonly margin_call_shortfall: MoneyResponse;
+  readonly net_price_exposure: string;
+  readonly output_digest: string;
+  readonly policy_bundle_digest: string;
+  readonly reason_codes: readonly string[];
+  readonly snapshot_id: string;
+  readonly stage: string;
+  readonly stage_output_id: string;
+  readonly stage_version: string;
 }
 
 export interface HedgeLiquidityDemoRequest {
@@ -1113,6 +1134,25 @@ export interface ReportPackageResponse {
   readonly artifacts: readonly ReportArtifactResponse[];
   readonly package_kind: "CURRENT_OFFICIAL" | "HISTORICAL_AUDIT";
   readonly report_model: ReportModelResponse;
+}
+
+export interface ScenarioCapacityCockpitSummaryResponse {
+  readonly cbb_deficiency_probability: string;
+  readonly completed_at: string;
+  readonly computation_bundle_digest: string;
+  readonly expected_shortfall: MoneyResponse;
+  readonly governed_irc: MoneyResponse;
+  readonly input_digests: readonly string[];
+  readonly margin_liquidity_shortfall_probability: string;
+  readonly output_digest: string;
+  readonly policy_bundle_digest: string;
+  readonly reason_codes: readonly string[];
+  readonly scenario_version: string;
+  readonly snapshot_id: string;
+  readonly stage: string;
+  readonly stage_output_id: string;
+  readonly stage_version: string;
+  readonly uncapped_irc: MoneyResponse;
 }
 
 export interface ScenarioCapacityStageOutputResponse {

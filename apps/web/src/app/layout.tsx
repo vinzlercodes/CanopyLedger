@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import "./globals.css";
+import "./responsive-audit.css";
 
 export const metadata: Metadata = {
   title: "CanopyLedger",

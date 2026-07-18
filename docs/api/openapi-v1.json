@@ -1513,6 +1513,18 @@
             "title": "Collateral Valuation Stage Version",
             "type": "string"
           },
+          "contractual_borrowing_base_output_digest": {
+            "title": "Contractual Borrowing Base Output Digest",
+            "type": "string"
+          },
+          "contractual_borrowing_base_stage_output_id": {
+            "title": "Contractual Borrowing Base Stage Output Id",
+            "type": "string"
+          },
+          "contractual_borrowing_base_stage_version": {
+            "title": "Contractual Borrowing Base Stage Version",
+            "type": "string"
+          },
           "eligibility_output_digest": {
             "title": "Eligibility Output Digest",
             "type": "string"
@@ -1527,6 +1539,9 @@
           }
         },
         "required": [
+          "contractual_borrowing_base_stage_output_id",
+          "contractual_borrowing_base_stage_version",
+          "contractual_borrowing_base_output_digest",
           "collateral_valuation_stage_output_id",
           "collateral_valuation_stage_version",
           "collateral_valuation_output_digest",
@@ -1973,14 +1988,12 @@
               }
             ]
           },
-          "hedge_liquidity": {
-            "additionalProperties": true,
-            "title": "Hedge Liquidity",
-            "type": "object"
-          },
           "hedge_liquidity_output_digest": {
             "title": "Hedge Liquidity Output Digest",
             "type": "string"
+          },
+          "hedge_liquidity_summary": {
+            "$ref": "#/components/schemas/HedgeLiquidityCockpitSummaryResponse"
           },
           "internal_risk_capacity": {
             "$ref": "#/components/schemas/MoneyResponse"
@@ -2016,10 +2029,8 @@
               }
             ]
           },
-          "scenario": {
-            "additionalProperties": true,
-            "title": "Scenario",
-            "type": "object"
+          "scenario_capacity_summary": {
+            "$ref": "#/components/schemas/ScenarioCapacityCockpitSummaryResponse"
           },
           "snapshot_id": {
             "title": "Snapshot Id",
@@ -2040,8 +2051,8 @@
           "hedge_liquidity_output_digest",
           "irc_output_digest",
           "policy_bundle_digest",
-          "hedge_liquidity",
-          "scenario",
+          "hedge_liquidity_summary",
+          "scenario_capacity_summary",
           "climate_traceability",
           "blockers"
         ],
@@ -3568,6 +3579,111 @@
           "liquidity"
         ],
         "title": "HedgeLabProjectionResponse",
+        "type": "object"
+      },
+      "HedgeLiquidityCockpitSummaryResponse": {
+        "description": "Compact, typed S5 state for the cockpit; detailed records remain in Hedge Lab.",
+        "properties": {
+          "completed_at": {
+            "format": "date-time",
+            "title": "Completed At",
+            "type": "string"
+          },
+          "computation_bundle_digest": {
+            "title": "Computation Bundle Digest",
+            "type": "string"
+          },
+          "exposure_unit": {
+            "title": "Exposure Unit",
+            "type": "string"
+          },
+          "hedge_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hedge Ratio"
+          },
+          "input_digests": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Input Digests",
+            "type": "array"
+          },
+          "liquidity_coverage_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liquidity Coverage Ratio"
+          },
+          "margin_call_shortfall": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "net_price_exposure": {
+            "title": "Net Price Exposure",
+            "type": "string"
+          },
+          "output_digest": {
+            "title": "Output Digest",
+            "type": "string"
+          },
+          "policy_bundle_digest": {
+            "title": "Policy Bundle Digest",
+            "type": "string"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          },
+          "stage": {
+            "const": "hedge_liquidity",
+            "title": "Stage",
+            "type": "string"
+          },
+          "stage_output_id": {
+            "title": "Stage Output Id",
+            "type": "string"
+          },
+          "stage_version": {
+            "title": "Stage Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage_output_id",
+          "snapshot_id",
+          "stage",
+          "stage_version",
+          "input_digests",
+          "policy_bundle_digest",
+          "computation_bundle_digest",
+          "output_digest",
+          "completed_at",
+          "reason_codes",
+          "net_price_exposure",
+          "exposure_unit",
+          "hedge_ratio",
+          "liquidity_coverage_ratio",
+          "margin_call_shortfall"
+        ],
+        "title": "HedgeLiquidityCockpitSummaryResponse",
         "type": "object"
       },
       "HedgeLiquidityDemoRequest": {
@@ -5713,6 +5829,100 @@
           "artifacts"
         ],
         "title": "ReportPackageResponse",
+        "type": "object"
+      },
+      "ScenarioCapacityCockpitSummaryResponse": {
+        "description": "Compact, typed S6 state for the cockpit; detailed records remain in Scenario Lab.",
+        "properties": {
+          "cbb_deficiency_probability": {
+            "title": "Cbb Deficiency Probability",
+            "type": "string"
+          },
+          "completed_at": {
+            "format": "date-time",
+            "title": "Completed At",
+            "type": "string"
+          },
+          "computation_bundle_digest": {
+            "title": "Computation Bundle Digest",
+            "type": "string"
+          },
+          "expected_shortfall": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "governed_irc": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          },
+          "input_digests": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Input Digests",
+            "type": "array"
+          },
+          "margin_liquidity_shortfall_probability": {
+            "title": "Margin Liquidity Shortfall Probability",
+            "type": "string"
+          },
+          "output_digest": {
+            "title": "Output Digest",
+            "type": "string"
+          },
+          "policy_bundle_digest": {
+            "title": "Policy Bundle Digest",
+            "type": "string"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "scenario_version": {
+            "title": "Scenario Version",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          },
+          "stage": {
+            "const": "scenario_capacity",
+            "title": "Stage",
+            "type": "string"
+          },
+          "stage_output_id": {
+            "title": "Stage Output Id",
+            "type": "string"
+          },
+          "stage_version": {
+            "title": "Stage Version",
+            "type": "string"
+          },
+          "uncapped_irc": {
+            "$ref": "#/components/schemas/MoneyResponse"
+          }
+        },
+        "required": [
+          "stage_output_id",
+          "snapshot_id",
+          "stage",
+          "stage_version",
+          "input_digests",
+          "policy_bundle_digest",
+          "computation_bundle_digest",
+          "output_digest",
+          "completed_at",
+          "reason_codes",
+          "scenario_version",
+          "expected_shortfall",
+          "cbb_deficiency_probability",
+          "margin_liquidity_shortfall_probability",
+          "uncapped_irc",
+          "governed_irc"
+        ],
+        "title": "ScenarioCapacityCockpitSummaryResponse",
         "type": "object"
       },
       "ScenarioCapacityStageOutputResponse": {
