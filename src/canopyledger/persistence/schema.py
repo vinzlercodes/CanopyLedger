@@ -215,6 +215,11 @@ candidate_fact = Table(
     ),
     schema=SCHEMA,
 )
+Index(
+    "ix_candidate_fact_review_order",
+    candidate_fact.c.extracted_at.desc(),
+    candidate_fact.c.resource_id.desc(),
+)
 
 approved_fact = Table(
     "approved_fact",
@@ -391,6 +396,11 @@ candidate_fact_extraction = Table(
     ),
     Column("confidence", String(16), nullable=False),
     schema=SCHEMA,
+)
+Index(
+    "ix_candidate_fact_extraction_extraction_candidate",
+    candidate_fact_extraction.c.extraction_id,
+    candidate_fact_extraction.c.candidate_fact_id,
 )
 
 analytics_query_run = Table(
@@ -678,6 +688,7 @@ pipeline_stage_output = Table(
     ),
     schema=SCHEMA,
 )
+Index("ix_pipeline_stage_output_snapshot", pipeline_stage_output.c.snapshot_id)
 
 internal_risk_capacity_assessment = Table(
     "internal_risk_capacity_assessment",
@@ -916,6 +927,12 @@ report_model = Table(
         "package_kind IN ('CURRENT_OFFICIAL', 'HISTORICAL_AUDIT')", name="known_report_kind"
     ),
     schema=SCHEMA,
+)
+Index(
+    "ix_report_model_decision_created",
+    report_model.c.decision_id,
+    report_model.c.created_at,
+    report_model.c.resource_id,
 )
 
 report_artifact = Table(

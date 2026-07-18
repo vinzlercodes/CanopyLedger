@@ -51,7 +51,7 @@ after(async () => {
 
 test("authorized M4B workspaces render server-issued projections and forward identity", async () => {
   const pages = [
-    ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/cockpit", analystToken, ["Governed capacity, never browser-calculated", "Facility commitment", "Current exposure", "Liquidity cap", "Climate &amp; Traceability evidence", "review required"]],
+    ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/cockpit", analystToken, ["Governed capacity, never browser-calculated", "Facility commitment", "Current exposure", "Liquidity cap", "Climate &amp; Traceability evidence", "review required", "Hedge &amp; liquidity · S5", "Scenario &amp; IRC · S6", "Input digests", "Policy bundle", "Computation bundle", "Inspect canonical JSON", "View canonical JSON", "Download canonical JSON", "Open Hedge Lab — published S5 details", "Open Scenario Lab — published S6 details"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/collateral?section=inventory", analystToken, ["Inventory lots"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/evidence", analystToken, ["Candidate facts await human review", "Ingest a known document", "Ingest and extract", "Extraction never approves a fact"]],
     ["/facilities/" + facilityId + "/snapshots/" + snapshotId + "/evidence/cf_1", analystToken, ["Safe text rendition", "Warehouse receipt", "Extractor confidence", "Download original attachment"]],
@@ -69,6 +69,11 @@ test("authorized M4B workspaces render server-issued projections and forward ide
     assert.equal(response.status, 200);
     const body = await response.text();
     for (const text of expected) assert.match(body, new RegExp(text));
+    if (path.endsWith("/cockpit")) {
+      assert.doesNotMatch(body, /Hedge liquidity projection/);
+      assert.doesNotMatch(body, /Scenario projection/);
+      assert.doesNotMatch(body, /projection-json/);
+    }
   }
 
   assert.ok(fixture.requests.some((request) => request.path.endsWith("/decision-pack") && request.authorization === analystToken));
@@ -142,6 +147,57 @@ test("local demo sign-in keeps the bearer token server-side and forwards the sel
   assert.doesNotMatch(body, /analyst-demo-token/);
 });
 
+test("canonical stage JSON uses a same-origin authorized no-store proxy", async () => {
+  const stagePath = "/api/stage-outputs/" + snapshotId + "/hedge-liquidity";
+  const inspection = await fetch(nextOrigin + stagePath, { headers: { Authorization: analystToken } });
+
+  assert.equal(inspection.status, 200);
+  assert.match(inspection.headers.get("content-type") ?? "", /^application\/json/);
+  assert.equal(inspection.headers.get("cache-control"), "no-store");
+  assert.equal(inspection.headers.get("x-content-type-options"), "nosniff");
+  assert.deepEqual(await inspection.json(), canonicalHedge());
+  assert.ok(fixture.requests.some((request) => request.path.endsWith("/hedge-liquidity") && request.authorization === analystToken));
+
+  const download = await fetch(nextOrigin + stagePath + "?download=1", { headers: { Authorization: analystToken } });
+  assert.equal(download.status, 200);
+  assert.match(download.headers.get("content-disposition") ?? "", /^attachment;/);
+});
+
+test("canonical stage JSON preserves cookie-backed authorization and fails closed for invalid routes", async () => {
+  const signIn = await fetch(nextOrigin + "/api/session/demo", {
+    method: "POST",
+    redirect: "manual",
+    headers: { Origin: nextOrigin, "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ role: "analyst", returnTo: "/" }),
+  });
+  assert.equal(signIn.status, 303);
+  const cookie = signIn.headers.get("set-cookie");
+  assert.ok(cookie);
+  const cookieHeader = cookie.split(";", 1)[0];
+
+  const scenario = await fetch(nextOrigin + "/api/stage-outputs/" + snapshotId + "/scenarios", { headers: { Cookie: cookieHeader } });
+  assert.equal(scenario.status, 200);
+  assert.deepEqual(await scenario.json(), canonicalScenario());
+  assert.ok(fixture.requests.some((request) => request.path.endsWith("/scenarios") && request.authorization === analystToken));
+
+  const download = await fetch(nextOrigin + "/api/stage-outputs/" + snapshotId + "/hedge-liquidity?download=1", { headers: { Cookie: cookieHeader } });
+  assert.equal(download.status, 200);
+  assert.match(download.headers.get("content-disposition") ?? "", /^attachment;/);
+  assert.deepEqual(await download.json(), canonicalHedge());
+
+  const requestCount = fixture.requests.length;
+  for (const path of ["/api/stage-outputs/not-a-snapshot/hedge-liquidity", "/api/stage-outputs/" + snapshotId + "/unknown"]) {
+    const invalid = await fetch(nextOrigin + path, { headers: { Cookie: cookieHeader } });
+    assert.equal(invalid.status, 404);
+    assert.equal(invalid.headers.get("cache-control"), "no-store");
+  }
+  assert.equal(fixture.requests.length, requestCount);
+
+  const unauthenticated = await fetch(nextOrigin + "/api/stage-outputs/" + snapshotId + "/hedge-liquidity");
+  assert.equal(unauthenticated.status, 401);
+  assert.equal(unauthenticated.headers.get("cache-control"), "no-store");
+});
+
 async function startFixtureApi(): Promise<FixtureApi> {
   const requests: Array<{ readonly authorization: string | undefined; readonly path: string }> = [];
   const server = createServer((request, response) => {
@@ -179,6 +235,8 @@ function fixtureBody(path: string): Record<string, unknown> {
   if (path === "/api/v1/evidence/documents/docv_1/rendition") return { document_version_id: "docv_1", filename: "receipt.txt", content_type: "text/plain", byte_digest: "sha256:fixture", preview_status: "available", preview_text: "Warehouse receipt\nLot KC-01", truncated: false };
   if (path.endsWith("/hedge-lab")) return hedgeLab();
   if (path.endsWith("/scenario-lab")) return scenarioLab();
+  if (path.endsWith("/hedge-liquidity")) return canonicalHedge();
+  if (path.endsWith("/scenarios")) return canonicalScenario();
   if (path.endsWith("/climate-traceability")) return climateTraceability();
   if (path === "/api/v1/agent-capabilities") return { items: [] };
   if (path.endsWith("/agent-runs")) return { items: [] };
@@ -186,6 +244,42 @@ function fixtureBody(path: string): Record<string, unknown> {
   if (path.endsWith("/override-requests")) return { items: [] };
   if (path.endsWith("/governance-timeline")) return { snapshot_id: snapshotId, items: [] };
   throw new Error("Unexpected fixture API route: " + path);
+}
+
+function canonicalHedge(): Record<string, unknown> {
+  return {
+    stage_output_id: "out_hedge",
+    snapshot_id: snapshotId,
+    stage: "hedge_liquidity",
+    stage_version: "s5-1",
+    input_digests: ["sha256:input"],
+    policy_bundle_digest: "sha256:policy",
+    computation_bundle_digest: "sha256:computation",
+    result: { canonical: "hedge" },
+    warnings: [],
+    reason_codes: ["MARGIN_STRESS"],
+    started_at: "2026-07-13T00:00:00Z",
+    completed_at: "2026-07-13T00:00:00Z",
+    output_digest: "sha256:hedge",
+  };
+}
+
+function canonicalScenario(): Record<string, unknown> {
+  return {
+    stage_output_id: "out_scenario",
+    snapshot_id: snapshotId,
+    stage: "scenario_capacity",
+    stage_version: "s6-1",
+    input_digests: ["sha256:input"],
+    policy_bundle_digest: "sha256:policy",
+    computation_bundle_digest: "sha256:computation",
+    scenario: { canonical: "scenario" },
+    internal_risk_capacity: { currency: "USD" },
+    reason_codes: ["IRC_POLICY_CAP_BINDS"],
+    started_at: "2026-07-13T00:00:00Z",
+    completed_at: "2026-07-13T00:00:00Z",
+    output_digest: "sha256:scenario",
+  };
 }
 
 function decisionPack(): Record<string, unknown> {
@@ -204,8 +298,8 @@ function decisionPack(): Record<string, unknown> {
     hedge_liquidity_output_digest: "sha256:hedge",
     irc_output_digest: "sha256:scenario",
     policy_bundle_digest: "sha256:policy",
-    hedge_liquidity: { liquidity_coverage_ratio: "1.12" },
-    scenario: { expected_shortfall: "12000.00" },
+    hedge_liquidity_summary: { stage_output_id: "out_hedge", snapshot_id: snapshotId, stage: "hedge_liquidity", stage_version: "s5-1", input_digests: ["sha256:input"], policy_bundle_digest: "sha256:policy", computation_bundle_digest: "sha256:computation", output_digest: "sha256:hedge", completed_at: "2026-07-13T00:00:00Z", reason_codes: ["MARGIN_STRESS"], net_price_exposure: "71019.428", exposure_unit: "kilogram", hedge_ratio: "0.58", liquidity_coverage_ratio: "2.50", margin_call_shortfall: money("0.00") },
+    scenario_capacity_summary: { stage_output_id: "out_scenario", snapshot_id: snapshotId, stage: "scenario_capacity", stage_version: "s6-1", input_digests: ["sha256:input"], policy_bundle_digest: "sha256:policy", computation_bundle_digest: "sha256:computation", output_digest: "sha256:scenario", completed_at: "2026-07-13T00:00:00Z", reason_codes: ["IRC_POLICY_CAP_BINDS"], scenario_version: "2026.07", expected_shortfall: money("18000.00"), cbb_deficiency_probability: "0.10", margin_liquidity_shortfall_probability: "0.05", uncapped_irc: money("68500.00"), governed_irc: money("68500.00") },
     climate_traceability: {
       stage_output_id: "out_climate",
       output_digest: "sha256:climate",

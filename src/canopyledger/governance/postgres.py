@@ -149,11 +149,16 @@ class PostgresGovernanceService:
                 .all()
             )
         outputs: dict[str, object] = {}
-        wanted = {"collateral_valuation", "eligibility_and_reserves"}
+        wanted = {
+            "collateral_valuation",
+            "eligibility_and_reserves",
+            "contractual_borrowing_base",
+        }
         for row in rows:
             payload = json.loads(bytes(row["canonical_output"]))
             stage = payload.get("stage") if isinstance(payload, dict) else None
             if stage in wanted:
+                payload["output_digest"] = str(row["output_digest"])
                 outputs[str(stage)] = payload
         return outputs or None
 

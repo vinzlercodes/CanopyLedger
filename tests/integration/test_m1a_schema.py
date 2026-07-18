@@ -67,6 +67,40 @@ def test_alembic_upgrade_creates_complete_m1a_resource_schema(
     assert {row.tablename for row in rows} == EXPECTED_TABLES
 
 
+def test_audited_query_indexes_are_present_with_their_query_order(connection: Connection) -> None:
+    rows = connection.execute(
+        text(
+            """
+            SELECT indexname, indexdef
+            FROM pg_indexes
+            WHERE schemaname = 'canopyledger'
+              AND indexname IN (
+                  'ix_pipeline_stage_output_snapshot',
+                  'ix_candidate_fact_review_order',
+                  'ix_candidate_fact_extraction_extraction_candidate',
+                  'ix_report_model_decision_created'
+              )
+            """
+        )
+    )
+    indexes = {row.indexname: row.indexdef for row in rows}
+
+    assert indexes.keys() == {
+        "ix_pipeline_stage_output_snapshot",
+        "ix_candidate_fact_review_order",
+        "ix_candidate_fact_extraction_extraction_candidate",
+        "ix_report_model_decision_created",
+    }
+    assert "(snapshot_id)" in indexes["ix_pipeline_stage_output_snapshot"]
+    assert "(extracted_at DESC, resource_id DESC)" in indexes["ix_candidate_fact_review_order"]
+    assert "(extraction_id, candidate_fact_id)" in indexes[
+        "ix_candidate_fact_extraction_extraction_candidate"
+    ]
+    assert "(decision_id, created_at, resource_id)" in indexes[
+        "ix_report_model_decision_created"
+    ]
+
+
 def test_immutable_resources_have_database_update_and_delete_guards(
     connection: Connection,
 ) -> None:
