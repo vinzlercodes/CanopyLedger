@@ -1438,6 +1438,47 @@ class DecisionOverrideQueueResponse(BaseModel):
     items: tuple[DecisionOverrideDetailResponse, ...]
 
 
+class HedgeLiquidityCockpitSummaryResponse(BaseModel):
+    """Compact, typed S5 state for the cockpit; detailed records remain in Hedge Lab."""
+
+    stage_output_id: str
+    snapshot_id: str
+    stage: Literal["hedge_liquidity"]
+    stage_version: str
+    input_digests: tuple[str, ...]
+    policy_bundle_digest: str
+    computation_bundle_digest: str
+    output_digest: str
+    completed_at: datetime
+    reason_codes: tuple[str, ...]
+    net_price_exposure: str
+    exposure_unit: str
+    hedge_ratio: str | None
+    liquidity_coverage_ratio: str | None
+    margin_call_shortfall: MoneyResponse
+
+
+class ScenarioCapacityCockpitSummaryResponse(BaseModel):
+    """Compact, typed S6 state for the cockpit; detailed records remain in Scenario Lab."""
+
+    stage_output_id: str
+    snapshot_id: str
+    stage: Literal["scenario_capacity"]
+    stage_version: str
+    input_digests: tuple[str, ...]
+    policy_bundle_digest: str
+    computation_bundle_digest: str
+    output_digest: str
+    completed_at: datetime
+    reason_codes: tuple[str, ...]
+    scenario_version: str
+    expected_shortfall: MoneyResponse
+    cbb_deficiency_probability: str
+    margin_liquidity_shortfall_probability: str
+    uncapped_irc: MoneyResponse
+    governed_irc: MoneyResponse
+
+
 class DecisionPackResponse(BaseModel):
     snapshot_id: str
     contractual_borrowing_base: MoneyResponse
@@ -1452,8 +1493,8 @@ class DecisionPackResponse(BaseModel):
     hedge_liquidity_output_digest: str
     irc_output_digest: str
     policy_bundle_digest: str
-    hedge_liquidity: dict[str, Any]
-    scenario: dict[str, Any]
+    hedge_liquidity_summary: HedgeLiquidityCockpitSummaryResponse
+    scenario_capacity_summary: ScenarioCapacityCockpitSummaryResponse
     climate_traceability: ClimateTraceabilitySummaryResponse
     blockers: tuple[str, ...]
     recommendation: RecommendationDetailResponse | None = None
@@ -1491,6 +1532,9 @@ class ReportPackageResponse(BaseModel):
 
 
 class CollateralLineageResponse(BaseModel):
+    contractual_borrowing_base_stage_output_id: str
+    contractual_borrowing_base_stage_version: str
+    contractual_borrowing_base_output_digest: str
     collateral_valuation_stage_output_id: str
     collateral_valuation_stage_version: str
     collateral_valuation_output_digest: str
@@ -2736,6 +2780,21 @@ def create_app(
         climate_summary = _climate_traceability_summary_response(
             snapshot_id=snapshot_id, output=climate
         )
+        hedge_summary = _hedge_liquidity_cockpit_summary_response(
+            snapshot_id=snapshot_id, output=hedge
+        )
+        scenario_summary = _scenario_capacity_cockpit_summary_response(
+            snapshot_id=snapshot_id, output=scenario
+        )
+        if (
+            hedge_summary.output_digest != context.hedge_liquidity_output_digest
+            or scenario_summary.output_digest != context.irc_output_digest
+        ):
+            raise _Problem(
+                409,
+                "STAGE_PUBLICATION_FENCED",
+                "Published risk stage output does not match the frozen decision context",
+            )
         decision = governance.get_current_decision(snapshot_id)
         recommendation = governance.get_current_recommendation(snapshot_id)
         return DecisionPackResponse(
@@ -2752,11 +2811,11 @@ def create_app(
             hedge_liquidity_output_digest=context.hedge_liquidity_output_digest,
             irc_output_digest=context.irc_output_digest,
             policy_bundle_digest=context.policy_bundle_digest,
-            hedge_liquidity=hedge,
-            scenario=scenario,
+            hedge_liquidity_summary=hedge_summary,
+            scenario_capacity_summary=scenario_summary,
             climate_traceability=climate_summary,
             blockers=tuple(
-                reason for reason in _reason_summary(hedge, scenario).split(", ") if reason
+                dict.fromkeys((*hedge_summary.reason_codes, *scenario_summary.reason_codes))
             ),
             recommendation=(
                 _recommendation_detail_response(recommendation)
@@ -3945,16 +4004,28 @@ def _collateral_workspace_response(
     try:
         valuation = _collateral_stage(output, "collateral_valuation", snapshot_id)
         eligibility = _collateral_stage(output, "eligibility_and_reserves", snapshot_id)
+        cbb = _collateral_stage(output, "contractual_borrowing_base", snapshot_id)
+        facility_currency = _collateral_currency(cbb)
         inventory = tuple(
             sorted(
-                _collateral_rows(valuation["result"], "inventory", InventoryCollateralRowResponse),
+                _collateral_rows(
+                    valuation["result"],
+                    "inventory",
+                    InventoryCollateralRowResponse,
+                    facility_currency=facility_currency,
+                    money_fields=("gross_market_value", "net_recovery_value", "advanced_value"),
+                ),
                 key=lambda item: item.lot_id,
             )
         )
         receivables = tuple(
             sorted(
                 _collateral_rows(
-                    valuation["result"], "receivables", ReceivableCollateralRowResponse
+                    valuation["result"],
+                    "receivables",
+                    ReceivableCollateralRowResponse,
+                    facility_currency=facility_currency,
+                    money_fields=("open_amount", "facility_value", "advanced_value"),
                 ),
                 key=lambda item: item.receivable_id,
             )
@@ -3962,14 +4033,24 @@ def _collateral_workspace_response(
         contributions = tuple(
             sorted(
                 _collateral_rows(
-                    eligibility["result"], "contributions", CollateralContributionRowResponse
+                    eligibility["result"],
+                    "contributions",
+                    CollateralContributionRowResponse,
+                    facility_currency=facility_currency,
+                    money_fields=("amount",),
                 ),
                 key=lambda item: (item.source_type, item.source_id),
             )
         )
         reserves = tuple(
             sorted(
-                _collateral_rows(eligibility["result"], "reserves", CollateralReserveRowResponse),
+                _collateral_rows(
+                    eligibility["result"],
+                    "reserves",
+                    CollateralReserveRowResponse,
+                    facility_currency=facility_currency,
+                    money_fields=("amount",),
+                ),
                 key=lambda item: item.reserve_type,
             )
         )
@@ -3980,6 +4061,11 @@ def _collateral_workspace_response(
             )
         )
         lineage = CollateralLineageResponse(
+            contractual_borrowing_base_stage_output_id=_collateral_string(
+                cbb, "stage_output_id"
+            ),
+            contractual_borrowing_base_stage_version=_collateral_string(cbb, "stage_version"),
+            contractual_borrowing_base_output_digest=_collateral_string(cbb, "output_digest"),
             collateral_valuation_stage_output_id=_collateral_string(valuation, "stage_output_id"),
             collateral_valuation_stage_version=_collateral_string(valuation, "stage_version"),
             collateral_valuation_output_digest=_collateral_string(valuation, "output_digest"),
@@ -4058,15 +4144,47 @@ def _collateral_stage(output: dict[str, object], stage: str, snapshot_id: str) -
     return value
 
 
+def _collateral_currency(cbb: dict[str, object]) -> str:
+    result = cbb.get("result")
+    value = result.get("currency") if isinstance(result, dict) else None
+    if (
+        not isinstance(value, str)
+        or len(value) != 3
+        or not value.isascii()
+        or not value.isupper()
+        or not value.isalpha()
+    ):
+        raise ValueError("collateral facility currency is invalid")
+    return value
+
+
 def _collateral_rows[RowModel: BaseModel](
-    result: object, field: str, model: type[RowModel]
+    result: object,
+    field: str,
+    model: type[RowModel],
+    *,
+    facility_currency: str | None = None,
+    money_fields: tuple[str, ...] = (),
 ) -> tuple[RowModel, ...]:
     if not isinstance(result, dict):
         raise ValueError("collateral result is missing")
     raw_rows = result.get(field)
     if not isinstance(raw_rows, list):
         raise ValueError("collateral row collection is missing")
-    return tuple(model.model_validate(row) for row in raw_rows)
+    normalized_rows: list[object] = []
+    for row in raw_rows:
+        if not isinstance(row, dict):
+            normalized_rows.append(row)
+            continue
+        normalized = dict(row)
+        for money_field in money_fields:
+            amount = normalized.get(money_field)
+            if isinstance(amount, str):
+                if facility_currency is None:
+                    raise ValueError("collateral money is missing a frozen currency")
+                normalized[money_field] = {"amount": amount, "currency": facility_currency}
+        normalized_rows.append(normalized)
+    return tuple(model.model_validate(row) for row in normalized_rows)
 
 
 def _collateral_page[RowModel: BaseModel](
@@ -4113,6 +4231,8 @@ def _hedge_lab_projection_response(
     try:
         stage = _published_stage(output, snapshot_id, "hedge_liquidity")
         result = _published_mapping(stage, "result")
+        if "assessment" in result:
+            result = _published_mapping(result, "assessment")
         exposure = _published_mapping(result, "exposure")
         valuation = _published_mapping(result, "valuation")
         liquidity = _published_mapping(result, "liquidity")
@@ -4244,6 +4364,8 @@ def _scenario_lab_projection_response(
     try:
         stage = _published_stage(output, snapshot_id, "scenario_capacity")
         scenario = _published_mapping(stage, "scenario")
+        if "result" in scenario:
+            scenario = _published_mapping(scenario, "result")
         monte_carlo = _published_mapping(scenario, "monte_carlo")
         threshold = _published_mapping(monte_carlo, "threshold_stability")
         irc = _published_mapping(scenario, "internal_risk_capacity")
@@ -4342,6 +4464,73 @@ def _scenario_lab_projection_response(
                 cbb=_published_money(irc.get("cbb"), currency),
                 facility_commitment=_published_money(irc.get("facility_commitment"), currency),
             ),
+        )
+    except (KeyError, TypeError, ValidationError, ValueError) as exc:
+        raise _Problem(
+            409,
+            "STAGE_PUBLICATION_FENCED",
+            "Published scenario-capacity output is incomplete or has an unsupported schema",
+        ) from exc
+
+
+def _hedge_liquidity_cockpit_summary_response(
+    *, snapshot_id: str, output: dict[str, object]
+) -> HedgeLiquidityCockpitSummaryResponse:
+    """Reuse the typed S5 projection; the cockpit never parses or calculates stage output."""
+    try:
+        projection = _hedge_lab_projection_response(snapshot_id=snapshot_id, output=output)
+        stage = _published_stage(output, snapshot_id, "hedge_liquidity")
+        return HedgeLiquidityCockpitSummaryResponse(
+            stage_output_id=projection.stage_output_id,
+            snapshot_id=projection.snapshot_id,
+            stage=projection.stage,
+            stage_version=projection.stage_version,
+            input_digests=tuple(_published_strings(stage, "input_digests")),
+            policy_bundle_digest=_published_string(stage, "policy_bundle_digest"),
+            computation_bundle_digest=_published_string(stage, "computation_bundle_digest"),
+            output_digest=projection.output_digest,
+            completed_at=projection.completed_at,
+            reason_codes=projection.reason_codes,
+            net_price_exposure=projection.exposure.net_price_exposure,
+            exposure_unit=projection.exposure.exposure_unit,
+            hedge_ratio=projection.exposure.hedge_ratio,
+            liquidity_coverage_ratio=projection.liquidity.liquidity_coverage_ratio,
+            margin_call_shortfall=projection.liquidity.margin_call_shortfall,
+        )
+    except (KeyError, TypeError, ValidationError, ValueError) as exc:
+        raise _Problem(
+            409,
+            "STAGE_PUBLICATION_FENCED",
+            "Published hedge/liquidity output is incomplete or has an unsupported schema",
+        ) from exc
+
+
+def _scenario_capacity_cockpit_summary_response(
+    *, snapshot_id: str, output: dict[str, object]
+) -> ScenarioCapacityCockpitSummaryResponse:
+    """Reuse the typed S6 projection; the cockpit never parses or calculates stage output."""
+    try:
+        projection = _scenario_lab_projection_response(snapshot_id=snapshot_id, output=output)
+        stage = _published_stage(output, snapshot_id, "scenario_capacity")
+        return ScenarioCapacityCockpitSummaryResponse(
+            stage_output_id=projection.stage_output_id,
+            snapshot_id=projection.snapshot_id,
+            stage=projection.stage,
+            stage_version=projection.stage_version,
+            input_digests=tuple(_published_strings(stage, "input_digests")),
+            policy_bundle_digest=_published_string(stage, "policy_bundle_digest"),
+            computation_bundle_digest=_published_string(stage, "computation_bundle_digest"),
+            output_digest=projection.output_digest,
+            completed_at=projection.completed_at,
+            reason_codes=projection.reason_codes,
+            scenario_version=projection.scenario_version,
+            expected_shortfall=projection.monte_carlo.expected_shortfall,
+            cbb_deficiency_probability=projection.monte_carlo.cbb_deficiency_probability,
+            margin_liquidity_shortfall_probability=(
+                projection.monte_carlo.margin_liquidity_shortfall_probability
+            ),
+            uncapped_irc=projection.internal_risk_capacity.uncapped_irc,
+            governed_irc=projection.internal_risk_capacity.irc,
         )
     except (KeyError, TypeError, ValidationError, ValueError) as exc:
         raise _Problem(
