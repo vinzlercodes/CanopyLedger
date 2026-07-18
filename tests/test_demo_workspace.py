@@ -120,7 +120,13 @@ def test_seeded_decision_pack_surfaces_evidence_readiness_without_a_legal_conclu
     )
 
     assert response.status_code == 200, response.text
-    climate = response.json()["climate_traceability"]
+    payload = response.json()
+    for summary_key in ("hedge_liquidity_summary", "scenario_capacity_summary"):
+        summary = payload[summary_key]
+        assert summary["input_digests"]
+        assert summary["policy_bundle_digest"] == "sha256:" + "d" * 64
+        assert summary["computation_bundle_digest"] == "sha256:" + "f" * 64
+    climate = payload["climate_traceability"]
     assert climate["eudr_evidence_state"] == "review_required"
     assert climate["legal_interpretation_bundle_digest"] == "sha256:" + "c" * 64
     assert "compliant" not in str(climate).lower()

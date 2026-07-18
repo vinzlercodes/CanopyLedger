@@ -129,6 +129,14 @@ def _collateral_output(snapshot_id: str) -> dict[str, object] | None:
     if snapshot_id != SNAPSHOT_ID:
         return None
     return {
+        "contractual_borrowing_base": {
+            "stage_output_id": "out_cbb",
+            "snapshot_id": SNAPSHOT_ID,
+            "stage": "contractual_borrowing_base",
+            "stage_version": "m1b-1",
+            "output_digest": "sha256:" + "0" * 64,
+            "result": {"currency": "USD"},
+        },
         "collateral_valuation": {
             "stage_output_id": "out_collateral",
             "snapshot_id": SNAPSHOT_ID,
@@ -206,6 +214,9 @@ def _hedge_output(snapshot_id: str) -> dict[str, object] | None:
         "snapshot_id": SNAPSHOT_ID,
         "stage": "hedge_liquidity",
         "stage_version": "s5-1",
+        "input_digests": ["sha256:" + "e" * 64],
+        "policy_bundle_digest": "sha256:" + "d" * 64,
+        "computation_bundle_digest": "sha256:" + "f" * 64,
         "output_digest": "sha256:" + "b" * 64,
         "reason_codes": ["MARGIN_STRESS"],
         "completed_at": NOW.isoformat(),
@@ -424,6 +435,9 @@ def _scenario_output(snapshot_id: str) -> dict[str, object] | None:
         "snapshot_id": SNAPSHOT_ID,
         "stage": "scenario_capacity",
         "stage_version": "s6-1",
+        "input_digests": ["sha256:" + "e" * 64],
+        "policy_bundle_digest": "sha256:" + "d" * 64,
+        "computation_bundle_digest": "sha256:" + "f" * 64,
         "output_digest": "sha256:" + "c" * 64,
         "reason_codes": ["IRC_POLICY_CAP_BINDS"],
         "completed_at": NOW.isoformat(),
