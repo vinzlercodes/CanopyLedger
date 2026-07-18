@@ -43,7 +43,7 @@ document-extraction-benchmark:
 	uv run python scripts/run_document_extraction_benchmark.py
 
 demo:
-	uv run python scripts/run_demo.py
+	uv run python scripts/run_demo.py $(DEMO_ARGS)
 
 demo-verify:
 	uv run python scripts/run_demo.py --no-serve
