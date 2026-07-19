@@ -8,7 +8,7 @@ market inputs, hedges, scenarios, climate and traceability evidence, and human a
 auditable decision record.
 
 The project exists to demonstrate a safer decisioning pattern: calculations are reproducible,
-evidence is reviewable, and an authorized person—not an automated system—makes the final decision.
+evidence is reviewable, and an authorized person, not an automated system, makes the final decision.
 It is intended for learning, prototyping, and integration design. All bundled data is synthetic;
 do not use the reference application with real borrower, farmer, customer, market, credential, or
 regulated production data.
@@ -40,11 +40,21 @@ CanopyLedger keeps several concepts deliberately separate:
 The browser displays API-provided results and lineage. It does not calculate authoritative
 financial values or create official reports from client state.
 
+## Terms used here
+
+- A **facility** is the lending agreement being reviewed.
+- **Collateral** is the inventory or receivables that support that facility.
+- The **borrowing base** is the contractual value of eligible collateral after agreed limits and reserves.
+- **CBB** is that contractual borrowing base. **IRC** is a separate internal risk view.
+- A **snapshot** is a frozen copy of the inputs used for one review.
+- Money is returned as strings, such as `"120000.00"`, so clients do not lose decimal precision.
+
 ## Architecture
 
 ```text
 Next.js web app
-  Cockpit · Collateral · Evidence · Hedge · Scenarios · Climate · Approvals · Reports
+  Cockpit · Collateral · Evidence · Hedge · Scenarios · Climate · Credit
+  Analytics · Agents · Approvals · Reports
                                       |
                                  HTTPS / JSON
                                       |
@@ -62,7 +72,7 @@ Alembic migrations, and the integration suite.
 
 ### Prerequisites
 
-- Python 3.12–3.14
+- Python 3.12 through 3.14
 - [uv](https://docs.astral.sh/uv/)
 - Node.js 20 or later and npm
 - Docker, only for the complete disposable PostgreSQL/PostGIS demonstration and integration gate
@@ -93,11 +103,35 @@ Use `make demo-verify` when you want the same end-to-end workflow and report ver
 starting the web servers. See the [demo guide](DEMO.md) for a click-by-click walkthrough, direct API
 examples, expected synthetic results, and known limits of the demo.
 
+### Choose your path
+
+| Goal | Start here |
+|---|---|
+| See both user roles in a populated UI | [Demo walkthrough](DEMO.md#8-detailed-ui-walkthrough) |
+| Learn the project from installation to a first contribution | [Getting started and onboarding](docs/ONBOARDING.md) |
+| Call the API or use generated client types | [API and client](#api-and-client) |
+| Understand the non-negotiable safeguards | [Key safeguards](#key-safeguards) and [contracts](docs/contracts/) |
+
+### How a decision moves through the system
+
+```text
+Working facility → frozen snapshot → governed calculations → recommendation
+                                                    ↓                 ↓
+                                      evidence reviewed by a human   independent approval
+                                                                      ↓
+                                                           final decision → immutable report
+```
+
+The snapshot is the boundary that makes a review reproducible. CBB remains the contractual
+collateral result; IRC remains a separate internal risk view. Candidate evidence, recommendations,
+analytics, and agents never become final authority on their own.
+
 ## Run the application locally
 
 Start the API in one terminal:
 
 ```bash
+CANOPYLEDGER_DEMO_AUTH_ENABLED=true \
 uv run uvicorn canopyledger.api.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
@@ -125,8 +159,9 @@ npm --prefix apps/web run dev
 ```
 
 Open <http://127.0.0.1:3000/sign-in>. The demo roles and tokens are public synthetic fixtures, not
-an authentication design. The web server forwards the selected synthetic identity to FastAPI, where
-authorization remains enforced.
+an authentication design. They are disabled by default and may be enabled only for a loopback,
+synthetic demonstration. Do not expose this API to a network or connect it to real data. The web
+server forwards the selected synthetic identity to FastAPI, where authorization remains enforced.
 
 ## Reports
 
@@ -184,15 +219,16 @@ the PostgreSQL-marked tests, then removes the database.
 
 ## Documentation
 
-- [Demo guide](DEMO.md) — install, API, UI, and report-package walkthrough.
-- [Reporting guide](docs/reporting.md) — report lifecycle, artifacts, and reproducibility.
-- [Synthetic data card](docs/data-card.md) — what the bundled fixtures are and are not.
-- [API contract](docs/api/openapi-v1.json) — versioned OpenAPI document.
-- [Contributing guide](CONTRIBUTING.md) — development setup and contribution expectations.
-- [Code of conduct](CODE_OF_CONDUCT.md) — expectations for a respectful community.
-- [Support](SUPPORT.md) — where to get help and what to include in a question.
-- [Security policy](SECURITY.md) — reporting a vulnerability and handling sensitive data.
-- [Release notes](docs/releases/v0.1.0.md) — changes in the first public release.
+- [Getting started and onboarding](docs/ONBOARDING.md): choose a demo, integration, or contribution path and learn the core business flow.
+- [Demo guide](DEMO.md): install, API, UI, and report-package walkthrough.
+- [Reporting guide](docs/reporting.md): report lifecycle, artifacts, and reproducibility.
+- [Synthetic data card](docs/data-card.md): what the bundled fixtures are and are not.
+- [API contract](docs/api/openapi-v1.json): versioned OpenAPI document.
+- [Contributing guide](CONTRIBUTING.md): development setup and contribution expectations.
+- [Code of conduct](CODE_OF_CONDUCT.md): expectations for a respectful community.
+- [Support](SUPPORT.md): where to get help and what to include in a question.
+- [Security policy](SECURITY.md): reporting a vulnerability and handling sensitive data.
+- [Changelog](CHANGELOG.md): changes on the default branch and historical releases.
 
 ## Repository layout
 
@@ -213,6 +249,7 @@ CanopyLedger is not a core-banking system, market-data terminal, trading platfor
 service, or autonomous credit engine. Climate and traceability output describes evidence readiness;
 it does not certify legal compliance or deforestation-free status. The project has no production
 identity-provider, secrets-management, operational-monitoring, or regulatory deployment setup.
+It must not be exposed to a network or used with real data.
 
 ## Contributing and security
 

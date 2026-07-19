@@ -8,7 +8,9 @@ The canonical one-command path is `make demo`. It runs only synthetic data throu
 PostgreSQL/PostGIS pipeline and starts the API and web app. Climate & Traceability reports evidence
 readiness only; it never certifies legal compliance or deforestation-free status.
 
-All examples use synthetic fixture data and intentionally non-secret demo tokens.
+All examples use synthetic fixture data and intentionally non-secret demo tokens. Enable demo
+authentication only on your own loopback machine. Do not expose either demo API to a network or use
+it with real data.
 
 ## 1. Install and verify the checkout
 
@@ -36,7 +38,8 @@ npm --prefix apps/web run test:e2e
 CANOPYLEDGER_NEXT_DIST_DIR=.next-e2e npm --prefix apps/web run build
 ```
 
-Expected result: linting and typing pass; the Python suite passes while PostgreSQL-marked tests are skipped if `DATABASE_URL` is absent; TypeScript contracts pass 14 tests; the web suite passes 14 unit tests and 5 end-to-end tests.
+Expected result: linting, typing, and all local test suites pass. PostgreSQL-marked tests are skipped
+when `DATABASE_URL` is absent. CI records the current test counts.
 
 The web SSR test is the most complete runnable UI demo. It starts a fixture API and a real Next.js server, then verifies bearer forwarding and all seven snapshot workspaces:
 
@@ -53,6 +56,7 @@ The web SSR test is the most complete runnable UI demo. It starts a fixture API 
 In terminal A, start the in-memory FastAPI application:
 
 ```bash
+CANOPYLEDGER_DEMO_AUTH_ENABLED=true \
 uv run uvicorn canopyledger.api.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
@@ -249,7 +253,11 @@ For the complete populated UI walkthrough, stop any existing API process on port
 uv run uvicorn canopyledger.demo.workspace:create_demo_app --factory --host 127.0.0.1 --port 8000
 ```
 
-It serves one immutable synthetic facility and one frozen snapshot through the real FastAPI handlers. It also creates a pending approval request: analyst reads are allowed, while approval-queue and approval actions remain credit-approver-only. Its projections are deliberately checked-in fixtures, not a substitute for the PostgreSQL-backed pipeline or official report package.
+It serves one immutable synthetic facility and one frozen snapshot through the real FastAPI handlers.
+It also creates a pending approval request: analyst reads are allowed, while approval-queue and
+approval actions remain credit-approver-only. Its projections are deliberately checked-in fixtures,
+not a substitute for the PostgreSQL-backed pipeline or official report package. This factory enables
+synthetic demo authentication itself. Keep it on loopback and do not use real data.
 
 Use these exact values in the context picker after signing in:
 
@@ -270,7 +278,10 @@ CANOPYLEDGER_DEMO_SESSION_SECRET="$CANOPYLEDGER_DEMO_SESSION_SECRET" \
 npm --prefix apps/web run dev
 ```
 
-Open <http://127.0.0.1:3000/sign-in>. Use the same host consistently—do not switch between `127.0.0.1` and `localhost`—because the local browser session is host-only. The root page shows the responsive application shell, facility/snapshot context picker, all seven governed workspaces, and the authority vocabulary. The next section gives the exact click-by-click walkthrough.
+Open <http://127.0.0.1:3000/sign-in>. Use the same host consistently. Do not switch between
+`127.0.0.1` and `localhost`, because the local browser session is host-only. The root page shows the
+responsive application shell, facility/snapshot context picker, all eleven product workspaces, and the
+authority vocabulary. The next section gives the exact click-by-click walkthrough.
 
 On the sign-in page, read the two role cards before selecting one. **Analyst access** can inspect governed workspaces and review evidence or recommendations, but cannot record final approval or approve its own work. **Approver access** can inspect governed workspaces and act on eligible approval requests; FastAPI still enforces separation of duties, expiry, and no-self-approval. The browser stores only a signed, HttpOnly role session. It never receives a bearer token in a URL, page markup, JavaScript storage, or a browser request header. The Next.js server maps the selected synthetic role to its local bearer header and FastAPI remains the authorization authority.
 
@@ -387,7 +398,7 @@ sorting or pagination. Finish by checking blockers and lineage.
 
 ### 8.7 Review evidence before taking a human action
 
-Select **Evidence**. A queue entry is candidate evidence—not approved evidence.
+Select **Evidence**. A queue entry is candidate evidence, not approved evidence.
 Read its extractor, conflict, and document-lineage details before selecting
 **Open review packet**.
 
@@ -523,7 +534,9 @@ Use this sequence when presenting the system:
 4. Show the scenario/IRC invariant: IRC is separate from and cannot exceed CBB.
 5. Create a recommendation; call out that it is not a final decision.
 6. Approve it with a different actor; demonstrate that an analyst cannot self-approve.
-7. Walk the UI using sections 8.2–8.11, then run the end-to-end UI test to prove the seven authorized workspace contracts and server-side identity forwarding.
+7. Walk the UI using sections 8.2 to 8.11, then run the end-to-end UI test. It covers seven
+   fixture-backed snapshot routes and server-side identity forwarding; it does not cover every product
+   workspace.
 8. State remaining scope honestly: the credit early-warning output is advisory only; document intelligence
 and copilot/agent features remain governed support tooling. Climate/EUDR output remains evidence
 readiness, never a legal-compliance conclusion.
@@ -533,6 +546,7 @@ readiness, never a legal-compliance conclusion.
 | Symptom | Cause and resolution |
 |---|---|
 | `401 UNAUTHENTICATED` | Send one of the synthetic bearer tokens exactly as shown; the demo API accepts no anonymous protected request. |
+| `503 DEMO_AUTH_DISABLED` | Set `CANOPYLEDGER_DEMO_AUTH_ENABLED=true` only for a local synthetic API demonstration, then restart the API. |
 | `403 FORBIDDEN` while approving | Use `approver-demo-token`; the analyst token cannot approve its own recommendation. |
 | `422` on a demo request | Check the OpenAPI schema and preserve decimal values as strings with the required resource prefixes. |
 | UI shows access guidance | Expected while signed out or when `CANOPYLEDGER_DEMO_AUTH_ENABLED` is disabled. Open `/sign-in`, choose a local role, then retry. Use `npm --prefix apps/web run test:e2e` for the fully populated fixture-backed browser journey. |

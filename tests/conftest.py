@@ -1,10 +1,12 @@
-"""Top-level test-suite guardrails."""
+"""Top-level test-suite guardrails and synthetic API configuration."""
 
 from __future__ import annotations
 
 import os
 
 import pytest
+
+os.environ.setdefault("CANOPYLEDGER_DEMO_AUTH_ENABLED", "true")
 
 
 def pytest_configure(config: pytest.Config) -> None:

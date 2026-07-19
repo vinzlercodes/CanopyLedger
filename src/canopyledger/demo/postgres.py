@@ -327,7 +327,11 @@ def create_postgres_demo_app() -> Any:
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         raise RuntimeError("DATABASE_URL is required for the canonical demo API")
-    return create_postgres_app(database_url, clock=lambda: DEMO_NOW)
+    return create_postgres_app(
+        database_url,
+        clock=lambda: DEMO_NOW,
+        demo_auth_enabled=True,
+    )
 
 
 @dataclass(frozen=True)

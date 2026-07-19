@@ -5,6 +5,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import cast
 
+import pytest
 from fastapi.testclient import TestClient
 
 from canopyledger.api.app import FacilityRecord, create_app
@@ -24,6 +25,18 @@ def test_health_is_public() -> None:
     response = client().get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_demo_bearer_tokens_are_disabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("CANOPYLEDGER_DEMO_AUTH_ENABLED", raising=False)
+    response = TestClient(create_app()).post(
+        "/api/v1/cbb-certificates/demo",
+        headers={"Authorization": "Bearer analyst-demo-token"},
+        json={},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["code"] == "DEMO_AUTH_DISABLED"
 
 
 def test_in_memory_app_can_expose_explicit_seeded_facility_and_snapshot() -> None:

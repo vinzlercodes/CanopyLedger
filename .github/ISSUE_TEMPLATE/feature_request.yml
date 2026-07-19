@@ -1,0 +1,19 @@
+name: Feature request
+description: Suggest an improvement to the synthetic reference application.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, real financial data, documents, geolocation, or vulnerability details.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+    validations:
+      required: true

@@ -46,6 +46,7 @@ def create_demo_app() -> FastAPI:
             ),
         ),
         initial_snapshots=(_snapshot_manifest(),),
+        demo_auth_enabled=True,
     )
 
 
