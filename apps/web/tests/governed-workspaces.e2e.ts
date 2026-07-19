@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const facilityId = "fac_0198a000-0000-7000-8000-000000000801";
 const snapshotId = "snp_0198a000-0000-7000-8000-000000000801";
+const sessionSnapshotId = "snp_0198a000-0000-7000-8000-000000000802";
 const analystToken = "Bearer analyst-demo-token";
 const approverToken = "Bearer approver-demo-token";
 
@@ -115,7 +116,7 @@ test("context selection is a server redirect and sign-in explains local role bou
 });
 
 test("local demo sign-in keeps the bearer token server-side and forwards the selected role", async () => {
-  const cockpitPath = "/facilities/" + facilityId + "/snapshots/" + snapshotId + "/cockpit";
+  const cockpitPath = "/facilities/" + facilityId + "/snapshots/" + sessionSnapshotId + "/cockpit";
   const signIn = await fetch(nextOrigin + "/api/session/demo", {
     method: "POST",
     redirect: "manual",
@@ -134,11 +135,17 @@ test("local demo sign-in keeps the bearer token server-side and forwards the sel
   assert.ok(cookie);
   assert.doesNotMatch(cookie, /demo-token/);
 
-  const decisionPackRequests = fixture.requests.filter((request) => request.path.endsWith("/decision-pack") && request.authorization === analystToken).length;
-  const workspace = await fetch(nextOrigin + cockpitPath, { headers: { Cookie: cookie.split(";", 1)[0] } });
+  const cookieHeader = cookie.split(";", 1)[0];
+  const stagePath = "/api/stage-outputs/" + sessionSnapshotId + "/hedge-liquidity";
+  const upstreamStagePath = "/api/v1/snapshots/" + sessionSnapshotId + "/hedge-liquidity";
+  const stageRequests = fixture.requests.filter((request) => request.path === upstreamStagePath && request.authorization === analystToken).length;
+  const stage = await fetch(nextOrigin + stagePath, { headers: { Cookie: cookieHeader } });
+  assert.equal(stage.status, 200);
+  assert.ok(fixture.requests.filter((request) => request.path === upstreamStagePath && request.authorization === analystToken).length >= stageRequests + 1);
+
+  const workspace = await fetch(nextOrigin + cockpitPath, { headers: { Cookie: cookieHeader } });
   assert.equal(workspace.status, 200);
-  assert.ok(fixture.requests.filter((request) => request.path.endsWith("/decision-pack") && request.authorization === analystToken).length >= decisionPackRequests + 1);
-  const signedInPage = await fetch(nextOrigin + "/sign-in", { headers: { Cookie: cookie.split(";", 1)[0] } });
+  const signedInPage = await fetch(nextOrigin + "/sign-in", { headers: { Cookie: cookieHeader } });
   const signedInBody = await signedInPage.text();
   assert.match(signedInBody, /Current local session:[\s\S]*analyst/);
   assert.doesNotMatch(signedInBody, /analyst-demo-token/);
@@ -227,7 +234,8 @@ async function startFixtureApi(): Promise<FixtureApi> {
 function fixtureBody(path: string): Record<string, unknown> {
   if (path === "/api/v1/facilities/" + facilityId) return { id: facilityId, legal_name: "Fixture Coffee Trader", currency: "USD", facility_commitment: "120000.00", version: 1 };
   if (path === "/api/v1/snapshots/" + snapshotId + "/manifest") return { snapshot_id: snapshotId, facility_id: facilityId };
-  if (path.endsWith("/decision-pack")) return decisionPack();
+  if (path === "/api/v1/snapshots/" + sessionSnapshotId + "/manifest") return { snapshot_id: sessionSnapshotId, facility_id: facilityId };
+  if (path.endsWith("/decision-pack")) return decisionPack(path.includes(sessionSnapshotId) ? sessionSnapshotId : snapshotId);
   if (path.endsWith("/collateral")) return collateral();
   if (path === "/api/v1/evidence/review-queue") return { items: [{ candidate_fact_id: "cf_1", approval_state: "candidate", fact_type: "warehouse_receipt", subject_id: "lot-1", period: "2026-07", normalized_value: "50", document_version_id: "docv_1", document_byte_digest: "sha256:fixture", page_region: "page 1", extraction_method: "human", extractor_version: "1", conflicts: [] }] };
   if (path === "/api/v1/evidence/candidate-facts/cf_1/review") return evidenceReviewPacket();
@@ -282,10 +290,10 @@ function canonicalScenario(): Record<string, unknown> {
   };
 }
 
-function decisionPack(): Record<string, unknown> {
+function decisionPack(decisionSnapshotId = snapshotId): Record<string, unknown> {
   const money = (amount: string) => ({ amount, currency: "USD" });
   return {
-    snapshot_id: snapshotId,
+    snapshot_id: decisionSnapshotId,
     contractual_borrowing_base: money("100000.00"),
     contractual_availability: money("75000.00"),
     internal_risk_capacity: money("90000.00"),

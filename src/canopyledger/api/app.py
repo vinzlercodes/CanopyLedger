@@ -3,6 +3,7 @@
 import base64
 import binascii
 import json
+import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
@@ -1688,9 +1689,15 @@ def create_app(
     decision_context_loader: Callable[[str], DecisionContext] | None = None,
     initial_facilities: tuple[FacilityRecord, ...] = (),
     initial_snapshots: tuple[SnapshotManifest, ...] = (),
+    demo_auth_enabled: bool | None = None,
 ) -> FastAPI:
     """Create an isolated application instance with functional in-memory adapters."""
     app = FastAPI(title="CanopyLedger API", version="1.0.0")
+    demo_auth_is_enabled = (
+        demo_auth_enabled
+        if demo_auth_enabled is not None
+        else os.environ.get("CANOPYLEDGER_DEMO_AUTH_ENABLED", "").lower() == "true"
+    )
     facilities: dict[str, FacilityRecord] = {
         facility.resource_id: facility for facility in initial_facilities
     }
@@ -1778,6 +1785,13 @@ def create_app(
     def current_actor(
         credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
     ) -> str:
+        if not demo_auth_is_enabled:
+            raise _Problem(
+                503,
+                "DEMO_AUTH_DISABLED",
+                "Demo authentication is disabled. "
+                "Enable it only for a local synthetic demonstration.",
+            )
         if credentials is None or credentials.scheme.lower() != "bearer":
             raise _Problem(401, "UNAUTHENTICATED", "Valid demo bearer token required")
         actors = {
@@ -3742,6 +3756,7 @@ def create_postgres_app(
     database_url: str,
     *,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    demo_auth_enabled: bool | None = None,
 ) -> FastAPI:
     """Create production-style API wiring backed by PostgreSQL integrity services."""
     engine = create_engine(database_url)
@@ -3809,6 +3824,7 @@ def create_postgres_app(
         report_service=report_service,
         decision_context_loader=governance.load_authoritative_context,
         agent_store=PostgresAgentRunStore(engine),
+        demo_auth_enabled=demo_auth_enabled,
     )
 
 
@@ -5072,6 +5088,7 @@ def _evidence_review_page(packet: EvidenceReviewPacket) -> HTMLResponse:
   <section>
     <h2>Review Actions</h2>
     <div class="actions">
+      <label>Demo bearer token <input id="review-token" type="password" autocomplete="off"></label>
       <button type="button" data-action="approve"
         onclick="submitReview('approve', '{approve_url}')">Approve</button>
       <button type="button" data-action="reject"
@@ -5084,8 +5101,13 @@ def _evidence_review_page(packet: EvidenceReviewPacket) -> HTMLResponse:
 <script>
 async function submitReview(action, url) {{
   const status = document.getElementById("review-status");
+  const token = document.getElementById("review-token").value.trim();
+  if (!token) {{
+    status.textContent = "Enter a local demo bearer token before submitting a review.";
+    return;
+  }}
   const headers = {{
-    "Authorization": "Bearer analyst-demo-token",
+    "Authorization": "Bearer " + token,
     "Content-Type": "application/json"
   }};
   const options = {{ method: "POST", headers, body: "{{}}" }};
