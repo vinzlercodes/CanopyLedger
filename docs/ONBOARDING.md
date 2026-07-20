@@ -71,6 +71,34 @@ Evidence follows the same discipline: document extraction creates candidate fact
 them, and only approved facts can support a required control. Analytics, document intelligence, and
 agents provide governed support; they do not make authoritative calculations or approve decisions.
 
+## Follow the code in a useful order
+
+Use this route after you have completed the demo. It follows the system from its public boundary to
+the durable decision record rather than jumping between features.
+
+1. Read [`README.md`](../README.md) and the role cards in the demo to understand the authority
+   boundaries.
+2. Start at [`src/canopyledger/api/app.py`](../src/canopyledger/api/app.py) to see how FastAPI
+   composes the service, authentication boundary, and workspace projections.
+3. Continue with [`src/canopyledger/integrity/`](../src/canopyledger/integrity/) and
+   [`src/canopyledger/domain/`](../src/canopyledger/domain/) for canonical values, snapshots,
+   immutable publication, and replay.
+4. Trace the contractual path through
+   [`borrowing_base/`](../src/canopyledger/borrowing_base/),
+   [`collateral/`](../src/canopyledger/collateral/), and
+   [`receivables/`](../src/canopyledger/receivables/). This is the only path that produces CBB.
+5. Read [`hedge/`](../src/canopyledger/hedge/), [`scenario/`](../src/canopyledger/scenario/),
+   [`credit/`](../src/canopyledger/credit/), and [`climate/`](../src/canopyledger/climate/) as
+   independent risk and evidence-readiness views.
+6. Finish with [`evidence/`](../src/canopyledger/evidence/),
+   [`governance/`](../src/canopyledger/governance/), and
+   [`reporting/`](../src/canopyledger/reporting/) to see how human approval and immutable reports
+   consume frozen context.
+
+This order mirrors the repository's main learning tour: public API, canonical snapshots,
+contractual calculations, independent risk views, evidence and human governance, persistence and
+contracts, then the web workspaces and quality gates.
+
 ## Architecture map
 
 | Area | Start with | Why it matters |
@@ -81,9 +109,26 @@ agents provide governed support; they do not make authoritative calculations or 
 | Browser application | `apps/web/src/app/`, `components/`, and `lib/` | Displays server-issued values and keeps authorization on the server. |
 | Contracts and tests | `docs/contracts/`, `tests/`, and `apps/web/tests/` | States the safeguards and proves them across API, database, and browser flows. |
 
-The highest-risk areas to change are the snapshot/integrity workflow, calculations, evidence review,
-governance, reporting, and their PostgreSQL adapters. Read the relevant contract before modifying a
-behavioral rule.
+### Complexity hotspots
+
+Approach these areas slowly and with their contracts and tests open:
+
+- [`application/integrity.py`](../src/canopyledger/application/integrity.py) and
+  [`persistence/postgres.py`](../src/canopyledger/persistence/postgres.py) coordinate immutable
+  snapshots, idempotency, fenced publication, and replay.
+- [`application/evidence.py`](../src/canopyledger/application/evidence.py),
+  [`evidence/controls.py`](../src/canopyledger/evidence/controls.py), and
+  [`governance/core.py`](../src/canopyledger/governance/core.py) enforce human-review,
+  supersession, separation-of-duties, and final-decision rules.
+- The hedge, scenario, credit, climate, and document-intelligence engines contain bounded but
+  substantial domain logic; their outputs remain advisory or independently governed where the
+  contracts say so.
+- [`analytics/copilot.py`](../src/canopyledger/analytics/copilot.py) and
+  [`agents/core.py`](../src/canopyledger/agents/core.py) deliberately constrain SQL, tools,
+  capability resolution, and trace recording. They must not acquire decision authority.
+
+Read the relevant contract before modifying a behavioral rule, and retain snapshot, bundle, digest,
+timestamp, reason-code, and approval-state context in any new API or UI projection.
 
 ## Verify your setup
 

@@ -2,16 +2,15 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
-CanopyLedger is an open-source reference application for making transparent, repeatable
-borrowing-base decisions in coffee trade finance. It brings collateral, receivables, evidence,
-market inputs, hedges, scenarios, climate and traceability evidence, and human approvals into one
-auditable decision record.
+CanopyLedger is an open-source reference application for governed, repeatable borrowing-base
+decisions in coffee trade finance. It brings collateral, receivables, evidence, market inputs,
+hedges, scenarios, climate and traceability evidence, and human approvals into one auditable
+decision record.
 
-The project exists to demonstrate a safer decisioning pattern: calculations are reproducible,
-evidence is reviewable, and an authorized person, not an automated system, makes the final decision.
-It is intended for learning, prototyping, and integration design. All bundled data is synthetic;
-do not use the reference application with real borrower, farmer, customer, market, credential, or
-regulated production data.
+It is for learning, prototyping, and integration design. Calculations are reproducible, evidence is
+reviewable, and an authorized person makes the final decision. All bundled data is synthetic. Do not
+use the reference application with real borrower, farmer, customer, market, credential, or regulated
+production data.
 
 ## What you can do with it
 
@@ -68,6 +67,16 @@ FastAPI service ── snapshots · evidence · governance · reporting read mod
 Local experimentation uses in-memory adapters. The durable path uses PostgreSQL, PostGIS,
 Alembic migrations, and the integration suite.
 
+### Authority boundaries
+
+| Concern | Authoritative owner | Deliberate boundary |
+|---|---|---|
+| Facility data and evidence | Reviewed working state and approved facts | Candidate facts and unresolved critical conflicts cannot satisfy a snapshot requirement. |
+| Review context | Immutable snapshot plus pinned market, policy, legal-interpretation, and computation bundles | Freezing records inputs and lineage; it does not calculate finance or call external services. |
+| Finance calculations | Deterministic Python calculation stages | CBB is contractual; hedge, scenario, credit, climate, and IRC assessments provide separate context. |
+| Decision | Authorized independent human approver | A recommendation is not a final decision; an override preserves the original recommendation. |
+| Presentation | FastAPI read models and the Next.js application | The browser formats server-issued values and lineage but never recomputes official values. |
+
 ## Quick start
 
 ### Prerequisites
@@ -115,16 +124,56 @@ examples, expected synthetic results, and known limits of the demo.
 ### How a decision moves through the system
 
 ```text
-Working facility → frozen snapshot → governed calculations → recommendation
-                                                    ↓                 ↓
-                                      evidence reviewed by a human   independent approval
-                                                                      ↓
-                                                           final decision → immutable report
+Document → candidate fact → human-reviewed approved fact
+                                      │
+Working facility ── freeze ──► immutable snapshot + pinned bundles
+                                      │
+                     deterministic CBB ──► hedge/liquidity, scenarios, IRC,
+                                          credit signal, and climate/traceability evidence state
+                                      │
+                          bounded recommendation ──► independent human decision
+                                                                  │
+                                                     immutable report package
 ```
 
-The snapshot is the boundary that makes a review reproducible. CBB remains the contractual
-collateral result; IRC remains a separate internal risk view. Candidate evidence, recommendations,
-analytics, and agents never become final authority on their own.
+A snapshot carries the inputs and pinned bundles needed to reproduce a review. The system retains
+the uncapped, independent CBB and IRC assessments and records the binding constraint for a
+recommendation. Candidate evidence, recommendations, analytics, and agents do not become final
+authority on their own.
+
+### Business domains
+
+![CanopyLedger business-domain map](docs/assets/canopyledger-domain-dashboard.jpg)
+
+The dashboard map groups the system into five connected business domains:
+
+1. **Facility and snapshot management** turns mutable facility data into an immutable review
+   context, including the market, policy, legal-interpretation, and computation bundles needed for
+   reproducibility.
+2. **Collateral and contractual borrowing base** values inventory and receivables, applies
+   eligibility rules and contractual reserves, and produces CBB without informal risk overlays.
+3. **Risk and traceability assessment** evaluates hedge liquidity, scenarios, IRC, credit
+   early-warning signals, and climate/EUDR evidence readiness as separate, governed assessments.
+4. **Evidence and decision governance** preserves the lifecycle from document-derived candidate
+   facts through human review, recommendation, independent approval, final decision, correction,
+   and override.
+5. **Reporting and governed review** compiles immutable decision packages and exposes bounded
+   analytics and agent-assisted review without granting those assistants financial or approval
+   authority.
+
+### Read the codebase in this order
+
+| Start with | Then trace | What it teaches |
+|---|---|---|
+| [`src/canopyledger/api/app.py`](src/canopyledger/api/app.py) | application models and request/response contracts | How FastAPI composes the service and its governed read models. |
+| [`src/canopyledger/integrity/`](src/canopyledger/integrity/) and [`src/canopyledger/domain/`](src/canopyledger/domain/) | snapshots, canonical values, and money/identifier types | Why frozen inputs, digests, and exact decimals come before calculation. |
+| [`src/canopyledger/borrowing_base/`](src/canopyledger/borrowing_base/), [`collateral/`](src/canopyledger/collateral/), and [`receivables/`](src/canopyledger/receivables/) | valuation, eligibility, reserves, and CBB | The contractual collateral path. |
+| [`src/canopyledger/hedge/`](src/canopyledger/hedge/), [`scenario/`](src/canopyledger/scenario/), [`credit/`](src/canopyledger/credit/), and [`climate/`](src/canopyledger/climate/) | independent risk assessments | How risk context remains distinct from contractual CBB. |
+| [`src/canopyledger/evidence/`](src/canopyledger/evidence/), [`governance/`](src/canopyledger/governance/), and [`reporting/`](src/canopyledger/reporting/) | human review, decisions, and reports | How authority and auditability are preserved after calculation. |
+| [`apps/web/`](apps/web/) and [`docs/contracts/`](docs/contracts/) | UI states, API lineage, and invariants | How the presentation layer consumes the governed backend without becoming a calculation authority. |
+
+For a fuller installation, guided tour, architecture map, and complexity hotspots, see
+[Getting started and onboarding](docs/ONBOARDING.md).
 
 ## Run the application locally
 
